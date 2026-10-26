@@ -1,4 +1,7 @@
-import { regularFileCancellation } from "../filesystem/OwnedRegularFile.js";
+import {
+  regularFileCancellation,
+  RegularFileCleanupFailure,
+} from "../filesystem/OwnedRegularFile.js";
 import {
   AnalysisCleanupLease,
   AnalysisCleanupLeaseGroup,
@@ -85,7 +88,6 @@ import {
   type KunaProjectFileSpan,
 } from "./KunaProjectReader.js";
 import { kunaUnavailable } from "./KunaUnavailable.js";
-import { RegularFileCleanupFailure } from "../filesystem/OwnedRegularFile.js";
 import {
   ArtifactResourceRetryFailure,
   ArtifactResourceScope,
@@ -1495,14 +1497,34 @@ export class KunaSessionClient implements AnalysisClient {
         return err(error);
       }
       const committed = this.#profile?.parameters["kuna_sha256"];
-      if (committed !== undefined && committed !== inspected.value.sha256)
+      const committedCommand = this.#profile?.parameters["kuna_command"];
+      const committedExecutable = this.#profile?.parameters["kuna_executable"];
+      const identityChanged = [
+        [committed, inspected.value.sha256],
+        [committedCommand, inspected.value.configuration.command],
+        [committedExecutable, inspected.value.executable],
+      ].some(
+        ([expected, observed]) =>
+          expected !== undefined && expected !== observed,
+      );
+      if (identityChanged)
         return err(
           new ProviderAdapterError(KUNA_PROVIDER_ID, "health", {
             userMessage:
               "The Kuna executable changed after this target was opened; reopen the target to analyze it with the current executable.",
             diagnostics: {
-              committed_sha256: committed,
+              ...(committed === undefined
+                ? {}
+                : { committed_sha256: committed }),
               observed_sha256: inspected.value.sha256,
+              ...(committedCommand === undefined
+                ? {}
+                : { committed_command: committedCommand }),
+              observed_command: inspected.value.configuration.command,
+              ...(committedExecutable === undefined
+                ? {}
+                : { committed_executable: committedExecutable }),
+              observed_executable: inspected.value.executable,
             },
           }),
         );
@@ -1540,6 +1562,8 @@ export class KunaSessionClient implements AnalysisClient {
     const key = kunaProjectKey({
       targetSha256: this.#target.sha256,
       kunaSha256: installation.sha256,
+      kunaCommand: installation.configuration.command,
+      kunaExecutable: installation.executable,
       kunaVersion: installation.version,
       jobs: installation.configuration.jobs,
     });

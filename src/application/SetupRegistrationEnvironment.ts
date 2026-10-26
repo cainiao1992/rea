@@ -3,6 +3,8 @@ import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 const SELECTED_REGISTRATION_SETTINGS = [
   "GHIDRA_INSTALL_DIR",
+  "GHIDRA_HEADLESS_MAXMEM",
+  "GHIDRA_MAXMEM",
   "JAVA_HOME",
   "HOPPER_LAUNCHER_PATH",
   "REA_ILSPY_CMD_PATH",

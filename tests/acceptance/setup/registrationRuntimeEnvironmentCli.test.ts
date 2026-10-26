@@ -27,6 +27,8 @@ cliTest(
     const selected = {
       HOPPER_LAUNCHER_PATH: join(home, "missing-hopper"),
       GHIDRA_INSTALL_DIR: join(home, "offline-ghidra"),
+      GHIDRA_HEADLESS_MAXMEM: "512M",
+      GHIDRA_MAXMEM: "3G",
       JAVA_HOME: join(home, "offline-jdk"),
       REA_IDA_MCP_CONFIG: join(home, "offline-ida.json"),
       REA_JADX_MCP_JAR: join(home, "offline-jadx.jar"),
@@ -106,6 +108,11 @@ cliTest(
     // A later setup must update a selection rather than retaining the first value.
     selected.REA_OBJDUMP_COMMAND = join(home, "replacement-objdump");
     environment.REA_OBJDUMP_COMMAND = selected.REA_OBJDUMP_COMMAND;
+    // Empty headless heap explicitly selects the lower-priority caller value.
+    selected.GHIDRA_HEADLESS_MAXMEM = "";
+    selected.GHIDRA_MAXMEM = "768M";
+    environment.GHIDRA_HEADLESS_MAXMEM = selected.GHIDRA_HEADLESS_MAXMEM;
+    environment.GHIDRA_MAXMEM = selected.GHIDRA_MAXMEM;
     const updated = await run();
     expect(updated.exitCode, updated.stdout).toBe(0);
     const updatedConfiguration = await readFile(config, "utf8");

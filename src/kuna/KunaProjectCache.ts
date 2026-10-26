@@ -59,7 +59,7 @@ import type {
 import { KUNA_PROVIDER_ID } from "./KunaRelease.js";
 
 /** Bumped whenever the entry layout or manifest meaning changes. */
-const CACHE_LAYOUT = 1;
+const CACHE_LAYOUT = 2;
 
 /** A manifest names five files and their digests; anything larger is not ours. */
 const MANIFEST_MAX_BYTES = 64 * 1024;
@@ -72,6 +72,8 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 export interface KunaProjectKeyInputs {
   readonly targetSha256: string;
   readonly kunaSha256: string;
+  readonly kunaCommand: string;
+  readonly kunaExecutable: string;
   readonly kunaVersion: string;
   /**
    * `--jobs 1` is Kuna's reference answer; more jobs decompile without
@@ -88,6 +90,8 @@ export const kunaProjectKey = (inputs: KunaProjectKeyInputs): string =>
         layout: CACHE_LAYOUT,
         target_sha256: inputs.targetSha256,
         kuna_sha256: inputs.kunaSha256,
+        kuna_command: inputs.kunaCommand,
+        kuna_executable: inputs.kunaExecutable,
         kuna_version: inputs.kunaVersion,
         export: { command: "decompile-project", jobs: inputs.jobs },
       }) ?? "",
@@ -106,6 +110,8 @@ const manifestSchema = z.strictObject({
   inputs: z.strictObject({
     target_sha256: z.string().regex(SHA256_PATTERN),
     kuna_sha256: z.string().regex(SHA256_PATTERN),
+    kuna_command: z.string(),
+    kuna_executable: z.string(),
     kuna_version: z.string().min(1),
     jobs: z.int().positive(),
   }),
@@ -475,6 +481,8 @@ export class KunaProjectCache {
     const key = kunaProjectKey({
       targetSha256: request.targetSha256,
       kunaSha256: request.installation.sha256,
+      kunaCommand: request.installation.configuration.command,
+      kunaExecutable: request.installation.executable,
       kunaVersion: request.installation.version,
       jobs: request.installation.configuration.jobs,
     });
@@ -945,6 +953,8 @@ export class KunaProjectCache {
       inputs: {
         target_sha256: request.targetSha256,
         kuna_sha256: request.installation.sha256,
+        kuna_command: request.installation.configuration.command,
+        kuna_executable: request.installation.executable,
         kuna_version: request.installation.version,
         jobs: request.installation.configuration.jobs,
       },

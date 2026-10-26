@@ -32,6 +32,7 @@ import {
   runOwnedCommand,
 } from "../process/OwnedCommand.js";
 import { retainOwnedCommandCleanup } from "../providers/OwnedCommandCleanup.js";
+import { assertArtifactCommandPath } from "../process/ArtifactCommandPath.js";
 import type {
   OwnedProviderProcessSpawnOptions,
   ProviderProcessSnapshot,
@@ -426,11 +427,15 @@ export const inspectKunaInstallation = async (
     phase: "fingerprint",
   };
   try {
+    await assertArtifactCommandPath(
+      { invocationPath: command, resolvedPath: executable },
+      "kuna:installation",
+    );
     beforeProbeFingerprint = await options.resourceScope.run(() =>
-      hashStableFile(executable, {
+      hashStableFile(command, {
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         retainFailedClose: (owner) =>
-          options.resourceScope.retain(owner, executable),
+          options.resourceScope.retain(owner, command),
       }),
     );
   } catch (cause: unknown) {
@@ -456,7 +461,7 @@ export const inspectKunaInstallation = async (
     snapshot = await options.resourceScope.run(() =>
       runOwnedCommand(
         {
-          command: executable,
+          command,
           arguments: ["--version"],
           runId: `rea-kuna-version-${randomUUID()}`,
           // The configured command may be an interpreter-driven shim.
@@ -572,10 +577,14 @@ export const inspectKunaInstallation = async (
   try {
     ({ fingerprint, script } = await options.resourceScope.run(async () => {
       observed.phase = "identity";
-      const observation = await observeStableFile(executable, {
+      await assertArtifactCommandPath(
+        { invocationPath: command, resolvedPath: executable },
+        "kuna:installation",
+      );
+      const observation = await observeStableFile(command, {
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         retainFailedClose: (owner) =>
-          options.resourceScope.retain(owner, executable),
+          options.resourceScope.retain(owner, command),
       });
       const fingerprint = {
         sha256: observation.sha256,

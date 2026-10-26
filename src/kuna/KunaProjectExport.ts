@@ -23,6 +23,7 @@ import {
 } from "../filesystem/StableFileHash.js";
 import type { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { prepareProcessOwnershipInspection } from "../process/ProcessOwnershipObservation.js";
+import { assertArtifactCommandPath } from "../process/ArtifactCommandPath.js";
 import type { ProviderProcessSupervisor } from "../process/ProviderProcess.js";
 import {
   copyAndHash,
@@ -170,10 +171,14 @@ const verifyKunaExecutable = async (
   signal: AbortSignal,
   retainFailedFileClose: KunaExportRequest["retainFailedFileClose"],
 ): Promise<Result<null, ProviderAdapterError>> => {
-  const executable = await hashStableFile(installation.executable, {
+  const invocationPath = installation.configuration.command;
+  await assertArtifactCommandPath(
+    { invocationPath, resolvedPath: installation.executable },
+    KUNA_EXPORT_OPERATION,
+  );
+  const executable = await hashStableFile(invocationPath, {
     signal,
-    retainFailedClose: (owner) =>
-      retainFailedFileClose(owner, installation.executable),
+    retainFailedClose: (owner) => retainFailedFileClose(owner, invocationPath),
   });
   if (executable.sha256 === installation.sha256) return ok(null);
   return err(

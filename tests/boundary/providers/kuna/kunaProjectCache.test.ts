@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  access,
   appendFile,
   chmod,
   mkdir,
@@ -13,6 +14,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import canonicalize from "canonicalize";
 
 import { expect, it as test, vi } from "vitest";
 
@@ -85,6 +87,8 @@ const keyOf = (installation: KunaInstallation, target: Target) =>
   kunaProjectKey({
     targetSha256: target.targetSha256,
     kunaSha256: installation.sha256,
+    kunaCommand: installation.configuration.command,
+    kunaExecutable: installation.executable,
     kunaVersion: installation.version,
     jobs: installation.configuration.jobs,
   });
@@ -113,6 +117,85 @@ const deferred = <T>() => {
   });
   return { promise, resolve, reject };
 };
+
+it("regenerates an obsolete export once and retires it without touching unrelated cache resources", async () => {
+  const { kuna, installation, cacheRoot, cache, target } = await fixture(
+    "rea-kuna-cache-format-transition-",
+  );
+  const input = await target("program");
+  const initial = await cache.build({ installation, ...input });
+  if (!initial.ok) throw initial.error;
+  expect((await cache.close()).ok).toBe(true);
+  // Seed the previously shipped manifest and content-key format using a real
+  // authored export; omitted launcher identity must never be invented or reused.
+  const legacyKey = createHash("sha256")
+    .update(
+      canonicalize({
+        layout: 1,
+        target_sha256: input.targetSha256,
+        kuna_sha256: installation.sha256,
+        kuna_version: installation.version,
+        export: {
+          command: "decompile-project",
+          jobs: installation.configuration.jobs,
+        },
+      }) ?? "",
+    )
+    .digest("hex");
+  const legacyEntry = join(cacheRoot, "projects", legacyKey);
+  await rename(join(cacheRoot, "projects", initial.value.key), legacyEntry);
+  await writeFile(
+    join(legacyEntry, "manifest.json"),
+    JSON.stringify({
+      ...initial.value.manifest,
+      layout: 1,
+      key: legacyKey,
+      inputs: {
+        target_sha256: input.targetSha256,
+        kuna_sha256: installation.sha256,
+        kuna_version: installation.version,
+        jobs: installation.configuration.jobs,
+      },
+    }),
+  );
+  const unknown = join(cacheRoot, "projects", "unrelated-directory");
+  const unresolved = join(cacheRoot, "staging", "build-unresolved");
+  await mkdir(unknown);
+  await mkdir(unresolved);
+  await writeFile(join(unknown, "sentinel"), "preserve");
+  await writeFile(join(unresolved, "sentinel"), "preserve");
+  const migrated = newCache(installation);
+  try {
+    const built = await migrated.build({ installation, ...input });
+    if (!built.ok) throw built.error;
+    await expect(access(legacyEntry)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(built.value.key).not.toBe(legacyKey);
+    expect(built.value.manifest).toMatchObject({
+      layout: 2,
+      inputs: {
+        kuna_command: installation.configuration.command,
+        kuna_executable: installation.executable,
+      },
+    });
+    expect(await callsOf(kuna, "decompile-project")).toHaveLength(2);
+    const fresh = newCache(installation);
+    try {
+      const reused = await fresh.build({ installation, ...input });
+      if (!reused.ok) throw reused.error;
+      expect(reused.value.manifest).toEqual(built.value.manifest);
+      expect(await callsOf(kuna, "decompile-project")).toHaveLength(2);
+    } finally {
+      expect((await fresh.close()).ok).toBe(true);
+    }
+    expect(await readFile(join(unknown, "sentinel"), "utf8")).toBe("preserve");
+    expect(await readFile(join(unresolved, "sentinel"), "utf8")).toBe(
+      "preserve",
+    );
+    expect(await entries(cacheRoot, "trash")).toEqual([]);
+  } finally {
+    expect((await migrated.close()).ok).toBe(true);
+  }
+});
 
 const causesOf = (cause: unknown): unknown[] => {
   const pending = [cause];
@@ -152,7 +235,7 @@ it("publishes a verified export and serves later requests from the cache", async
     value: {
       key: keyOf(installation, input),
       manifest: {
-        layout: 1,
+        layout: 2,
         inputs: {
           target_sha256: input.targetSha256,
           kuna_sha256: installation.sha256,

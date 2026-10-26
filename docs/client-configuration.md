@@ -247,7 +247,8 @@ duration. Setup preserves positive timeout values already in the `rea` entry.
 
 Setup also forwards explicitly selected input/output schema profiles,
 `REA_MCP_MAX_RESPONSE_BYTES`, provider paths and supported Ghidra, JADX and Kuna
-settings. A provider being unavailable does not discard its selected paths;
+settings. This includes the selected ADB, apktool, tshark, capinfos and tshark
+prlimit executable paths. A provider being unavailable does not discard its selected paths;
 doctor reports its readiness separately. Explicit selections override discovered
 defaults. Unrelated environment variables are not copied, and existing client
 environment overrides remain intact unless setup supplies the same key.

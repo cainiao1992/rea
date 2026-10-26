@@ -15,6 +15,7 @@ import {
 import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
   readFatSliceDeclarations,
+  readFatHeaderPrefix,
   validateFatSlice,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
@@ -66,45 +67,24 @@ export interface MachoLayout {
 
 const hex = (value: bigint) => `0x${value.toString(16)}`;
 
-/** Classify a FAT magic word; thin Mach-O returns null. */
-export const fatHeaderFormat = (
-  magic: number,
-): { readonly littleEndian: boolean; readonly fat64: boolean } | null => {
-  switch (magic) {
-    case 0xcafebabe:
-      return { littleEndian: false, fat64: false };
-    case 0xcafebabf:
-      return { littleEndian: false, fat64: true };
-    case 0xbebafeca:
-      return { littleEndian: true, fat64: false };
-    case 0xbfbafeca:
-      return { littleEndian: true, fat64: true };
-    default:
-      return null;
-  }
-};
-
 /** Select the thin Mach-O slice for `architecture` inside a FAT or thin container. */
 export const selectMachoSlice = (
   bytes: Buffer,
   architecture: string,
 ): MachoSlice => {
-  const magic = bytes.readUInt32BE(0);
-  const header = fatHeaderFormat(magic);
-  if (header === null) return { slice: 0, sliceEnd: bytes.length };
-  const { littleEndian, fat64 } = header;
-  const stride = fat64 ? 32 : 20;
-  const readUInt32 = littleEndian
-    ? (offset: number) => bytes.readUInt32LE(offset)
-    : (offset: number) => bytes.readUInt32BE(offset);
+  const header = readFatHeaderPrefix(bytes);
+  if (header.state === "unknown")
+    throw new RangeError("Truncated Mach-O header");
+  if (header.state === "not-fat") return { slice: 0, sliceEnd: bytes.length };
+  const { littleEndian, wide } = header;
   const byteOrder = littleEndian ? "little-endian" : "big-endian";
   const malformed = (reason: string) =>
     new RangeError(`${reason} (FAT header byte order: ${byteOrder})`);
   const invalid = (reason: string) =>
     new TypeError(`${reason} (FAT header byte order: ${byteOrder})`);
-  if (bytes.length < 8) throw malformed("Malformed FAT architecture table");
-  const count = readUInt32(4);
-  const headerEnd = 8 + count * stride;
+  if (header.state === "incomplete")
+    throw malformed("Malformed FAT architecture table");
+  const { count, tableEnd: headerEnd } = header;
   if (count > 128 || headerEnd > bytes.length)
     throw malformed("Malformed FAT architecture table");
   const policy = MACHO_ARCHITECTURE_POLICIES[architecture];
@@ -112,7 +92,7 @@ export const selectMachoSlice = (
     throw invalid("Requested FAT architecture is absent");
   const declarations = readFatSliceDeclarations(bytes.subarray(8, headerEnd), {
     count,
-    wide: fat64,
+    wide,
     littleEndian,
   });
   if (declarations.status !== "parsed") throw malformed(declarations.reason);

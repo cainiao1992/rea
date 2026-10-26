@@ -72,7 +72,10 @@ export interface ManagedPeLayout {
   readonly cliDirectoryState: "absent" | "present" | "unreadable";
   readonly cliIssue: ManagedParseIssue | null;
   rvaToOffset(rva: number, size: number, scope: string): number;
-  rvaAvailableBytes(rva: number, scope: string): number;
+  rvaFileRange(
+    rva: number,
+    scope: string,
+  ): { readonly offset: number; readonly available: number };
 }
 
 interface RvaMapping {
@@ -496,7 +499,7 @@ export const readManagedPeLayout = (bytes: Buffer): ManagedPeLayout => {
     cliIssue,
     rvaToOffset: (rva, size, scope) =>
       mapRva({ bytes, sections, rva, size, scope }),
-    rvaAvailableBytes: (rva, scope) =>
-      resolveRva({ bytes, sections, rva, size: 1, scope }).available,
+    rvaFileRange: (rva, scope) =>
+      resolveRva({ bytes, sections, rva, size: 1, scope }),
   };
 };

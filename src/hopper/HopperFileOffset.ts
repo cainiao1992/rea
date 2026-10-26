@@ -27,6 +27,7 @@ import type { FileOffsetPartialObservation } from "../domain/native/fileOffsetPa
 import {
   findOverlappingFatSlices,
   readFatSliceDeclarations,
+  readFatHeaderPrefix,
   readMachoHeaderPrefixFacts,
   type FatSliceDeclaration,
   validateFatSlice,
@@ -340,16 +341,13 @@ interface FatLayout {
 }
 
 function fatLayout(prefix: Buffer): Result<FatLayout | null, string> {
-  const magic = prefix.length < 4 ? 0 : prefix.readUInt32BE(0);
-  if (![0xcafebabe, 0xbebafeca, 0xcafebabf, 0xbfbafeca].includes(magic))
-    return ok(null);
-  if (prefix.length < 8) return err("The original FAT header is truncated");
-  const littleEndian = magic === 0xbebafeca || magic === 0xbfbafeca;
-  const wide = magic === 0xcafebabf || magic === 0xbfbafeca;
-  const count = littleEndian ? prefix.readUInt32LE(4) : prefix.readUInt32BE(4);
+  const header = readFatHeaderPrefix(prefix);
+  if (header.state === "unknown" || header.state === "not-fat") return ok(null);
+  if (header.state === "incomplete")
+    return err("The original FAT header is truncated");
+  const { littleEndian, wide, count, tableEnd } = header;
   if (count === 0 || count > MAX_FAT_ARCHITECTURES)
     return err("FAT architecture count is outside the supported 1..128 range");
-  const tableEnd = 8 + count * (wide ? 32 : 20);
   const table = prefix.subarray(8, tableEnd);
   const parsed = readFatSliceDeclarations(table, { count, wide, littleEndian });
   if (parsed.status !== "parsed") return err(parsed.reason);

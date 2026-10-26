@@ -112,18 +112,62 @@ const MACHO_HEADER_MAGICS: readonly number[] = [
   0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe,
 ];
 
+interface FatHeaderFormat {
+  readonly magic: number;
+  readonly wide: boolean;
+  readonly littleEndian: boolean;
+}
+
+export type FatHeaderPrefix =
+  | { readonly state: "unknown"; readonly requiredBytes: 4 }
+  | { readonly state: "not-fat"; readonly magic: number }
+  | (FatHeaderFormat &
+      (
+        | { readonly state: "incomplete"; readonly requiredBytes: 8 }
+        | {
+            readonly state: "parsed";
+            readonly count: number;
+            readonly tableEnd: number;
+          }
+      ));
+
+/** Observe the fixed FAT header without table, count-limit or container-identity admission. */
+export const readFatHeaderPrefix = (bytes: Uint8Array): FatHeaderPrefix => {
+  if (bytes.byteLength < 4) return { state: "unknown", requiredBytes: 4 };
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const magic = view.getUint32(0, false);
+  if (![FAT_MAGIC, FAT_MAGIC_64, FAT_CIGAM, FAT_CIGAM_64].includes(magic))
+    return { state: "not-fat", magic };
+  const format = {
+    magic,
+    wide: magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64,
+    littleEndian: magic === FAT_CIGAM || magic === FAT_CIGAM_64,
+  };
+  if (bytes.byteLength < 8)
+    return { state: "incomplete", ...format, requiredBytes: 8 };
+  const count = view.getUint32(4, format.littleEndian);
+  return {
+    state: "parsed",
+    ...format,
+    count,
+    tableEnd: 8 + count * (format.wide ? 32 : 20),
+  };
+};
+
 /** Parse a bounded FAT header and table without treating the magic alone as proof. */
 export const readFatContainerHeader = (
   bytes: Uint8Array,
   fileSize: number,
 ): FatContainerHeader => {
-  if (!hasFatMagic(bytes)) return { state: "not-fat" };
+  const prefix = readFatHeaderPrefix(bytes);
+  if (prefix.state === "unknown" || prefix.state === "not-fat")
+    return { state: "not-fat" };
   if (!Number.isSafeInteger(fileSize) || fileSize < bytes.byteLength)
     return {
       state: "malformed",
       reason: "FAT file size is invalid or contradicts retained bytes",
     };
-  const table = readFatContainerTable(bytes);
+  const table = decodeFatContainerTable(bytes, prefix);
   if (table.state !== "parsed") {
     if (table.state === "needs-data" && table.requiredBytes > fileSize) {
       return table.requiredBytes === 8 && fileSize < 8
@@ -144,23 +188,24 @@ export const readFatContainerHeader = (
 };
 
 /** Decode bounded FAT declarations without assuming the final file size. */
-export const readFatContainerTable = (bytes: Uint8Array): FatContainerTable => {
-  if (!hasFatMagic(bytes)) return { state: "not-fat" };
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const magic = view.getUint32(0, false);
-  if (bytes.byteLength < 8) {
-    return { state: "needs-data", requiredBytes: 8 };
-  }
-  const littleEndian = magic === FAT_CIGAM || magic === FAT_CIGAM_64;
-  const wide = magic === FAT_MAGIC_64 || magic === FAT_CIGAM_64;
-  const count = view.getUint32(4, littleEndian);
+export const readFatContainerTable = (bytes: Uint8Array): FatContainerTable =>
+  decodeFatContainerTable(bytes, readFatHeaderPrefix(bytes));
+
+const decodeFatContainerTable = (
+  bytes: Uint8Array,
+  prefix: FatHeaderPrefix,
+): FatContainerTable => {
+  if (prefix.state === "unknown" || prefix.state === "not-fat")
+    return { state: "not-fat" };
+  if (prefix.state === "incomplete")
+    return { state: "needs-data", requiredBytes: prefix.requiredBytes };
+  const { magic, littleEndian, wide, count, tableEnd } = prefix;
   if (count === 0)
     return {
       state: "malformed",
       reason: "FAT header declares no architectures",
     };
   if (count > MAX_FAT_ARCHITECTURES) return { state: "not-fat" };
-  const tableEnd = 8 + count * (wide ? 32 : 20);
   if (tableEnd > bytes.byteLength)
     return { state: "needs-data", requiredBytes: tableEnd };
   const declarations = readFatSliceDeclarations(bytes.subarray(8, tableEnd), {
@@ -179,14 +224,6 @@ export const readFatContainerTable = (bytes: Uint8Array): FatContainerTable => {
         slices: declarations.slices,
       }
     : { state: "malformed", reason: declarations.reason };
-};
-
-const hasFatMagic = (bytes: Uint8Array): boolean => {
-  if (bytes.byteLength < 4) return false;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return [FAT_MAGIC, FAT_MAGIC_64, FAT_CIGAM, FAT_CIGAM_64].includes(
-    view.getUint32(0, false),
-  );
 };
 
 /** Confirm FAT identity from observed slice headers, not CPU declarations. */

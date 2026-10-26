@@ -11,6 +11,14 @@ export const dosMzImageByteLength = (bytes: Buffer): Result<number, string> => {
   return ok((pages - 1) * 512 + (lastPageBytes === 0 ? 512 : lastPageBytes));
 };
 
+/** One validated relocation, retaining raw words and both target coordinate spaces. */
+export interface DosMzRelocation {
+  readonly segment: number;
+  readonly offset: number;
+  readonly moduleOffset: number;
+  readonly fileOffset: number;
+}
+
 /** DOS load-module coordinates before applying the loader's segment relocation. */
 export interface DosMzHeader {
   readonly headerBytes: number;
@@ -19,6 +27,7 @@ export interface DosMzHeader {
   readonly overlayBytes: number;
   readonly relocationCount: number;
   readonly relocationTableOffset: number;
+  readonly relocations: readonly DosMzRelocation[];
   readonly entrySegment: number;
   readonly entryOffset: number;
 }
@@ -174,10 +183,11 @@ export const parseDosMzHeader = (
   if (relocationCount > 0 && tableEnd > bytes.length)
     return err("truncated DOS MZ relocation table");
   const moduleBytes = imageBytes - headerBytes;
-  const relocations = validateRelocations(
+  const relocations = readRelocations(
     bytes,
     relocationTableOffset,
     relocationCount,
+    headerBytes,
     moduleBytes,
   );
   if (!relocations.ok) return relocations;
@@ -192,6 +202,7 @@ export const parseDosMzHeader = (
     overlayBytes: fileSize - imageBytes,
     relocationCount,
     relocationTableOffset,
+    relocations: relocations.value,
     entrySegment,
     entryOffset,
   });
@@ -212,18 +223,27 @@ export const parseMzHeaderEvidence = (
   windowsHeader: observeMzWindowsHeader(bytes, fileSize, signatureEvidence),
 });
 
-const validateRelocations = (
+const readRelocations = (
   bytes: Buffer,
   relocationTableOffset: number,
   relocationCount: number,
+  headerBytes: number,
   moduleBytes: number,
-): Result<void, string> => {
+): Result<readonly DosMzRelocation[], string> => {
+  const relocations: DosMzRelocation[] = [];
   for (let index = 0; index < relocationCount; index += 1) {
     const record = relocationTableOffset + index * 4;
     const offset = bytes.readUInt16LE(record);
     const segment = bytes.readUInt16LE(record + 2);
-    if (segment * 16 + offset + 2 > moduleBytes)
+    const moduleOffset = segment * 16 + offset;
+    if (moduleOffset + 2 > moduleBytes)
       return err(`DOS MZ relocation ${index} points outside its load module`);
+    relocations.push({
+      segment,
+      offset,
+      moduleOffset,
+      fileOffset: headerBytes + moduleOffset,
+    });
   }
-  return ok(undefined);
+  return ok(relocations);
 };

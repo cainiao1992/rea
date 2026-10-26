@@ -486,3 +486,73 @@ describe("independent DOS MZ import verification", () => {
     ).toBe(false);
   });
 });
+
+it("applies duplicate aliases and overlapping DOS fixups in declared order with original/final byte evidence", () => {
+  const bytes = Buffer.alloc(128);
+  bytes.write("MZ");
+  bytes.writeUInt16LE(128, 2);
+  bytes.writeUInt16LE(1, 4);
+  bytes.writeUInt16LE(4, 6);
+  bytes.writeUInt16LE(4, 8);
+  bytes.writeUInt16LE(28, 24);
+  bytes.writeUInt16LE(0, 28);
+  bytes.writeUInt16LE(1, 30);
+  bytes.writeUInt16LE(16, 32);
+  bytes.writeUInt16LE(0, 34);
+  bytes.writeUInt16LE(16, 36);
+  bytes.writeUInt16LE(0, 38);
+  bytes.writeUInt16LE(17, 40);
+  bytes.writeUInt16LE(0, 42);
+  bytes.set([1, 0, 2], 80);
+  const before = Buffer.from(bytes);
+  const prepared = prepareGhidraDosLoadImage(bytes, bytes.length);
+  if (!prepared.ok) throw new Error(prepared.error);
+  expect(bytes.equals(before)).toBe(true);
+  expect(
+    prepared.value.modified
+      .subarray(80, 83)
+      .equals(Buffer.from([1, 0x30, 0x12])),
+  ).toBe(true);
+  expect(prepared.value.expectedRelocations).toEqual([
+    {
+      address: "0x10010",
+      segment: 0x1001,
+      offset: 0,
+      status: "APPLIED",
+      type: 0,
+      values: [1, 0, 0x1001],
+      original_bytes_hex: "0100",
+      memory_bytes_hex: "0130",
+    },
+    {
+      address: "0x10010",
+      segment: 0x1000,
+      offset: 16,
+      status: "APPLIED",
+      type: 0,
+      values: [0, 16, 0x2001],
+      original_bytes_hex: "0110",
+      memory_bytes_hex: "0130",
+    },
+    {
+      address: "0x10010",
+      segment: 0x1000,
+      offset: 16,
+      status: "APPLIED",
+      type: 0,
+      values: [0, 16, 0x3001],
+      original_bytes_hex: "0120",
+      memory_bytes_hex: "0130",
+    },
+    {
+      address: "0x10011",
+      segment: 0x1000,
+      offset: 17,
+      status: "APPLIED",
+      type: 0,
+      values: [0, 17, 0x1230],
+      original_bytes_hex: "3002",
+      memory_bytes_hex: "3012",
+    },
+  ]);
+});

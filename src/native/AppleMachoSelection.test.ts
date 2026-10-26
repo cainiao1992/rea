@@ -1,3 +1,4 @@
+import { readFatContainerHeader } from "../domain/apple/machoContainer.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -340,3 +341,26 @@ describe("native Mach-O fixup load command boundaries", () => {
     ]);
   });
 });
+
+it.each([0, 129])(
+  "preserves native FAT selection policy separately from generic identity admission (count %i)",
+  (count) => {
+    const bytes = Buffer.alloc(8);
+    bytes.writeUInt32BE(0xcafebabe);
+    bytes.writeUInt32BE(count, 4);
+    expect(readFatContainerHeader(bytes, bytes.length)).toEqual(
+      count === 0
+        ? { state: "malformed", reason: "FAT header declares no architectures" }
+        : { state: "not-fat" },
+    );
+    expect(() => selectMachoSlice(bytes, "arm64")).toThrow(
+      count === 0
+        ? new TypeError(
+            "Requested FAT architecture is absent (FAT header byte order: big-endian)",
+          )
+        : new RangeError(
+            "Malformed FAT architecture table (FAT header byte order: big-endian)",
+          ),
+    );
+  },
+);

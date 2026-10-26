@@ -21,6 +21,7 @@ describe("DOS MZ load-module validation", () => {
         overlayBytes: 7,
         relocationCount: 0,
         relocationTableOffset: 28,
+        relocations: [],
         entrySegment: 0,
         entryOffset: 0,
       },
@@ -378,5 +379,43 @@ describe("MZ header padding observations", () => {
       signature: "unobserved",
     });
     expect(parseExecutableHeader(bytes, "x64")).toMatchObject({ ok: false });
+  });
+});
+
+it("retains ordered DOS relocation aliases and their source/module target coordinates", () => {
+  const bytes = Buffer.alloc(128);
+  bytes.write("MZ");
+  bytes.writeUInt16LE(128, 2);
+  bytes.writeUInt16LE(1, 4);
+  bytes.writeUInt16LE(4, 6);
+  bytes.writeUInt16LE(4, 8);
+  bytes.writeUInt16LE(28, 24);
+  bytes.writeUInt16LE(0, 28);
+  bytes.writeUInt16LE(1, 30);
+  bytes.writeUInt16LE(16, 32);
+  bytes.writeUInt16LE(0, 34);
+  bytes.writeUInt16LE(16, 36);
+  bytes.writeUInt16LE(0, 38);
+  bytes.writeUInt16LE(17, 40);
+  bytes.writeUInt16LE(0, 42);
+  const parsed = parseDosMzHeader(bytes);
+  if (!parsed.ok) throw new Error(parsed.error);
+  expect(parsed.value.relocations).toEqual([
+    { segment: 1, offset: 0, moduleOffset: 16, fileOffset: 80 },
+    { segment: 0, offset: 16, moduleOffset: 16, fileOffset: 80 },
+    { segment: 0, offset: 16, moduleOffset: 16, fileOffset: 80 },
+    { segment: 0, offset: 17, moduleOffset: 17, fileOffset: 81 },
+  ]);
+  // Parsed facts are snapshots, independent of later source-buffer edits.
+  bytes.writeUInt16LE(63, 32);
+  expect(parsed.value.relocations[1]).toEqual({
+    segment: 0,
+    offset: 16,
+    moduleOffset: 16,
+    fileOffset: 80,
+  });
+  expect(parseDosMzHeader(bytes)).toEqual({
+    ok: false,
+    error: "DOS MZ relocation 1 points outside its load module",
   });
 });

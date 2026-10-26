@@ -19,6 +19,7 @@ import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import {
   findOverlappingFatSlices,
   readFatSliceDeclarations,
+  readFatHeaderPrefix,
   readMachoHeaderPrefixFacts,
   validateFatSlice,
   validateFatSliceIdentity,
@@ -285,7 +286,9 @@ const inspectHopperMachOImage = async (
     return bytes.subarray(0, bytesRead);
   };
   const header = await read(0, 8);
-  const magic = header.length === 8 ? header.readUInt32BE(0) : 0;
+  const fatPrefix = readFatHeaderPrefix(header);
+  const magic =
+    header.length === 8 && fatPrefix.state !== "unknown" ? fatPrefix.magic : 0;
   if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic)) {
     if (target.format !== "mach-o")
       return invalid("Thin Mach-O source disagrees with its admitted format");
@@ -336,24 +339,17 @@ const inspectHopperMachOImage = async (
       cpu_subtype: facts.identity.cpuSubtype,
     });
   }
-  const isFatMagic = [0xcafebabe, 0xcafebabf, 0xbebafeca, 0xbfbafeca].includes(
-    magic,
-  );
-  if (!isFatMagic)
+  if (fatPrefix.state !== "parsed")
     return invalid(
       "Mach-O source header changed before Hopper image preparation",
     );
-  const wide = magic === 0xcafebabf || magic === 0xbfbafeca;
-  const littleEndian = magic === 0xbebafeca || magic === 0xbfbafeca;
-  const entrySize = wide ? 32 : 20;
-  const count = littleEndian ? header.readUInt32LE(4) : header.readUInt32BE(4);
+  const { wide, littleEndian, count, tableEnd } = fatPrefix;
   const size = (await file.stat()).size;
-  const tableEnd = 8 + count * entrySize;
   if (count === 0 || count > 128 || tableEnd > size)
     return invalid(
       "FAT architecture table is truncated or exceeds the supported 128 entries",
     );
-  const table = await read(8, count * entrySize);
+  const table = await read(8, tableEnd - 8);
   const parsed = readFatSliceDeclarations(table, {
     count,
     wide,

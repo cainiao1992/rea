@@ -68,12 +68,11 @@ export class PrivateRuntimeRoot {
       return new PrivateRuntimeRoot(runtime.observation.path, runtime);
     }
     const selectedParent = options.parent ?? tmpdir();
-    // Validate native traversal before canonicalizing the existing parent. The
-    // allocated private path then has one physical spelling for every consumer.
-    if (!(await stat(selectedParent)).isDirectory())
-      throw new Error(
-        `Private runtime parent is not a directory: ${selectedParent}`,
-      );
+    // The final dot requires a native directory lookup, preserving the host's
+    // failure code and path. An explicitly empty selection remains invalid.
+    await stat(selectedParent === "" ? selectedParent : `${selectedParent}/.`);
+    // Canonicalize only after native admission so consumers share one physical
+    // spelling without collapsing an invalid file/.. traversal on Darwin.
     const parent = await realpath(selectedParent);
     const path = await mkdtemp(join(parent, options.prefix ?? "rea-provider-"));
     // POSIX mkdtemp establishes owner-only access atomically. Return its owner

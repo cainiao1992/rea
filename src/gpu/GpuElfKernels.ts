@@ -6,6 +6,7 @@ import {
 } from "./AmdGpuTarget.js";
 import type { GpuPayloadTarget } from "./GpuObject.js";
 import { err, ok, type Result } from "../domain/result.js";
+import { elfNoteLayout } from "../domain/native/elfNoteLayout.js";
 import {
   CudaMetadataBudget,
   readCudaInfo,
@@ -433,9 +434,11 @@ export const readAmdElfMetadata = async (
         const namesize = r.u32(p),
           size = r.u32(p + 4),
           type = r.u32(p + 8);
+        // AMDGPU metadata uses four-byte note padding regardless of section alignment.
+        const layout = elfNoteLayout(namesize, size, 4);
         const nameOffset = p + 12,
-          desc = nameOffset + Math.ceil(namesize / 4) * 4,
-          end = desc + Math.ceil(size / 4) * 4;
+          desc = p + layout.descriptor,
+          end = p + layout.next;
         r.range(nameOffset, namesize, "ELF note vendor");
         r.range(desc, size, "ELF note descriptor");
         if (end > bytes.length)

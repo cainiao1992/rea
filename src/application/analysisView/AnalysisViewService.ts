@@ -400,6 +400,7 @@ const createAnalysisViewEvidence = (
           ? "inferred"
           : "derived",
       authority: parent.authority,
+      environment: parent.environment,
       limitations: result.limitations,
       ...((nativeFunctionView !== undefined || nativeObservationView) &&
       parent.relationship_coverage !== null

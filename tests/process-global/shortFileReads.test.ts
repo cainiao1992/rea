@@ -13,6 +13,7 @@ const fault = vi.hoisted(() => ({
     | ((position: number, length: number) => void)
     | undefined,
   handles: [] as FileHandle[],
+  closeFailure: undefined as Error | undefined,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -22,6 +23,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       const handle = await actual.open(...args);
       if (String(args[0]) !== fault.path) return handle;
       fault.handles.push(handle);
+      const close = handle.close.bind(handle);
+      handle.close = async () => {
+        if (fault.closeFailure !== undefined) throw fault.closeFailure;
+        await close();
+      };
       const read = handle.read.bind(handle);
       handle.read = (async (...args: unknown[]) => {
         const [buffer, offset, length, position] = args;
@@ -68,6 +74,167 @@ import {
   OBSIDIAN_FUSE_BYTES,
 } from "../fixtures/electron/fuseImage.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { NativeMacOSProvider } from "../../src/native/NativeMacOSProvider.js";
+import {
+  NativeFixtureRunner,
+  nativeMachoTarget,
+} from "../fixtures/nativeCommands.js";
+import { inspectPlistSchema } from "../../src/domain/native/nativeInspection.js";
+import { plistSourceFormat } from "../../src/native/NativePlistSource.js";
+
+const plistXml =
+  "<plist><dict><key>Count</key><integer>9007199254740993</integer><key>Data</key><data>AAE=</data></dict></plist>";
+const nativePlistFixture = async (
+  bytes: Buffer,
+  description = "ASCII text",
+) => {
+  const root = await createTestTempDirectory("rea-plist-short-reads-");
+  const path = join(root, "selected.plist");
+  await writeFile(path, bytes);
+  const commands: string[][] = [];
+  const runner = new NativeFixtureRunner({
+    file: description,
+    plutil: "valid",
+  });
+  const client = new NativeMacOSProvider(
+    {},
+    {
+      run: async (tool, args, options) => {
+        commands.push([tool, ...args]);
+        if (tool === "plutil" && args[0] !== "-lint")
+          throw new Error("Unexpected conversion of directly readable XML");
+        return runner.run(tool, args, options);
+      },
+    },
+    "darwin",
+  ).createClient(nativeMachoTarget(join(root, "target")));
+  return { path, commands, client };
+};
+
+it.each([
+  ["UTF8", Buffer.from(plistXml)],
+  ["UTF16LE", Buffer.from("\ufeff" + plistXml, "utf16le")],
+  ["UTF16BE", Buffer.from("\ufeff" + plistXml, "utf16le").swap16()],
+] as const)(
+  "preserves %s plist source facts through short reads without conversion",
+  async (_name, bytes) => {
+    const { path, commands, client } = await nativePlistFixture(bytes);
+    fault.path = path;
+    fault.maximum = 1;
+    try {
+      const result = await client.execute("inspect_plist", { path });
+      if (!result.ok) throw result.error;
+      expect(inspectPlistSchema.parse(result.value.result)).toMatchObject({
+        format: "xml",
+        source_path: path,
+        value: {
+          Count: { $plist_type: "integer", decimal: "9007199254740993" },
+          Data: { $plist_type: "data", base64: "AAE=" },
+        },
+      });
+      expect(commands).toEqual([
+        ["file", "-b", path],
+        ["plutil", "-lint", "--", path],
+      ]);
+      expect(fault.reads).toBeGreaterThan(bytes.length);
+      expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+    } finally {
+      await client.close();
+    }
+  },
+);
+
+it("treats true EOF in an incomplete plist markup probe as unknown", async () => {
+  const { path, client } = await nativePlistFixture(Buffer.from("<"));
+  const resources = new ArtifactResourceScope();
+  fault.path = path;
+  fault.maximum = 1;
+  try {
+    expect(
+      await plistSourceFormat("ASCII text", {
+        selection: { path, origin: "selected" },
+        resources,
+        signal: undefined,
+      }),
+    ).toEqual({ ok: true, value: "unknown" });
+    expect(fault.reads).toBe(2);
+    expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+  } finally {
+    await resources.close();
+    await client.close();
+  }
+});
+
+it("preserves a native plist probe read denial over a simultaneous abort", async () => {
+  const { path, client } = await nativePlistFixture(Buffer.from(plistXml));
+  const controller = new AbortController();
+  const physical = Object.assign(new Error("controlled plist read denial"), {
+    code: "EACCES",
+  });
+  fault.path = path;
+  fault.maximum = 1;
+  fault.beforeRead = () => {
+    if (fault.reads !== 2) return;
+    controller.abort("simultaneous abort");
+    throw physical;
+  };
+  try {
+    const result = await client.execute(
+      "inspect_plist",
+      { path },
+      { signal: controller.signal },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected native plist read denial");
+    expect(result.error).not.toBeInstanceOf(AnalysisCancelledError);
+    expect(result.error.cause).toBe(physical);
+    expect(fault.reads).toBe(2);
+    expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+  } finally {
+    await client.close();
+  }
+});
+
+it.each([false, true])(
+  "preserves plist probe cancellation and descriptor cleanup (closeFails=%s)",
+  async (closeFails) => {
+    const { path, client } = await nativePlistFixture(Buffer.from(plistXml));
+    const controller = new AbortController();
+    const reason = { requested: "continued plist probe" };
+    fault.path = path;
+    fault.maximum = 1;
+    fault.onRead = () => {
+      if (fault.reads !== 2) return;
+      controller.abort(reason);
+      if (closeFails)
+        fault.closeFailure = new Error("controlled plist close failure");
+    };
+    try {
+      const result = await client.execute(
+        "inspect_plist",
+        { path },
+        { signal: controller.signal },
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected plist probe cancellation");
+      const primary = closeFails ? result.error.cleanupPrimary : result.error;
+      expect(primary).toBeInstanceOf(AnalysisCancelledError);
+      expect(primary?.cause).toBe(reason);
+      expect(fault.reads).toBe(2);
+      if (closeFails) {
+        expect(result.error.cleanupIncomplete).toBe(true);
+        expect(fault.handles.at(-1)?.fd).toBeGreaterThanOrEqual(0);
+        fault.closeFailure = undefined;
+        expect(await client.close()).toEqual({ ok: true, value: null });
+        expect(result.error.cleanupIncomplete).toBe(false);
+      }
+      expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+    } finally {
+      fault.closeFailure = undefined;
+      await client.close();
+    }
+  },
+);
 import { parseBinaryTarget } from "../../src/application/BinaryTargetResolver.js";
 import { elf, pe, dosMz } from "../../src/domain/binaryTarget.fixture.js";
 
@@ -125,8 +292,10 @@ beforeEach(() => {
   fault.onRead = undefined;
   fault.beforeRead = undefined;
   fault.handles = [];
+  fault.closeFailure = undefined;
 });
 afterEach(async () => {
+  fault.closeFailure = undefined;
   fault.onRead = undefined;
   fault.beforeRead = undefined;
   for (const handle of fault.handles)

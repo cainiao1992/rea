@@ -930,6 +930,7 @@ export const clientSkillDirectories = (
       : clientIds.length === 0
         ? ["shared"]
         : clientIds;
+  const sharedDirectory = appendCallerPath(home, ".agents/skills", platform);
   const destinations = new Map<string, { client: string; directory: string }>();
   for (const client of selected) {
     const definition = definitions.find(({ name }) => name === client);
@@ -945,7 +946,7 @@ export const clientSkillDirectories = (
     try {
       const resolved =
         definition?.skillPath === undefined
-          ? ok(join(home, ".agents", "skills"))
+          ? ok(sharedDirectory)
           : resolvePath(definition.skillPath, {
               home,
               platform,
@@ -969,8 +970,7 @@ export const clientSkillDirectories = (
     }
     if (!destinations.has(directory))
       destinations.set(directory, {
-        client:
-          directory === join(home, ".agents", "skills") ? "shared" : client,
+        client: directory === sharedDirectory ? "shared" : client,
         directory,
       });
   }

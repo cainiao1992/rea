@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
@@ -84,8 +85,13 @@ export const readPeHeaders = (bytes: Buffer, fileSize = bytes.length) => {
   const pe = bytes.readUInt32LE(60);
   requirePeRange(bytes, pe, 24);
   if (bytes.readUInt32LE(pe) !== 0x4550) peFailure("Expected a PE signature.");
-  const sectionCount = bytes.readUInt16LE(pe + 6);
-  const optionalSize = bytes.readUInt16LE(pe + 20);
+  const coff = readPeCoffHeader(bytes.subarray(pe + 4, pe + 24));
+  if (!coff.ok) return peFailure(coff.error.message);
+  const {
+    sectionCount,
+    optionalHeaderSize: optionalSize,
+    machine,
+  } = coff.value;
   const optionalHeaderOffset = pe + 24;
   requirePeRange(bytes, optionalHeaderOffset, optionalSize);
   if (optionalSize < 64) peFailure("Truncated PE optional header.");
@@ -105,7 +111,7 @@ export const readPeHeaders = (bytes: Buffer, fileSize = bytes.length) => {
   if (headerSize < table + sectionCount * 40 || headerSize > fileSize)
     peFailure("Invalid PE SizeOfHeaders.");
   return {
-    machine: bytes.readUInt16LE(pe + 4),
+    machine,
     format,
     sectionCount,
     optionalHeaderOffset,

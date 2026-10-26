@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeOptionalHeader } from "../../domain/peMachine.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import {
@@ -74,8 +75,14 @@ export const readPeImage = (bytes: Buffer): PeImage => {
   const reader = new BinaryReader(bytes, true);
   const pe = peHeaderOffset(reader);
   const optional = pe + 24;
-  const optionalSize = reader.u16(pe + 20);
-  const machine = reader.u16(pe + 4);
+  const coff = readPeCoffHeader(bytes.subarray(pe + 4, pe + 24));
+  if (!coff.ok)
+    throw new BinaryFormatFailure(coff.error.kind, coff.error.message);
+  const {
+    machine,
+    sectionCount: count,
+    optionalHeaderSize: optionalSize,
+  } = coff.value;
   const facts = readPeOptionalHeader(
     reader.range(optional, optionalSize, "PE optional header"),
     machine,
@@ -95,7 +102,6 @@ export const readPeImage = (bytes: Buffer): PeImage => {
     offset: 0,
     size: Math.min(sizeOfHeaders, bytes.length),
   };
-  const count = reader.u16(pe + 6);
   const start = reader.table(
     BigInt(optional + optionalSize),
     count,

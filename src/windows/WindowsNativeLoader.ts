@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -195,9 +196,11 @@ const assertWindowsX64Artifact = (bytes: Buffer): void => {
   if (
     offset > bytes.length - 26 ||
     bytes.toString("latin1", offset, offset + 4) !== "PE\0\0" ||
-    bytes.readUInt16LE(offset + 4) !== 0x8664 ||
     bytes.readUInt16LE(offset + 24) !== 0x20b
   )
+    throw new Error("Windows native artifact is not a Windows x64 PE32+ image");
+  const coff = readPeCoffHeader(bytes.subarray(offset + 4, offset + 24));
+  if (!coff.ok || coff.value.machine !== 0x8664)
     throw new Error("Windows native artifact is not a Windows x64 PE32+ image");
 };
 

@@ -9,6 +9,7 @@ import type {
   UniversalMachOSlice,
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
+import { readPeCoffHeader } from "./peCoffHeader.js";
 import { readPeSectionHeader } from "./peSectionHeader.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
 import {
@@ -489,13 +490,18 @@ export const parsePeRecord = (
     record.toString("binary", 0, 4) !== "PE\u0000\u0000"
   )
     return err("invalid or truncated PE header");
-  const machineType = record.readUInt16LE(4);
+  const coff = readPeCoffHeader(record.subarray(4, 24));
+  if (!coff.ok) return err("invalid or truncated PE header");
+  const {
+    machine: machineType,
+    optionalHeaderSize,
+    characteristics,
+  } = coff.value;
   const machine = decodePeMachine(machineType);
   if (machine === undefined)
     return err(
       `unsupported PE architecture (COFF machine 0x${machineType.toString(16).padStart(4, "0")})`,
     );
-  const optionalHeaderSize = record.readUInt16LE(20);
   if (optionalHeaderSize > 4096 || record.length < 24 + optionalHeaderSize)
     return err("invalid or truncated PE optional header");
   const optionalHeader = record.subarray(24, 24 + optionalHeaderSize);
@@ -503,7 +509,6 @@ export const parsePeRecord = (
   if (!facts.ok) return err(facts.error.message);
   if (facts.value.machine === null) return err("unsupported PE architecture");
   const { architecture } = facts.value.machine;
-  const characteristics = record.readUInt16LE(22);
   return ok({
     format: "pe",
     peMachine: machineType,
@@ -623,8 +628,11 @@ export const parsePeCodeViewFromBuffer = (
   peOffset: number,
 ): PeCodeViewRecord | undefined => {
   if (fileBytes.length < peOffset + 24) return undefined;
-  const numberOfSections = fileBytes.readUInt16LE(peOffset + 6);
-  const optionalHeaderSize = fileBytes.readUInt16LE(peOffset + 20);
+  const coff = readPeCoffHeader(
+    fileBytes.subarray(peOffset + 4, peOffset + 24),
+  );
+  if (!coff.ok) return undefined;
+  const { sectionCount: numberOfSections, optionalHeaderSize } = coff.value;
   if (
     optionalHeaderSize > 4096 ||
     fileBytes.length < peOffset + 24 + optionalHeaderSize

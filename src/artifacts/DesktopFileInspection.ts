@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import {
   hasGodotPckHeader,
   readGodotPckHeaderFacts,
@@ -208,7 +209,12 @@ const inspectPeFile = async (
   const peOffset = prefix.readUInt32LE(0x3c);
   const coff = await read(peOffset, 24);
   if (coff.toString("latin1", 0, 4) !== "PE\0\0") return;
-  const optionalSize = coff.readUInt16LE(20);
+  const header = readPeCoffHeader(coff.subarray(4));
+  if (!header.ok) {
+    row.issues.push(header.error.message);
+    return;
+  }
+  const optionalSize = header.value.optionalHeaderSize;
   if (optionalSize > 4096)
     throw new ArtifactReaderFailure(
       "format",
@@ -224,7 +230,7 @@ const inspectPeFile = async (
   fact({
     kind: "native-image-header",
     offset: peOffset,
-    value: { format: "pe", machine: coff.readUInt16LE(4) },
+    value: { format: "pe", machine: header.value.machine },
   });
   if (!parsed.value.managed) return;
   const directories = optional.readUInt16LE(0) === 0x20b ? 112 : 96;
@@ -236,7 +242,7 @@ const inspectPeFile = async (
     value: { rva: cliRva, bytes: cliSize },
   });
   if (unityManagedDirectory === null) return;
-  const sectionCount = coff.readUInt16LE(6);
+  const sectionCount = header.value.sectionCount;
   const sections = await read(peOffset + 24 + optionalSize, sectionCount * 40);
   const mapped = (rva: number, bytes: number) =>
     peRvaToFileOffset(

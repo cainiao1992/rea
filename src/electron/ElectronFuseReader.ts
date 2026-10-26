@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import { readElfFixedHeader } from "../domain/elfFixedHeader.js";
 import { decodePeMachine } from "../domain/peMachine.js";
 import type { ResolvedElectronFuseFile } from "./ElectronFusePath.js";
@@ -500,8 +501,11 @@ const identifyPe = async (
     return undefined;
   // A signature establishes the existing scan boundary; only a complete COFF
   // header establishes its machine. Managed OS overrides need separate proof.
+  const coff = readPeCoffHeader(bytes.subarray(4));
   const machine =
-    bytes.length === 24 ? decodePeMachine(bytes.readUInt16LE(4)) : undefined;
+    bytes.length === 24 && coff.ok
+      ? decodePeMachine(coff.value.machine)
+      : undefined;
   return {
     architecture:
       machine?.nativeOsOverride === false ? machine.architecture : null,

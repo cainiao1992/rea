@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import {
   regularFileCancellation,
   RegularFileCleanupFailure,
@@ -1285,9 +1286,11 @@ const readPeMetadata = async (
     return err("invalid Windows new-header signature in MZ image");
   if (["NE", "LE", "LX"].includes(windowsHeader.signature))
     return err(`unsupported ${windowsHeader.signature} executable in MZ image`);
-  const optionalHeaderSize = fileHeader.readUInt16LE(20);
+  const coff = readPeCoffHeader(fileHeader.subarray(4));
+  if (!coff.ok) return err("invalid or truncated PE header");
+  const optionalHeaderSize = coff.value.optionalHeaderSize;
   if (optionalHeaderSize > 4096) return err("invalid PE optional header size");
-  const numberOfSections = fileHeader.readUInt16LE(6);
+  const numberOfSections = coff.value.sectionCount;
   const record = Buffer.alloc(24 + optionalHeaderSize);
   const recordRead = await handle.read(record, 0, record.length, offset);
   throwIfTargetResolutionCancelled(signal);

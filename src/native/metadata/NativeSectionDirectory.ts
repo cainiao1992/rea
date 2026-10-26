@@ -1,3 +1,4 @@
+import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { readElfTableDeclarations } from "../../domain/elfDeclaredRanges.js";
 import { readPeOptionalHeaderStructure } from "../../domain/peOptionalHeader.js";
@@ -274,7 +275,14 @@ export function* readPeSectionDirectory(
   if (pe < 64) reject("PE signature overlaps the DOS header");
   const coff = new BinaryReader(yield request(fileSize, BigInt(pe), 24n), true);
   if (coff.u32(0) !== 0x4550) reject("PE signature is invalid");
-  const optionalSize = coff.u16(20);
+  const parsedCoff = readPeCoffHeader(coff.bytes.subarray(4, 24));
+  if (!parsedCoff.ok) return reject(parsedCoff.error.message);
+  const {
+    sectionCount: count,
+    optionalHeaderSize: optionalSize,
+    machine,
+    characteristics,
+  } = parsedCoff.value;
   const optional = readPeOptionalHeaderStructure(
     yield request(fileSize, BigInt(pe + 24), BigInt(optionalSize)),
   );
@@ -293,7 +301,6 @@ export function* readPeSectionDirectory(
     }
   }
   const { bits } = optional.value;
-  const count = coff.u16(6);
   const start = pe + 24 + optionalSize;
   const table = yield request(fileSize, BigInt(start), BigInt(count) * 40n);
   const sections: NativeSection[] = [];
@@ -328,8 +335,8 @@ export function* readPeSectionDirectory(
     elf_os_abi: null,
     bits,
     little: true,
-    machine: coff.u16(4),
-    flags: coff.u16(22),
+    machine,
+    flags: characteristics,
     programs: [],
     sections,
   };

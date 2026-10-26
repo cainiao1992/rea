@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readPeCoffHeader } from "../peCoffHeader.js";
 import { readPeSectionHeader } from "../peSectionHeader.js";
 import type { NativeMetadataRecovery } from "./nativeMetadataRecovery.js";
 
@@ -493,13 +494,15 @@ class PeImage {
     this.#range(peOffset, 24);
     if (bytes.toString("latin1", peOffset, peOffset + 4) !== "PE\0\0")
       throw new Error("Invalid PE signature");
-    this.#machine = this.#u16(peOffset + 4);
-    const count = this.#u16(peOffset + 6);
+    const coff = readPeCoffHeader(bytes.subarray(peOffset + 4, peOffset + 24));
+    if (!coff.ok) throw new Error(coff.error.message);
+    this.#machine = coff.value.machine;
+    const { sectionCount: count, optionalHeaderSize: optionalSize } =
+      coff.value;
     // Microsoft documents a 96-section Windows image-loader limit. This
     // parser accepts executable PE images, not arbitrary COFF object files.
     if (count > 96)
       throw new Error("PE image exceeds the Windows 96-section limit");
-    const optionalSize = this.#u16(peOffset + 20);
     const optional = peOffset + 24;
     this.#range(optional, optionalSize);
     // Mapping fields through SizeOfHeaders must belong to this header,

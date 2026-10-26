@@ -1,4 +1,5 @@
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
+import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import { decodePeMachine } from "../domain/peMachine.js";
 import {
   managedFailure,
@@ -299,8 +300,20 @@ const readCoffHeader = (bytes: Buffer): CoffHeader => {
       peOffset,
     );
   const coff = peOffset + 4;
-  const machine = bytes.readUInt16LE(coff);
-  const sectionCount = bytes.readUInt16LE(coff + 2);
+  const parsed = readPeCoffHeader(bytes.subarray(coff, coff + 20));
+  if (!parsed.ok)
+    throw managedFailure(
+      "invalid-directory",
+      "pe.coff-header",
+      parsed.error.message,
+      peOffset,
+    );
+  const {
+    machine,
+    sectionCount,
+    optionalHeaderSize: optionalSize,
+    characteristics,
+  } = parsed.value;
   if (sectionCount === 0)
     throw managedFailure(
       "invalid-directory",
@@ -308,8 +321,6 @@ const readCoffHeader = (bytes: Buffer): CoffHeader => {
       "PE section count must be positive",
       coff + 2,
     );
-  const optionalSize = bytes.readUInt16LE(coff + 16);
-  const characteristics = bytes.readUInt16LE(coff + 18);
   return { coff, machine, sectionCount, optionalSize, characteristics };
 };
 

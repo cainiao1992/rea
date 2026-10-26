@@ -5,8 +5,8 @@ import {
   completionManifestSchema,
   createCompletionLedgerArtifacts,
   type CompletionVerifierReport,
-} from "./completionLedgerGeneration.js";
-import { evidenceCompletionLedgerSchema } from "./evidenceCompletionLedger.js";
+} from "../../scripts/lib/completion-ledger-generation.mjs";
+import { evidenceCompletionLedgerSchema } from "../../src/domain/evidenceCompletionLedger.js";
 
 const digest = (digit: string): string => digit.repeat(64);
 const evidenceId = (digit: string): string => `ev_${digest(digit)}`;

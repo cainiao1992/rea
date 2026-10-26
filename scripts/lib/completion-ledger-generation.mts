@@ -1,18 +1,21 @@
 import { z } from "zod";
 
-import { digestCanonicalValue } from "./canonicalDigest.js";
-import { IDENTIFIER_PATTERN } from "./stringPatterns.js";
+import { digestCanonicalValue } from "../../src/domain/canonicalDigest.js";
+import { IDENTIFIER_PATTERN } from "../../src/domain/stringPatterns.js";
 import {
   compareAsciiStrings,
   isSortedUniqueAscii,
-} from "./canonicalOrdering.js";
+} from "../../src/domain/canonicalOrdering.js";
 
 import {
   createEvidenceCompletionLedger,
   evidenceCompletionRecordSchema,
   type EvidenceCompletionLedger,
-} from "./evidenceCompletionLedger.js";
-import { digestSchema, prefixedDigestSchema } from "./../domain/digests.js";
+} from "../../src/domain/evidenceCompletionLedger.js";
+import {
+  digestSchema,
+  prefixedDigestSchema,
+} from "../../src/domain/digests.js";
 
 const identifierSchema = z.string().regex(IDENTIFIER_PATTERN);
 const identitySchema = z.strictObject({

@@ -305,9 +305,10 @@ export const reconstructJavaScriptArtifact = async (
           .map(({ logical_path }) => logical_path),
       );
       const nextAppContext = createJavaScriptNextAppContext(
-        files.files,
+        files,
         analysis.jsonDocuments,
         directoryPaths,
+        snapshot.coverage,
       );
       const completed = {
         route_inventory: await completeJavaScriptAnalysisSteps(

@@ -20,7 +20,7 @@ import type {
   AnalysisViewRequest,
   UnsignedAnalysisView,
 } from "./analysisView.js";
-import { parseAnalysisViewResult } from "./analysisViewParent.js";
+import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
 import {
   boundedViewMessages,
@@ -90,20 +90,13 @@ interface Checked {
   readonly unknowns: readonly string[];
 }
 const checked = new WeakMap<object, Checked>();
+const readReport = createAnalysisViewResultReader(apkSignatureResultSchema);
 const read = (parent: AnalysisViewParent): Result<Checked, AnalysisError> => {
-  const key = parent.normalizedResult;
-  const reusable =
-    parent.sealedResult === true &&
-    key !== null &&
-    typeof key === "object" &&
-    isImmutableJsonSnapshot(key);
-  const cached = reusable ? checked.get(key) : undefined;
-  let report = cached?.report;
-  if (report === undefined) {
-    const parsed = parseAnalysisViewResult(apkSignatureResultSchema, parent);
-    if (!parsed.ok) return parsed;
-    report = reusable ? (key as ApkSignatureResult) : parsed.value;
-  }
+  const parsed = readReport(parent);
+  if (!parsed.ok) return parsed;
+  const report = parsed.value;
+  const reusable = isImmutableJsonSnapshot(report);
+  const cached = reusable ? checked.get(report) : undefined;
   // Parent identity is checked on every read, independently of reusable facts.
   if (
     parent.subject != null &&
@@ -193,7 +186,7 @@ const read = (parent: AnalysisViewParent): Result<Checked, AnalysisError> => {
     },
   });
   const value = { report, summary, unknowns };
-  if (reusable) checked.set(key, value);
+  if (reusable) checked.set(report, value);
   return ok(value);
 };
 

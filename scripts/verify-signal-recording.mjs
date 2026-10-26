@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { requireMcpEvidenceBundle } from "./lib/mcp-verifier-results.mjs";
 import { estimateTokenCount } from "tokenx";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -171,11 +172,17 @@ await withVerifierCleanup(async () => {
       ).stdout,
     );
     assert.equal(parseEvidence(cli).evidence_id, evidence.evidence_id);
-    const bundle = await client.callTool({
-      name: "get_evidence_bundle",
-      arguments: {},
-    });
-    assert.ok(JSON.stringify(bundle).includes(evidence.evidence_id));
+    const bundle = requireMcpEvidenceBundle(
+      await client.callTool({
+        name: "get_evidence_bundle",
+        arguments: {},
+      }),
+    );
+    assert.ok(
+      bundle.records.some(
+        (record) => record.evidence_id === evidence.evidence_id,
+      ),
+    );
     assert.equal(await readFile(path, "utf8"), source);
     cases++;
   }

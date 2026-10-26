@@ -1,4 +1,5 @@
 import {
+  requireMcpEvidenceBundle,
   requireMcpLifecycleResult,
   requireMcpToolError,
 } from "./lib/mcp-verifier-results.mjs";
@@ -198,14 +199,18 @@ const verifyMcpInlineArtifactEvidence = async (
       compared.structuredContent?.normalized_result,
     );
     assert.ok(comparison.evidence_links.includes(source.evidence_id));
-    const bundle = await client.callTool(
+    const bundleReply = await client.callTool(
       { name: "get_evidence_bundle", arguments: {} },
       mcpOptions,
     );
-    assert.notEqual(bundle.isError, true, JSON.stringify(bundle));
+    assert.ok(
+      bundleReply.structuredContent,
+      "MCP omitted structured Evidence bundle",
+    );
+    const bundle = requireMcpEvidenceBundle(bundleReply);
     for (const evidence of [source, comparison]) {
       assert.deepEqual(
-        bundle.structuredContent?.result?.records.find(
+        bundle.records.find(
           (record) => record.evidence_id === evidence.evidence_id,
         ),
         evidence,

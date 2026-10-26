@@ -166,7 +166,7 @@ export const pyzEntryMetadata = (
       relative_offset: entry.offset,
       compression_flag: entry.compressionFlag,
     },
-    entry.typeCode === 0 || entry.typeCode === 1,
+    entry.role === "module" || entry.role === "package",
     header,
   ),
   encryption_source: pyzEntryEncrypted(entry, encryptionMarker)

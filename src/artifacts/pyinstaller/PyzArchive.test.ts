@@ -19,7 +19,7 @@ it("lists modules from a supported PYZ and leaves an unknown magic opaque", asyn
   if (!parsed.ok || parsed.value.kind !== "entries") return;
   expect(parsed.value.pythonVersion).toBe("3.9");
   expect(parsed.value.entries).toMatchObject([
-    { name: "json.decoder", typeCode: 0, package: false },
+    { name: "json.decoder", typeCode: 0, role: "module" },
   ]);
 
   const opaque = await readImage(

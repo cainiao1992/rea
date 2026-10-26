@@ -75,3 +75,15 @@ it("returns explicit EOF for the caller to interpret before late cancellation", 
     }),
   ).toHaveLength(0);
 });
+
+it("reports complete acquisition so the owner can finalize bytes after a late abort", async () => {
+  const { handle, spy } = await source();
+  const checkpoints: number[] = [];
+  const bytes = await readFileHandleRange(handle, 0, 4, (acquired) => {
+    checkpoints.push(acquired);
+    if (spy.mock.calls.length >= 2 && acquired < 4)
+      throw new Error("cancelled before full acquisition");
+  });
+  expect(bytes.toString()).toBe("0123");
+  expect(checkpoints).toEqual([0, 0, 2, 2, 4]);
+});

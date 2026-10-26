@@ -1,11 +1,15 @@
 import type { FileHandle } from "node:fs/promises";
 
-/** Fill a positional window until its end or explicit EOF, without owning the descriptor. */
+/**
+ * Fill a positional window until its end or explicit EOF, without owning the descriptor.
+ * Checkpoints receive cumulative acquired bytes so an owner can defer cancellation
+ * of a completed range to its finalization without losing the completed observation.
+ */
 export const readFileHandleRange = async (
   handle: Pick<FileHandle, "read">,
   position: number,
   length: number,
-  assertActive: () => void = () => {},
+  assertActive: (bytesRead: number) => void = () => {},
 ): Promise<Buffer> => {
   if (
     !Number.isSafeInteger(position) ||
@@ -15,11 +19,11 @@ export const readFileHandleRange = async (
     !Number.isSafeInteger(position + length)
   )
     throw new RangeError("Invalid file read range");
-  assertActive();
+  assertActive(0);
   const bytes = Buffer.alloc(length);
   let filled = 0;
   while (filled < length) {
-    assertActive();
+    assertActive(filled);
     const { bytesRead } = await handle.read(
       bytes,
       filled,
@@ -29,8 +33,8 @@ export const readFileHandleRange = async (
     // Let the caller interpret physical EOF before checking cancellation.
     // A native I/O rejection also remains primary if cancellation arrived in flight.
     if (bytesRead === 0) break;
-    assertActive();
     filled += bytesRead;
+    assertActive(filled);
   }
   return bytes.subarray(0, filled);
 };

@@ -33,6 +33,7 @@ import {
 import { err, ok, type Result } from "../domain/result.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import { readFileHandleChunks } from "../filesystem/readFileHandleChunks.js";
+import { readFileHandleRange } from "../filesystem/readFileHandleRange.js";
 
 import {
   copyHopperSource,
@@ -280,11 +281,13 @@ const inspectHopperMachOImage = async (
         cause === undefined ? undefined : { cause },
       ),
     );
-  const read = async (offset: number, length: number): Promise<Buffer> => {
-    const bytes = Buffer.alloc(length);
-    const { bytesRead } = await file.read(bytes, 0, length, offset);
-    return bytes.subarray(0, bytesRead);
-  };
+  const read = (offset: number, length: number): Promise<Buffer> =>
+    readFileHandleRange(file, offset, length, () => {
+      if (signal?.aborted)
+        throw new AnalysisCancelledError("open_binary", {
+          cause: signal.reason,
+        });
+    });
   const header = await read(0, 8);
   const fatPrefix = readFatHeaderPrefix(header);
   const thinPrefix = readMachoHeaderPrefixFacts(header);

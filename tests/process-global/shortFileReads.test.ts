@@ -55,6 +55,8 @@ import {
   machoImage,
   dylibCommand,
   LC,
+  CPU,
+  fatImage,
 } from "../../src/artifacts/apple/MachoImage.fixture.js";
 import { ArtifactResourceScope } from "../../src/artifacts/ArtifactResourceScope.js";
 import { readElectronFuseImage } from "../../src/electron/ElectronFuseReader.js";
@@ -66,6 +68,54 @@ import {
   OBSIDIAN_FUSE_BYTES,
 } from "../fixtures/electron/fuseImage.js";
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
+import { parseBinaryTarget } from "../../src/application/BinaryTargetResolver.js";
+import { elf, pe, dosMz } from "../../src/domain/binaryTarget.fixture.js";
+
+const distantCommands = () => {
+  const bytes = Buffer.alloc(32 + 4080 + 16);
+  Buffer.from(machoImage({})).copy(bytes);
+  bytes.writeUInt32LE(2, 16);
+  bytes.writeUInt32LE(4096, 20);
+  bytes.writeUInt32LE(0x7fffffff, 32);
+  bytes.writeUInt32LE(4080, 36);
+  bytes.writeUInt32LE(0x7fffffff, 4112);
+  bytes.writeUInt32LE(16, 4116);
+  return bytes;
+};
+
+it.each([
+  ["ELF", () => elf(2, 1, 62)],
+  ["DOS MZ", () => dosMz()],
+  [
+    "PE CodeView",
+    () => pe(0x8664, 64, 2, false, { pdbPath: "short.pdb", age: 3 }),
+  ],
+  ["distant PE", () => pe(0x8664, 8192)],
+  ["thin command windows", distantCommands],
+  [
+    "FAT slice command windows",
+    () => fatImage([{ cpu: CPU.arm64, bytes: distantCommands() }]),
+  ],
+] as const)(
+  "retains complete %s target admission under positive short reads",
+  async (_label, fixture) => {
+    const root = await createTestTempDirectory("rea-target-short-reads-");
+    const path = join(root, "selected");
+    await writeFile(path, fixture());
+    const expected = await parseBinaryTarget(path, {
+      cwd: root,
+      hostArchitecture: "arm64",
+    });
+    expect(expected.ok).toBe(true);
+    fault.path = path;
+    fault.maximum = 3;
+    expect(
+      await parseBinaryTarget(path, { cwd: root, hostArchitecture: "arm64" }),
+    ).toEqual(expected);
+    expect(fault.reads).toBeGreaterThan(5);
+    expect(fault.handles.every((handle) => handle.fd === -1)).toBe(true);
+  },
+);
 
 beforeEach(() => {
   fault.path = "";

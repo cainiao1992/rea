@@ -10,20 +10,12 @@ import { err, ok, type Result } from "../domain/result.js";
 import type { AnalysisOperationPort } from "./AnalysisProvider.js";
 import { resolveProcedureAddress } from "./ProcedureAddressResolution.js";
 
-/** Resolve a CLI symbol selector without changing existing address spellings. */
+/** Resolve an exact symbol after the provider rejects the caller address format. */
 export const resolveXrefsAddress = async (
   analysis: AnalysisOperationPort,
   selector: string,
   signal: AbortSignal,
 ): Promise<Result<string, AnalysisError>> => {
-  if (
-    selector.length === 0 ||
-    /^[0-9a-f]+$/iu.test(selector) ||
-    /^0x/iu.test(selector) ||
-    /:0x/iu.test(selector)
-  )
-    return ok(selector);
-
   const named = await resolveXrefsName(analysis, selector, signal);
   if (!named.ok) return named;
   return named.value !== null

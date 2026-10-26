@@ -50,3 +50,14 @@ it.each([3, 0x46494c45])(
     expect(recordedCrashSchema.safeParse(report).success).toBe(false);
   },
 );
+
+it("keeps snapshot rebinding independent of unused ELF section and header-size admission", () => {
+  const report = recordedCrashSchema.parse(recordedCrashFixture());
+  const bytes = recordedCrashFixtureBytes(report);
+  bytes.writeUInt16LE(0, 52);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, 40);
+  bytes.writeUInt16LE(0xffff, 60);
+  expect(() =>
+    validateRecordedCrashStructure(report, bytes, report.decoder_diagnostics),
+  ).not.toThrow();
+});

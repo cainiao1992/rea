@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import type { FileHandle } from "node:fs/promises";
 import type {
   MipsAbiFlags,
@@ -91,12 +92,15 @@ export const readMipsElfMetadata = async (
   if (fixedHeader.value.headerSize !== 52)
     return err("invalid MIPS ELF32 version or header size");
 
+  const raw = readElfRawTableDeclarations(bytes, fixedHeader.value);
+  if (!raw.ok) return err(raw.error.message);
+  const { programs, sections } = raw.value;
   const tables = [
     {
       label: "program header table",
-      offset: u32(bytes, 28),
-      count: u16(bytes, 44),
-      stride: u16(bytes, 42),
+      offset: Number(programs.offset),
+      count: programs.count,
+      stride: programs.width,
       entrySize: 32,
       typeOffset: 0,
       dataOffset: 4,
@@ -106,9 +110,9 @@ export const readMipsElfMetadata = async (
     },
     {
       label: "section header table",
-      offset: u32(bytes, 32),
-      count: u16(bytes, 48),
-      stride: u16(bytes, 46),
+      offset: Number(sections.offset),
+      count: sections.count,
+      stride: sections.width,
       entrySize: 40,
       typeOffset: 4,
       dataOffset: 16,
@@ -119,7 +123,7 @@ export const readMipsElfMetadata = async (
   ];
   // Extended numbering needs a separate section-zero reader. Refuse it rather
   // than silently treating an unexamined table as having no ABI declarations.
-  if (u16(bytes, 44) === 0xffff || u16(bytes, 48) >= 0xff00)
+  if (programs.count === 0xffff || sections.count >= 0xff00)
     return err("extended or reserved MIPS ELF table numbering is unsupported");
   let record: Buffer | undefined;
   let sharedLoad: MipsElfMetadata["sharedLoad"];

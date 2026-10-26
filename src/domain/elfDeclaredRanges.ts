@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "./elfRawTableDeclarations.js";
 import { readElfFixedHeader, type ElfFixedHeader } from "./elfFixedHeader.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -21,8 +22,6 @@ export interface ElfTableDeclarations {
 
 const reader = (bytes: Buffer, header: ElfFixedHeader) => {
   const little = header.byteOrder === "little";
-  const u16 = (at: number) =>
-    little ? bytes.readUInt16LE(at) : bytes.readUInt16BE(at);
   const u32 = (at: number) =>
     little ? bytes.readUInt32LE(at) : bytes.readUInt32BE(at);
   const word = (at: number) =>
@@ -31,7 +30,7 @@ const reader = (bytes: Buffer, header: ElfFixedHeader) => {
       : little
         ? bytes.readBigUInt64LE(at)
         : bytes.readBigUInt64BE(at);
-  return { u16, u32, word };
+  return { u32, word };
 };
 
 /** Zero-sized/inactive declarations own no file bytes. Arithmetic stays exact. */
@@ -110,29 +109,6 @@ const extendedCounts = (
   return ok(counts);
 };
 
-const TABLE_FIELDS = {
-  32: {
-    programOffset: 28,
-    sectionOffset: 32,
-    programWidth: 42,
-    programCount: 44,
-    sectionWidth: 46,
-    sectionCount: 48,
-    namesIndex: 50,
-    sectionHeaderSize: 40,
-  },
-  64: {
-    programOffset: 32,
-    sectionOffset: 40,
-    programWidth: 54,
-    programCount: 56,
-    sectionWidth: 58,
-    sectionCount: 60,
-    namesIndex: 62,
-    sectionHeaderSize: 64,
-  },
-} as const;
-
 /** Canonical table declarations, including extended counts in inactive section zero. */
 export function* readElfTableDeclarations(
   bytes: Buffer,
@@ -141,15 +117,16 @@ export function* readElfTableDeclarations(
   const fixed = readElfFixedHeader(bytes, fileSize);
   if (!fixed.ok) return fixed;
   const header = fixed.value;
-  const r = reader(bytes, header);
-  const fields = TABLE_FIELDS[header.elfClass];
-  const programOffset = r.word(fields.programOffset);
-  const sectionOffset = r.word(fields.sectionOffset);
-  const programWidth = r.u16(fields.programWidth);
-  const sectionWidth = r.u16(fields.sectionWidth);
-  let programCount = BigInt(r.u16(fields.programCount));
-  let sectionCount = BigInt(r.u16(fields.sectionCount));
-  let namesIndex = r.u16(fields.namesIndex);
+  const raw = readElfRawTableDeclarations(bytes, header);
+  if (!raw.ok) return err(raw.error.message);
+  const { programs, sections } = raw.value;
+  const programOffset = programs.offset;
+  const sectionOffset = sections.offset;
+  const programWidth = programs.width;
+  const sectionWidth = sections.width;
+  let programCount = BigInt(programs.count);
+  let sectionCount = BigInt(sections.count);
+  let namesIndex = sections.namesIndex;
   if (
     sectionOffset === 0n &&
     (sectionCount !== 0n || namesIndex !== 0 || programCount === 0xffffn)
@@ -168,7 +145,7 @@ export function* readElfTableDeclarations(
     if (failure !== undefined) return err(failure);
     const first = yield {
       offset: Number(sectionOffset),
-      size: fields.sectionHeaderSize,
+      size: header.elfClass === 64 ? 64 : 40,
     };
     const counts = extendedCounts(first, header, {
       programCount,

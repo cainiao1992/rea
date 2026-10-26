@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
 import { parsePeResources } from "../../native/pe/PeResourceParser.js";
 import {
@@ -323,16 +324,22 @@ const locateElfNotes = async (
     Math.min(carrier.fileSize, header.value.headerSize),
   );
   if (fields === undefined) return [];
-  const phoff = elf64
-    ? readU64(fields, 32, little)
-    : readU32(fields, 28, little);
-  const shoff = elf64
-    ? readU64(fields, 40, little)
-    : readU32(fields, 32, little);
-  const phentsize = readU16(fields, elf64 ? 54 : 42, little);
-  const phnum = readU16(fields, elf64 ? 56 : 44, little);
-  const shentsize = readU16(fields, elf64 ? 58 : 46, little);
-  const shnum = readU16(fields, elf64 ? 60 : 48, little);
+  const raw = readElfRawTableDeclarations(fields, header.value);
+  if (!raw.ok) return [];
+  const { programs: programDeclarations, sections: sectionDeclarations } =
+    raw.value;
+  const phoff =
+    programDeclarations.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(programDeclarations.offset)
+      : undefined;
+  const shoff =
+    sectionDeclarations.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(sectionDeclarations.offset)
+      : undefined;
+  const phentsize = programDeclarations.width;
+  const phnum = programDeclarations.count;
+  const shentsize = sectionDeclarations.width;
+  const shnum = sectionDeclarations.count;
   const minimumProgram = elf64 ? 56 : 32;
   const minimumSection = elf64 ? 64 : 40;
   const found: BlobRange[] = [];
@@ -644,9 +651,6 @@ const cString = (bytes: Buffer, offset: number, length: number): string => {
   while (end < limit && bytes[end] !== 0) end += 1;
   return bytes.toString("latin1", offset, end);
 };
-
-const readU16 = (bytes: Buffer, offset: number, little: boolean): number =>
-  little ? bytes.readUInt16LE(offset) : bytes.readUInt16BE(offset);
 
 const readU32 = (bytes: Buffer, offset: number, little: boolean): number =>
   little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);

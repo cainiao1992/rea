@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
@@ -97,13 +98,6 @@ class ElfReader {
     readonly little: boolean,
     readonly bits: 32 | 64,
   ) {}
-
-  u16(offset: number): number {
-    this.require(offset, 2);
-    return this.little
-      ? this.bytes.readUInt16LE(offset)
-      : this.bytes.readUInt16BE(offset);
-  }
 
   u32(offset: number): number {
     this.require(offset, 4);
@@ -328,13 +322,21 @@ export const parseElfNotes = (
   );
   const wide = header.elfClass === 64;
   const type = header.type;
-  const phoff = reader.word(wide ? 32 : 28);
-  const shoff = reader.word(wide ? 40 : 32);
-  const phentsize = reader.u16(wide ? 54 : 42);
-  const phnum = reader.u16(wide ? 56 : 44);
-  const shentsize = reader.u16(wide ? 58 : 46);
-  const shnum = reader.u16(wide ? 60 : 48);
-  const shstrndx = reader.u16(wide ? 62 : 50);
+  const raw = readElfRawTableDeclarations(bytes, header);
+  if (!raw.ok) return fail(raw.error.message);
+  const { programs, sections } = raw.value;
+  if (
+    programs.offset > BigInt(Number.MAX_SAFE_INTEGER) ||
+    sections.offset > BigInt(Number.MAX_SAFE_INTEGER)
+  )
+    return fail("ELF offset or size exceeds a safe integer.");
+  const phoff = Number(programs.offset);
+  const shoff = Number(sections.offset);
+  const phentsize = programs.width;
+  const phnum = programs.count;
+  const shentsize = sections.width;
+  const shnum = sections.count;
+  const shstrndx = sections.namesIndex;
   if (
     phnum === 0xffff ||
     shnum === 0xffff ||

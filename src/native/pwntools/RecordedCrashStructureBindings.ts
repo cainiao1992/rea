@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import {
   RECORDED_LINUX_CORE_PROFILES,
@@ -103,12 +104,18 @@ export function validateRecordedCrashStructure(
     header.readUInt16LE(18) !== expectedMachine
   )
     fail();
-  const table = header.readBigUInt64LE(32);
-  const entryBytes = header.readUInt16LE(54);
-  let count = header.readUInt16LE(56);
+  const rawTables = readElfRawTableDeclarations(header, {
+    elfClass: 64,
+    byteOrder: "little",
+  });
+  if (!rawTables.ok) return fail();
+  const { programs, sections } = rawTables.value;
+  const table = programs.offset;
+  const entryBytes = programs.width;
+  let count = programs.count;
   if (count === 0xffff) {
-    if (header.readUInt16LE(58) < 64) return fail();
-    count = bytesAt(header.readBigUInt64LE(40), 64).readUInt32LE(44);
+    if (sections.width < 64) return fail();
+    count = bytesAt(sections.offset, 64).readUInt32LE(44);
   }
   if (count !== report.segments.length || (count > 0 && entryBytes < 56))
     fail();

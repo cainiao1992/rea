@@ -502,3 +502,22 @@ describe("readSnapshotHeader", () => {
     });
   });
 });
+
+it("keeps section admission ahead of program admission for unrepresentable raw offsets", async () => {
+  const bytes = buildStrippedElf64Image([]);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, 0x28);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, 0x20);
+  expect(await readElfSymbols(bytes, ["_kDartVmSnapshotData"])).toEqual({
+    symbols: [],
+    failures: [
+      { reason: "ELF section header table is missing or out of bounds" },
+    ],
+  });
+  bytes.writeBigUInt64LE(0n, 0x28);
+  expect(await readElfSymbols(bytes, ["_kDartVmSnapshotData"])).toEqual({
+    symbols: [],
+    failures: [
+      { reason: "ELF program header table is missing or out of bounds" },
+    ],
+  });
+});

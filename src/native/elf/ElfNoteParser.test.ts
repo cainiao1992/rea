@@ -617,3 +617,11 @@ it("fails when the entry budget is exhausted", () => {
     ),
   ).toThrow(ArtifactReaderFailure);
 });
+
+it("keeps unsafe table offsets ahead of unsupported extended numbering", () => {
+  const bytes = elfExtendedSectionCountFixture();
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, 32);
+  expect(() => parse(bytes)).toThrow(
+    "ELF offset or size exceeds a safe integer.",
+  );
+});

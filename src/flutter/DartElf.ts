@@ -1,3 +1,4 @@
+import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import { Buffer } from "node:buffer";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import { createElfLoadMap } from "./ElfLoadMap.js";
@@ -84,7 +85,6 @@ export const readElfHeader = (
   bytes: Buffer,
   totalBytes: number = bytes.length,
 ) => {
-  const reader = new BoundedReader(bytes);
   const fixedHeader = readElfFixedHeader(bytes, totalBytes);
   if (!fixedHeader.ok) return { failure: { reason: fixedHeader.error } };
   const is64 = fixedHeader.value.elfClass === 64;
@@ -96,21 +96,28 @@ export const readElfHeader = (
   const e_type = fixedHeader.value.type;
   if (e_type !== 1 && e_type !== 2 && e_type !== ET_DYN)
     return { failure: { reason: "unsupported ELF type" } };
-  const e_shoff = is64 ? reader.u64(0x28) : reader.u32(0x20);
-  const e_shentsize = reader.u16(is64 ? 0x3a : 0x2e);
-  const e_shnum = reader.u16(is64 ? 0x3c : 0x30);
-  const e_phoff = is64 ? reader.u64(0x20) : reader.u32(0x1c);
-  const e_phentsize = reader.u16(is64 ? 0x36 : 0x2a);
-  const e_phnum = reader.u16(is64 ? 0x38 : 0x2c);
+  const raw = readElfRawTableDeclarations(bytes, fixedHeader.value);
+  if (!raw.ok) return { failure: { reason: raw.error.message } };
+  const { programs, sections } = raw.value;
+  const e_shoff =
+    sections.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(sections.offset)
+      : null;
+  const e_shentsize = sections.width;
+  const e_shnum = sections.count;
+  const e_phoff =
+    programs.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(programs.offset)
+      : null;
+  const e_phentsize = programs.width;
+  const e_phnum = programs.count;
   const tableFits = (
     offset: number | null,
-    width: number | null,
-    count: number | null,
+    width: number,
+    count: number,
     minimumWidth: number,
   ): boolean =>
     offset !== null &&
-    width !== null &&
-    count !== null &&
     offset >= headerBytes &&
     offset <= totalBytes &&
     width >= minimumWidth &&
@@ -125,8 +132,6 @@ export const readElfHeader = (
     e_type === ET_DYN && e_shoff === 0 && e_shnum === 0;
   if (
     e_shoff === null ||
-    e_shentsize === null ||
-    e_shnum === null ||
     (!sectionTableAbsent &&
       !tableFits(e_shoff, e_shentsize, e_shnum, MIN_SHENT))
   )
@@ -138,8 +143,6 @@ export const readElfHeader = (
   const MIN_PHENT = is64 ? 56 : 32;
   if (
     e_phoff === null ||
-    e_phentsize === null ||
-    e_phnum === null ||
     e_phnum === 0xffff ||
     !tableFits(e_phoff, e_phentsize, e_phnum, MIN_PHENT)
   )

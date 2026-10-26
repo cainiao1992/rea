@@ -119,6 +119,8 @@ export const SCOPES = {
     "scripts/ci/npm-release-state.*",
     "scripts/verify-release-artifact.mjs",
     "scripts/lib/release-package-canary.mjs",
+    "scripts/lib/verify-package-core.*",
+    "tests/boundary/mcp/packageCatalogVerification.test.ts",
     "scripts/verify-published-package.mjs",
     "tests/boundary/filesystem/releaseRecovery.test.ts",
     "tests/boundary/filesystem/mcpRegistryPublication.test.ts",

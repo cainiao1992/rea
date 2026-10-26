@@ -8,7 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { expect, onTestFinished, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 
 import { AdbProvider } from "../../../../src/adb/AdbProvider.js";
 import { AdbDeviceAnalysisService } from "../../../../src/application/adb/AdbDeviceAnalysisService.js";
@@ -25,6 +25,69 @@ const png = Buffer.from(
 );
 const digest = (bytes: string | Buffer) =>
   createHash("sha256").update(bytes).digest("hex");
+
+it.each(["path", "explicit"] as const)(
+  "uses the captured %s launcher environment for both ADB probing and device queries",
+  async (source) => {
+    const root = await createTestTempDirectory("rea-adb-selected-environment-");
+    const selectedDirectory = join(root, "selected");
+    const ambientDirectory = join(root, "ambient");
+    const sourceCode = `#!/bin/sh
+printf '%s|%s|%s|%s\\n' "$1" "$ADB_SERVER_SOCKET" "$CALLER_EMPTY" "\${CALLER_ABSENT-unset}" >> "$0.calls"
+if [ "$1" = version ]; then
+  printf 'Android Debug Bridge version 1.0.41\\nVersion 35.0.1-fixture\\nInstalled as %s\\n' "$0"
+elif [ "$1" = devices ]; then
+  printf 'List of devices attached\\n%s device model:fixture transport_id:1\\n' "$ANDROID_SERIAL"
+else exit 1; fi
+`;
+    for (const directory of [selectedDirectory, ambientDirectory]) {
+      await mkdir(directory);
+      await writeFile(join(directory, "adb"), sourceCode, { mode: 0o755 });
+    }
+    const selected: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: selectedDirectory,
+      ADB_SERVER_SOCKET: "tcp:localhost:5041",
+      ANDROID_SERIAL: "selected-device",
+      CALLER_EMPTY: "",
+      ...(source === "explicit"
+        ? { REA_ADB_PATH: join(selectedDirectory, "adb") }
+        : {}),
+    };
+    delete selected.CALLER_ABSENT;
+    if (source === "path") delete selected.REA_ADB_PATH;
+    const provider = new AdbProvider({ environment: selected });
+    onTestFinished(async () => {
+      try {
+        await provider.close();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+    selected.ADB_SERVER_SOCKET = "tcp:localhost:5042";
+    selected.ANDROID_SERIAL = "later-selected-device";
+    vi.stubEnv("PATH", ambientDirectory);
+    vi.stubEnv("ADB_SERVER_SOCKET", "tcp:localhost:5043");
+    vi.stubEnv("ANDROID_SERIAL", "ambient-device");
+    vi.stubEnv("CALLER_EMPTY", "ambient-value");
+    vi.stubEnv("CALLER_ABSENT", "ambient-only");
+    const service = new AdbDeviceAnalysisService(provider);
+    const result = await service.execute("list_adb_devices", {});
+    if (!result.ok) throw result.error;
+    expect(result.value.normalized_result).toMatchObject({
+      devices: [{ serial: "selected-device" }],
+    });
+    expect(JSON.stringify(result.value)).not.toContain("tcp:localhost:");
+    expect(await readFile(join(selectedDirectory, "adb.calls"), "utf8")).toBe(
+      "version|tcp:localhost:5041||unset\ndevices|tcp:localhost:5041||unset\n",
+    );
+    await expect(
+      access(join(ambientDirectory, "adb.calls")),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  },
+);
 
 // All ADB commands run a selected local script. No device, server or real adb
 // executable participates; file snapshots, publication and Evidence are real.

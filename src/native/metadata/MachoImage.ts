@@ -8,18 +8,21 @@ import {
   type LoadRegion,
   type ZeroFillMapping,
 } from "./BinaryContainer.js";
-import { MachoLoadCommandCursor } from "../../domain/apple/machoLoadCommands.js";
+import {
+  MachoLoadCommandCursor,
+  readMachoLoadCommandDeclarations,
+} from "../../domain/apple/machoLoadCommands.js";
 
 /** Read thin Mach-O images, retaining the slice's exact file-backed mappings. */
 export const readMachoImage = (bytes: Buffer): BinaryContainer => {
-  const magic = bytes.readUInt32BE(0);
-  const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
-  const bits = magic === 0xfeedfacf || magic === 0xcffaedfe ? 64 : 32;
+  const parsed = readMachoLoadCommandDeclarations(bytes, bytes.length);
+  if (!parsed.ok) throw new BinaryFormatFailure("malformed", parsed.error);
+  if (parsed.value === null)
+    throw new BinaryFormatFailure("malformed", "Unrecognized Mach-O header");
+  const table = parsed.value;
+  const { headerSize, commandBytes, littleEndian: little } = table;
+  const bits = table.wide ? 64 : 32;
   const reader = new BinaryReader(bytes, little);
-  const headerSize = bits === 64 ? 32 : 28;
-  reader.range(0, headerSize, "Mach-O header");
-  const count = reader.u32(16);
-  const commandBytes = reader.u32(20);
   const commandStart = reader.table(
     BigInt(headerSize),
     commandBytes,
@@ -32,12 +35,7 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
   const zeroFills: ZeroFillMapping[] = [];
   const sections: ImageSection[] = [];
   let chainedFixups = false;
-  const commands = new MachoLoadCommandCursor({
-    wide: bits === 64,
-    littleEndian: little,
-    commandCount: count,
-    commandBytes,
-  });
+  const commands = new MachoLoadCommandCursor(table);
   while (commands.nextOffset !== null) {
     const offset = commandStart + commands.nextOffset;
     const frame = commands.read(bytes.subarray(offset, offset + 8));

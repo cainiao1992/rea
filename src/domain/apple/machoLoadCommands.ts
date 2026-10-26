@@ -10,8 +10,8 @@ export interface MachoLoadCommandTableHeader {
   readonly commandBytes: number;
 }
 
-/** Read only the thin header's load-command framing; other formats return null. */
-export const readMachoLoadCommandTableHeader = (
+/** Decode thin-header declarations without admitting their table extent. */
+export const readMachoLoadCommandDeclarations = (
   bytes: Uint8Array,
   fileSize: number,
 ): Result<MachoLoadCommandTableHeader | null, string> => {
@@ -28,10 +28,6 @@ export const readMachoLoadCommandTableHeader = (
     );
   const littleEndian = magic === 0xcefaedfe || magic === 0xcffaedfe;
   const commandBytes = view.getUint32(20, littleEndian);
-  if (commandBytes > fileSize - headerSize)
-    return err(
-      `truncated Mach-O load commands: the header declares ${commandBytes} bytes after its ${headerSize}-byte header; the file has ${fileSize}`,
-    );
   return ok({
     headerSize,
     wide,
@@ -39,6 +35,21 @@ export const readMachoLoadCommandTableHeader = (
     commandCount: view.getUint32(16, littleEndian),
     commandBytes,
   });
+};
+
+/** Admit the declared command table within the complete file's extent. */
+export const readMachoLoadCommandTableHeader = (
+  bytes: Uint8Array,
+  fileSize: number,
+): Result<MachoLoadCommandTableHeader | null, string> => {
+  const parsed = readMachoLoadCommandDeclarations(bytes, fileSize);
+  if (!parsed.ok || parsed.value === null) return parsed;
+  const { commandBytes, headerSize } = parsed.value;
+  if (commandBytes > fileSize - headerSize)
+    return err(
+      `truncated Mach-O load commands: the header declares ${commandBytes} bytes after its ${headerSize}-byte header; the file has ${fileSize}`,
+    );
+  return parsed;
 };
 
 /** One owner's count, alignment and extent proof for a sequential command walk. */

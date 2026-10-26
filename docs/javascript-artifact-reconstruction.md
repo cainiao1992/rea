@@ -239,10 +239,12 @@ An unpacked entry whose companion bytes were not supplied remains
 `unavailable`. REA continues analyzing embedded JavaScript and records the
 missing native/resource bytes as unknown. The occurrence keeps
 `hash_status: unavailable`; no content-addressed child artifact is created for
-those missing bytes. New inventories preserve an ASAR companion declaration as
-`unpacked: true`; an omitted flag in an older inventory does not establish that
-unavailable bytes belonged to a companion. See [MCP integrity handling](mcp-contracts.md#integrity-record-and-continue)
-for the tool-result contract.
+those missing bytes. New ASAR file occurrences record `unpacked: true` for
+companion files and `unpacked: false` for packed entries, including when the
+file bytes are unavailable. An omitted flag in an older inventory remains
+unknown; it does not establish either storage mode. See
+[MCP integrity handling](mcp-contracts.md#integrity-record-and-continue) for the
+tool-result contract.
 
 JavaScript whose syntax cannot be parsed retains unavailable semantic coverage
 with `incomplete-module` unknowns for each semantic family and unknown omitted

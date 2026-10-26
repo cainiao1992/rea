@@ -1206,7 +1206,18 @@ attachment. Native checksum verification failures still refuse traversal;
 Occurrences use normalized logical paths for identity and lookup. Optional
 `source_path` retains the original path within the owning reader when Unicode
 NFC or reader admission changes its spelling; it is source evidence, not an
-output destination. POSIX letter-colon names such as `a:b` remain valid logical
+output destination. New ASAR file occurrences explicitly record the boolean
+`unpacked`: `true` identifies a companion file and `false` identifies a packed
+entry. This field describes archive storage, independently of whether the bytes
+were available or passed integrity verification. Older occurrences may omit it;
+omission remains unknown and must not be defaulted to `false`. Consumers that
+previously accepted only literal `true` must also accept `false`, while retaining
+support for omitted historical values.
+`compare_artifacts` reports a metadata change when both storage values are
+known and differ. If only one value is known, storage comparison is unknown;
+when both are omitted, storage is not compared.
+
+POSIX letter-colon names such as `a:b` remain valid logical
 names; Windows extraction refuses names its filesystem cannot materialize.
 
 Extraction materializes regular files exposed by the active archive reader.

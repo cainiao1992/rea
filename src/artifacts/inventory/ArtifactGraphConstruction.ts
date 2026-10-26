@@ -15,7 +15,7 @@ import {
   occurrenceIdForLocation,
   logicalPathNfc,
 } from "../../domain/artifactIdentity.js";
-import type { ArtifactEntry } from "../ArtifactReader.js";
+import type { ArtifactEntry, ArtifactReader } from "../ArtifactReader.js";
 import type {
   ArtifactCommand,
   ArtifactEdge,
@@ -48,7 +48,7 @@ export interface MutableOccurrence {
   compressed_size: number | null;
   executable: boolean;
   encrypted: boolean;
-  unpacked?: true;
+  unpacked?: boolean;
   hash_status: ArtifactOccurrence["hash_status"];
   source_location: ArtifactOccurrence["source_location"];
   source_path?: string;
@@ -81,8 +81,12 @@ export const createOccurrence = (
   entry: ArtifactEntry,
   path: string,
   parent: string | null,
-  duplicateOrdinal = 0,
+  options: {
+    readonly duplicateOrdinal?: number;
+    readonly sourceFormat?: ArtifactReader["format"];
+  } = {},
 ): MutableOccurrence => {
+  const duplicateOrdinal = options.duplicateOrdinal ?? 0;
   const role =
     entry.kind === "metadata"
       ? { kind: "package-metadata" as const, format: "unknown" as const }
@@ -117,7 +121,10 @@ export const createOccurrence = (
     compressed_size: entry.compressedSize,
     executable: entry.executable,
     encrypted: entry.encrypted,
-    ...(entry.unpacked ? { unpacked: true as const } : {}),
+    ...(entry.unpacked ||
+    (options.sourceFormat === "asar" && entry.kind === "file")
+      ? { unpacked: entry.unpacked }
+      : {}),
     hash_status: entry.encrypted ? "unavailable" : "not-hashed",
     source_location:
       entry.encrypted ||

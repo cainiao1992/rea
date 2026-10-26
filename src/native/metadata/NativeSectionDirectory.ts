@@ -1,3 +1,4 @@
+import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { readElfTableDeclarations } from "../../domain/elfDeclaredRanges.js";
 import { readPeOptionalHeaderStructure } from "../../domain/peOptionalHeader.js";
 import {
@@ -264,24 +265,6 @@ export function* readElfSectionDirectory(
   };
 }
 
-/** Shared COFF section fields; content extent excludes file-alignment padding. */
-export const readPeSectionHeader = (bytes: Buffer) => {
-  const r = new BinaryReader(bytes, true);
-  const name = r.range(0, 8, "PE section name");
-  const nul = name.indexOf(0);
-  const virtual_size = r.u32(8);
-  const raw_size = r.u32(16);
-  return {
-    name: name.toString("latin1", 0, nul < 0 ? name.length : nul),
-    virtual_size,
-    virtual_address: r.u32(12),
-    raw_size,
-    offset: r.u32(20),
-    characteristics: r.u32(36),
-    size: virtual_size === 0 ? raw_size : Math.min(virtual_size, raw_size),
-  };
-};
-
 export function* readPeSectionDirectory(
   fileSize: number,
 ): Generator<NativeReadRequest, NativeSectionDirectory, Buffer> {
@@ -315,9 +298,11 @@ export function* readPeSectionDirectory(
   const table = yield request(fileSize, BigInt(start), BigInt(count) * 40n);
   const sections: NativeSection[] = [];
   for (let index = 0; index < count; index++) {
-    const row = readPeSectionHeader(
+    const parsed = readPeSectionHeader(
       table.subarray(index * 40, (index + 1) * 40),
     );
+    if (!parsed.ok) return reject(parsed.error.message);
+    const row = parsed.value;
     sections.push({
       index,
       name: row.name,

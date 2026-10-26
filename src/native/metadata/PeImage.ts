@@ -1,5 +1,5 @@
 import { readPeOptionalHeader } from "../../domain/peMachine.js";
-import { readPeSectionHeader } from "./NativeSectionDirectory.js";
+import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import {
   mzWindowsHeaderLayoutLimitation,
   parseMzHeaderEvidence,
@@ -108,6 +108,11 @@ export const readPeImage = (bytes: Buffer): PeImage => {
   const sections: PeImageSection[] = [];
   for (let index = 0; index < count; index++) {
     const entry = start + index * 40;
+    const section = readPeSectionHeader(
+      reader.range(entry, 40, "PE section header"),
+    );
+    if (!section.ok)
+      throw new BinaryFormatFailure(section.error.kind, section.error.message);
     const {
       name: sectionName,
       virtual_size: virtualSize,
@@ -116,7 +121,7 @@ export const readPeImage = (bytes: Buffer): PeImage => {
       offset,
       characteristics,
       size: contentSize,
-    } = readPeSectionHeader(reader.range(entry, 40, "PE section header"));
+    } = section.value;
     sections.push(
       peImageSection({
         reader,

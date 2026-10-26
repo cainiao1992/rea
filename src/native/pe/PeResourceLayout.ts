@@ -1,3 +1,4 @@
+import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
   readPeOptionalHeaderStructure,
@@ -133,11 +134,14 @@ export const readPeResourceLayout = (
   const sections: Section[] = [];
   for (let index = 0; index < sectionCount; index++) {
     const at = table + index * 40;
+    const parsed = readPeSectionHeader(bytes.subarray(at, at + 40));
+    if (!parsed.ok) return peFailure(parsed.error.message);
+    const row = parsed.value;
     const section = {
-      rva: bytes.readUInt32LE(at + 12),
-      virtualSize: bytes.readUInt32LE(at + 8),
-      offset: bytes.readUInt32LE(at + 20),
-      size: bytes.readUInt32LE(at + 16),
+      rva: row.virtual_address,
+      virtualSize: row.virtual_size,
+      offset: row.offset,
+      size: row.raw_size,
     };
     if (section.rva + virtualExtent(section) > 0x100000000)
       peFailure("PE section RVA range overflows.");

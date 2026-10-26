@@ -251,6 +251,24 @@ it("retains uninterpreted integrity declarations through packed and unpacked inv
             ...metadata,
             integrity: { algorithm: "SHA256", hash: digest },
           },
+          validBlocks: {
+            ...metadata,
+            integrity: {
+              algorithm: "SHA256",
+              hash: digest,
+              blockSize: 4 * 1024 * 1024,
+              blocks: [digest],
+            },
+          },
+          uncheckedBlocks: {
+            ...metadata,
+            integrity: {
+              algorithm: "SHA256",
+              hash: digest,
+              blockSize: 0,
+              blocks: ["source-invalid-block-hash"],
+            },
+          },
           unsupported: { ...metadata, integrity: unsupported },
           invalid: { ...metadata, integrity: invalid },
           companion: {
@@ -281,6 +299,19 @@ it("retains uninterpreted integrity declarations through packed and unpacked inv
     digest,
   });
   expect(occurrence("valid").limitations).toEqual([]);
+  for (const name of ["validBlocks", "uncheckedBlocks"]) {
+    const row = occurrence(name);
+    expect(row.declared_integrity).toEqual({ algorithm: "sha256", digest });
+    expect(row.hash_status).toBe("verified");
+    expect(row.limitations).toEqual([
+      expect.stringContaining(
+        "block integrity declarations were not validated",
+      ),
+    ]);
+    expect(row.limitations[0]).toContain(
+      "does not establish block integrity or Electron runtime acceptance",
+    );
+  }
   for (const [name, declaration, reason] of [
     ["unsupported", unsupported, "unsupported algorithm"],
     ["invalid", invalid, "invalid digest representation"],
@@ -306,7 +337,13 @@ it("retains uninterpreted integrity declarations through packed and unpacked inv
         resourceScope: resources,
       });
       expect(extracted.integrity_contradictions).toEqual([]);
-      for (const name of ["unsupported", "invalid", "companion"]) {
+      for (const name of [
+        "unsupported",
+        "invalid",
+        "companion",
+        "validBlocks",
+        "uncheckedBlocks",
+      ]) {
         expect((await readFile(join(outputRoot, name))).equals(payload)).toBe(
           true,
         );
@@ -320,6 +357,38 @@ it("retains uninterpreted integrity declarations through packed and unpacked inv
   }
   expect((await readFile(path)).equals(bytes)).toBe(true);
 });
+
+it.each([
+  { blockSize: 4 * 1024 * 1024 },
+  { blocks: ["source-block"] },
+  { blockSize: "uninterpreted source", blocks: { uninterpreted: true } },
+])(
+  "reports block declaration scope without reinterpreting partial or malformed source fields: %j",
+  async (blockFields) => {
+    const entries = await readAsarListing({
+      files: {
+        member: {
+          size: 0,
+          offset: "0",
+          integrity: {
+            algorithm: "SHA256",
+            hash: "a".repeat(64),
+            ...blockFields,
+          },
+        },
+      },
+    });
+    expect(entries[0]?.declaredIntegrity).toEqual({
+      algorithm: "sha256",
+      digest: "a".repeat(64),
+    });
+    expect(entries[0]?.limitations).toEqual([
+      expect.stringContaining(
+        "block integrity declarations were not validated",
+      ),
+    ]);
+  },
+);
 
 it("admits escaped integrity source retention before formatting its limitation", async () => {
   await expect(

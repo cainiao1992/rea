@@ -87,6 +87,104 @@ describe("native export stable filesystem boundary", () => {
   });
 });
 
+describe("native export text capacity", () => {
+  it.each(["symbol", "version"] as const)(
+    "bounds UTF-8 bytes of retained ELF %s text and its exact-byte spelling",
+    async (kind) => {
+      const root = await createTestTempDirectory("rea-native-export-text-");
+      const service = createNativeExportsService();
+      const text = "€".repeat(20_000);
+      const rawName = Buffer.from(text, "utf8").toString("latin1");
+      try {
+        for (const count of [119, 160]) {
+          const path = join(root, `${kind}-${String(count)}.so`);
+          const bytes = elfExportImage({
+            symbols: Array.from({ length: count }, () =>
+              kind === "symbol" ? { name: rawName } : { name: "a", version: 2 },
+            ),
+            ...(kind === "version"
+              ? { versionDefinitions: ["lib.so", rawName] }
+              : {}),
+          });
+          expect(bytes.length).toBeLessThan(70_000);
+          await writeFile(path, bytes);
+          const result = await service.inspect({ path });
+          if (count === 160) {
+            expect(result).toMatchObject({
+              ok: false,
+              error: { _tag: "AnalysisResourceConstraintError" },
+            });
+            continue;
+          }
+          if (!result.ok) throw new Error(JSON.stringify(result.error));
+          const report = nativeExportsSchema.parse(
+            result.value.normalized_result,
+          );
+          if (report.format !== "elf") throw new Error("Expected ELF report");
+          expect(report.coverage).toMatchObject({
+            status: "complete",
+            exports: count,
+          });
+          const row = report.exports[0]!;
+          const name = kind === "symbol" ? row : row.version;
+          expect(name).toMatchObject({
+            name: text,
+            name_bytes_base64: Buffer.from(text, "utf8").toString("base64"),
+            name_utf8_decodable: true,
+          });
+        }
+      } finally {
+        await service.close();
+      }
+    },
+  );
+
+  it("bounds intermediate ELF version names even when no symbols use them", async () => {
+    const root = await createTestTempDirectory("rea-native-export-versions-");
+    const service = createNativeExportsService();
+    try {
+      for (const count of [279, 280]) {
+        const path = join(root, `versions-${String(count)}.so`);
+        const bytes = elfExportImage({
+          symbols: [],
+          versionDefinitions: Array<string>(count).fill("v".repeat(60_000)),
+          // Definitions replace requirements at the same indices; released
+          // names must not remain charged against the live map's allowance.
+          ...(count === 279
+            ? {
+                versionRequirements: Array.from(
+                  { length: count },
+                  (_, index) => ({
+                    index: index + 1,
+                    name: "w".repeat(60_000),
+                  }),
+                ),
+              }
+            : {}),
+        });
+        expect(bytes.length).toBeLessThan(140_000);
+        await writeFile(path, bytes);
+        const result = await service.inspect({ path });
+        if (count === 280)
+          expect(result).toMatchObject({
+            ok: false,
+            error: { _tag: "AnalysisResourceConstraintError" },
+          });
+        else {
+          if (!result.ok) throw new Error(JSON.stringify(result.error));
+          expect(result.value.normalized_result).toMatchObject({
+            exports: [],
+            issues: [],
+            coverage: { status: "complete", exports: 0 },
+          });
+        }
+      }
+    } finally {
+      await service.close();
+    }
+  });
+});
+
 describe("native export encoding and failures", () => {
   it("keeps ELF symbol bytes while exposing valid UTF-8 text", async () => {
     const root = await createTestTempDirectory("rea-native-export-unicode-");

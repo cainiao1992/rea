@@ -247,11 +247,17 @@ duration. Setup preserves positive timeout values already in the `rea` entry.
 
 Setup also forwards explicitly selected input/output schema profiles,
 `REA_MCP_MAX_RESPONSE_BYTES`, provider paths and supported Ghidra, JADX and Kuna
-settings. This includes the selected ADB, apktool, tshark, capinfos and tshark
-prlimit executable paths. A provider being unavailable does not discard its selected paths;
+settings. It also forwards explicit executable and resource selections for ADB,
+apktool, packet capture, GDB/Rizin/objdump, Cutter, WABT, Wakaru, firmware and
+signal tools, browser inspection, and pwntools/pwndbg. This includes their
+supported prlimit overrides, Darwin Swift compiler/SDK/module-cache selections,
+and compile timeout, logging level and explicitly configured reference-secret
+patterns. A provider being unavailable does not discard its selected paths;
 doctor reports its readiness separately. Explicit selections override discovered
-defaults. Unrelated environment variables are not copied, and existing client
-environment overrides remain intact unless setup supplies the same key.
+defaults, including when setup runs again with a changed selection. Unrelated
+environment variables, process ownership tokens and one-shot target paths are not
+copied. Existing client environment overrides remain intact unless setup supplies
+the same key.
 You can edit `startupTimeoutMs` and `toolTimeoutMs` there; doctor keeps positive
 caller-selected values aligned and reports a non-blocking advisory when a tool
 timeout is shorter than the known provider allowance.

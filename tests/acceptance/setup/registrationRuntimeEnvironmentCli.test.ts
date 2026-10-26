@@ -36,6 +36,37 @@ cliTest(
       REA_TSHARK_COMMAND: join(home, "offline-tshark"),
       REA_CAPINFOS_COMMAND: join(home, "offline-capinfos"),
       REA_TSHARK_PRLIMIT_COMMAND: join(home, "offline-prlimit"),
+      REA_OBJDUMP_COMMAND: join(home, "offline-objdump"),
+      REA_GDB_COMMAND: join(home, "offline-gdb"),
+      REA_RIZIN_COMMAND: join(home, "offline-rizin"),
+      REA_CUTTER_BRIDGE_DIR: join(home, "cutter-bridge"),
+      REA_WABT_BIN_DIRECTORY: join(home, "wabt"),
+      REA_WAKARU_COMMAND: join(home, "offline-wakaru"),
+      REA_JAVASCRIPT_PRLIMIT_COMMAND: join(home, "javascript-prlimit"),
+      REA_BINWALK_COMMAND: join(home, "offline-binwalk"),
+      REA_UNBLOB_COMMAND: join(home, "offline-unblob"),
+      REA_FIRMWARE_PRLIMIT_COMMAND: join(home, "firmware-prlimit"),
+      REA_EVM_PRLIMIT_COMMAND: join(home, "evm-prlimit"),
+      REA_SIGROK_COMMAND: join(home, "offline-sigrok"),
+      REA_SIGROK_PRLIMIT_COMMAND: join(home, "sigrok-prlimit"),
+      REA_MITMDUMP_COMMAND: join(home, "offline-mitmdump"),
+      REA_BROWSER_EXECUTABLE: join(home, "offline-chromium"),
+      REA_BROWSER_NO_SANDBOX: "false",
+      REA_PWNTOOLS_PYTHON: join(home, "offline-python"),
+      REA_PWNTOOLS_MAX_INPUT_BYTES: "67108864",
+      REA_PWNDBG_GDB: join(home, "pwndbg-gdb"),
+      REA_PWNDBG_GDBINIT: join(home, "pwndbg-gdbinit"),
+      REA_PWNDBG_VENV_PATH: join(home, "pwndbg-venv"),
+      ...(process.platform === "darwin"
+        ? {}
+        : {
+            REA_DARWIN_SWIFTC_PATH: join(home, "offline-swiftc"),
+            REA_DARWIN_MODULE_CACHE_PATH: join(home, "swift-module-cache"),
+            SDKROOT: join(home, "macos-sdk"),
+          }),
+      REA_SWIFTC_COMPILE_TIMEOUT_MS: "180000",
+      REA_LOG_LEVEL: "warn",
+      REA_REFERENCE_SECRET_PATTERNS_JSON: '["explicit-private-value"]',
       REA_ANALYSIS_PROVIDER: "ghidra",
       REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
       REA_MCP_OUTPUT_SCHEMA_PROFILE: "off",
@@ -48,6 +79,9 @@ cliTest(
       ...selected,
       CALLER_UNRELATED_SETTING: "do not copy",
       REA_UNKNOWN_SETTING: "do not copy",
+      REA_PROCESS_RUN_ID: "do not copy",
+      REA_TOKEN: "do not copy",
+      HOPPER_TARGET_PATH: "do not copy",
     };
     const run = () =>
       cli.run({
@@ -69,13 +103,23 @@ cliTest(
       mcpServers: { rea: { env: selected } },
     });
     expect(configured).not.toContain("do not copy");
+    // A later setup must update a selection rather than retaining the first value.
+    selected.REA_OBJDUMP_COMMAND = join(home, "replacement-objdump");
+    environment.REA_OBJDUMP_COMMAND = selected.REA_OBJDUMP_COMMAND;
+    const updated = await run();
+    expect(updated.exitCode, updated.stdout).toBe(0);
+    const updatedConfiguration = await readFile(config, "utf8");
+    expect(JSON.parse(updatedConfiguration)).toMatchObject({
+      mcpServers: { rea: { env: selected } },
+    });
+    expect(updatedConfiguration).not.toContain("do not copy");
     const repeated = await run();
     expect(repeated.exitCode, repeated.stdout).toBe(0);
     expect(repeated.json).toMatchObject({
       plannedActions: [],
       appliedActions: [],
     });
-    expect(await readFile(config, "utf8")).toBe(configured);
+    expect(await readFile(config, "utf8")).toBe(updatedConfiguration);
   },
 );
 

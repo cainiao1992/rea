@@ -101,6 +101,11 @@ const decodeInterfaceBuilderBundle = async (
   const documents: InterfaceBuilderDocumentInput[] = [];
   const invalid: string[] = [];
   const omittedArchives: OmittedArchive[] = [];
+  const omissionCounts = new Map<string, number>();
+  const recordOmission = (reason: string, count = 1): void => {
+    if (count > 0)
+      omissionCounts.set(reason, (omissionCounts.get(reason) ?? 0) + count);
+  };
   let unreportedOmittedArchives = 0;
   const incompleteHierarchies = new Map<string, number>();
   const unexaminedSources = new Map<string, readonly NibUnexaminedSource[]>();
@@ -120,7 +125,7 @@ const decodeInterfaceBuilderBundle = async (
   let outcome: { kind: "completed" } | { kind: "failed"; cause: unknown } = {
     kind: "completed",
   };
-  const recordOmittedArchive = (
+  const retainOmittedArchive = (
     path: string,
     reason: string,
     limitations: readonly string[] = [],
@@ -128,6 +133,11 @@ const decodeInterfaceBuilderBundle = async (
     if (omittedArchives.length < MAX_REPORTED_OMITTED_ARCHIVES)
       omittedArchives.push({ path, reason, limitations });
     else unreportedOmittedArchives += 1;
+  };
+  const recordOmittedArchive = (path: string, reason: string): void => {
+    omitted += 1;
+    recordOmission(reason);
+    retainOmittedArchive(path, reason);
   };
   try {
     const selection = await selectInterfaceBuilderCandidates(
@@ -137,10 +147,12 @@ const decodeInterfaceBuilderBundle = async (
       traversal,
     );
     omitted = selection.omitted;
+    recordOmission("max_documents", selection.documentLimitOmissions);
+    recordOmission("symlink_not_followed", selection.symlinkOmissions);
     for (const entry of selection.omittedSamples)
-      recordOmittedArchive(entry.path, "max_documents");
+      retainOmittedArchive(entry.path, "max_documents");
     for (const entry of selection.symlinkSamples)
-      recordOmittedArchive(
+      retainOmittedArchive(
         entry.path,
         "symlink_not_followed",
         entry.limitations,
@@ -156,7 +168,6 @@ const decodeInterfaceBuilderBundle = async (
           entry.declaredSize !== null &&
           entry.declaredSize > remainingInputBytes
         ) {
-          omitted += 1;
           recordOmittedArchive(entry.path, "aggregate_decode_budget_exhausted");
           continue;
         }
@@ -262,12 +273,10 @@ const decodeInterfaceBuilderBundle = async (
         if (cause instanceof InterfaceBuilderDecodeBudgetExceeded) {
           // A document rejected while decoding, e.g. beyond the shared depth
           // limit, retains no representation; later documents keep its share.
-          omitted += 1;
           recordOmittedArchive(entry.path, cause.reason);
           continue;
         }
         if (cause instanceof UnsupportedBinaryPlistUidError) {
-          omitted += 1;
           recordOmittedArchive(entry.path, "unsupported_uid_exact_range");
           continue;
         }
@@ -308,6 +317,7 @@ const decodeInterfaceBuilderBundle = async (
     invalid,
     omittedArchives,
     unreportedOmittedArchives,
+    omissionCounts,
     attempted,
     omitted,
     traversal: traversal.snapshot(),
@@ -325,6 +335,8 @@ const selectInterfaceBuilderCandidates = async (
   readonly omittedSamples: readonly ArtifactEntry[];
   readonly symlinkSamples: readonly ArtifactEntry[];
   readonly omitted: number;
+  readonly documentLimitOmissions: number;
+  readonly symlinkOmissions: number;
   readonly unreportedOmitted: number;
 }> => {
   const capacity = maximumDocuments + MAX_REPORTED_OMITTED_ARCHIVES;
@@ -366,6 +378,8 @@ const selectInterfaceBuilderCandidates = async (
     omittedSamples,
     symlinkSamples,
     omitted: Math.max(0, total - maximumDocuments) + symlinks,
+    documentLimitOmissions: Math.max(0, total - maximumDocuments),
+    symlinkOmissions: symlinks,
     unreportedOmitted:
       Math.max(0, total - maximumDocuments - omittedSamples.length) +
       symlinks -
@@ -409,6 +423,7 @@ const finalizeHierarchyCoverage = (
     invalid: readonly string[];
     omittedArchives: readonly OmittedArchive[];
     unreportedOmittedArchives: number;
+    omissionCounts: ReadonlyMap<string, number>;
     attempted: number;
     omitted: number;
     traversal: ArtifactReaderTraversal;
@@ -427,11 +442,35 @@ const finalizeHierarchyCoverage = (
     omittedArchives,
     unreportedOmittedArchives,
   } = counts;
-  const archiveDecodePartial =
-    invalid.length > 0 ||
-    unexaminedSources.size > 0 ||
-    counts.omitted > 0 ||
-    counts.traversal.status === "unknown";
+  const sourceReasons = new Set(
+    [...counts.omissionCounts.keys()].map((reason) =>
+      reason === "max_documents"
+        ? "document_limit_reached"
+        : reason === "symlink_not_followed"
+          ? "archive_symlink_not_followed"
+          : reason,
+    ),
+  );
+  if (invalid.length > 0) sourceReasons.add("one_or_more_archives_invalid");
+  if (counts.traversal.status === "unknown")
+    sourceReasons.add("source_traversal_unknown");
+  const sourceDecodeReason =
+    sourceReasons.size > 1
+      ? "multiple_archive_decode_causes"
+      : (sourceReasons.values().next().value ?? null);
+  const archiveDecodeReason =
+    sourceDecodeReason ??
+    (unexaminedSources.size > 0
+      ? "serialized_archive_content_unexamined"
+      : null);
+  const archiveObjectDecodeReason =
+    sourceDecodeReason ??
+    ([...unexaminedSources.values()].some((sources) =>
+      sources.some((source) => source.facets.includes("objects")),
+    )
+      ? "serialized_archive_content_unexamined"
+      : null);
+  const archiveDecodePartial = archiveDecodeReason !== null;
   return {
     ...result,
     documents: result.documents.map((document) => ({
@@ -479,28 +518,21 @@ const finalizeHierarchyCoverage = (
         }),
         {
           facet: "archive_decode",
-          status: archiveDecodePartial
-            ? ("partial" as const)
-            : ("complete" as const),
-          reason: omittedArchives.some(
-            ({ reason }) => reason === "aggregate_decode_budget_exhausted",
-          )
-            ? "aggregate_decode_budget_exhausted"
-            : omittedArchives.some(({ reason }) => reason === "max_documents")
-              ? "document_limit_reached"
-              : omittedArchives.some(
-                    ({ reason }) => reason === "symlink_not_followed",
-                  )
-                ? "archive_symlink_not_followed"
-                : omittedArchives.length > 0
-                  ? "archive_decode_budget_exhausted"
-                  : invalid.length > 0
-                    ? "one_or_more_archives_invalid"
-                    : unexaminedSources.size > 0
-                      ? "serialized_archive_content_unexamined"
-                      : counts.traversal.status === "unknown"
-                        ? "source_traversal_unknown"
-                        : null,
+          status:
+            archiveDecodeReason === null
+              ? ("complete" as const)
+              : ("partial" as const),
+          reason: archiveDecodeReason,
+          examined: counts.attempted,
+          omitted: counts.omitted,
+        },
+        {
+          facet: "archive_object_decode",
+          status:
+            archiveObjectDecodeReason === null
+              ? ("complete" as const)
+              : ("partial" as const),
+          reason: archiveObjectDecodeReason,
           examined: counts.attempted,
           omitted: counts.omitted,
         },
@@ -548,6 +580,12 @@ const finalizeHierarchyCoverage = (
       ...[...negativeZeroReals].map(
         ([path, count]) => `${path}: ${negativeZeroRealLimitation(count)}`,
       ),
+      ...[...counts.omissionCounts]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(
+          ([reason, count]) =>
+            `${count} Interface Builder archive(s) omitted because ${reason.replaceAll("_", " ")}.`,
+        ),
       ...omittedArchives.flatMap(({ path, reason, limitations }) => [
         `${path}: omitted because ${reason.replaceAll("_", " ")}.`,
         ...limitations.map((limitation) => `${path}: ${limitation}`),

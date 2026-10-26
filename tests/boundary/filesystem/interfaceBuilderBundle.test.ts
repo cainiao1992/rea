@@ -225,10 +225,16 @@ describe("compiled Interface Builder traversal coverage", () => {
         expect.objectContaining({
           facet: "archive_decode",
           status: "partial",
-          reason: "document_limit_reached",
+          reason: "multiple_archive_decode_causes",
           examined: 1,
           omitted: 126,
         }),
+      );
+      expect(result.limitations).toContain(
+        "61 Interface Builder archive(s) omitted because max documents.",
+      );
+      expect(result.limitations).toContain(
+        "65 Interface Builder archive(s) omitted because symlink not followed.",
       );
       const reasons = result.limitations.filter((value) =>
         value.includes(": omitted because "),

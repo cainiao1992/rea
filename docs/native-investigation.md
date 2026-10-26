@@ -1074,8 +1074,17 @@ counted as known archive omissions. Recognized symlinked `.nib` entries are
 not followed; they retain their paths and reader limitations as counted archive
 omissions. Either gap makes `archive_decode` partial and the graph truncated
 while preserving decoded documents. Its `examined` count remains actual decode
-attempts, and asset-catalog UI joins retain their existing incomplete-graph
-qualification.
+attempts. `archive_object_decode` separately reports whether archive selection
+and decoding examined the object sources; hierarchy-only and connection-only
+unknowns do not make that facet partial. Asset-catalog resource-key joins use
+this source coverage together with document and object projection coverage.
+Incomplete hierarchy or synthetic hierarchy-node limits alone do not qualify
+otherwise complete resource-key joins; omitted archives or resource objects do.
+Archive omission reasons are counted independently of the bounded path samples.
+A UID outside the exact supported range reports `unsupported_uid_exact_range`,
+not budget exhaustion. Mixed source failures report `multiple_archive_decode_causes`;
+limitations retain omission counts by cause even when individual paths exceed
+the reporting allowance.
 
 UI dispatch joins use the authored receiver's class independently of its
 presentation kind (controller, view, control or another object). An unresolved

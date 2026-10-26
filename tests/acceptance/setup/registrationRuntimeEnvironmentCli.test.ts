@@ -26,6 +26,7 @@ cliTest(
     const config = join(home, ".qwen/settings.json");
     const selected = {
       HOPPER_LAUNCHER_PATH: join(home, "missing-hopper"),
+      HOPPER_LOADER_ARGS_JSON: '["", "--loader", "Mach-O"]',
       GHIDRA_INSTALL_DIR: join(home, "offline-ghidra"),
       GHIDRA_HEADLESS_MAXMEM: "512M",
       GHIDRA_MAXMEM: "3G",
@@ -111,6 +112,8 @@ cliTest(
     environment.REA_MCP_TOOL_FAMILIES = selected.REA_MCP_TOOL_FAMILIES;
     selected.REA_OBJDUMP_COMMAND = join(home, "replacement-objdump");
     environment.REA_OBJDUMP_COMMAND = selected.REA_OBJDUMP_COMMAND;
+    selected.HOPPER_LOADER_ARGS_JSON = "[]";
+    environment.HOPPER_LOADER_ARGS_JSON = selected.HOPPER_LOADER_ARGS_JSON;
     // Empty headless heap explicitly selects the lower-priority caller value.
     selected.GHIDRA_HEADLESS_MAXMEM = "";
     selected.GHIDRA_MAXMEM = "768M";

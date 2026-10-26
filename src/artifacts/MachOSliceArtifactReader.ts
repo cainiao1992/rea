@@ -9,6 +9,7 @@ import {
 } from "../native/CommandRunner.js";
 import {
   parseLipoOutputResult,
+  LipoFieldRetentionError,
   type LipoArchitecture,
 } from "../native/parsers/lipo.js";
 import type { MachoSlice } from "../domain/apple/dylibResolution.js";
@@ -122,9 +123,14 @@ export class MachOSliceArtifactReader implements ArtifactReader {
     const parsed = parseLipoOutputResult(captured.value.stdout, this.path);
     if (!parsed.ok)
       throw new ArtifactReaderFailure(
-        "format",
+        parsed.error instanceof LipoFieldRetentionError ? "limit" : "format",
         `lipo did not produce readable architecture records: ${parsed.error.message}`,
-        { cause: parsed.error },
+        {
+          cause: parsed.error,
+          ...(parsed.error instanceof LipoFieldRetentionError
+            ? { boundary: "memory" as const }
+            : {}),
+        },
       );
     const lipo = parsed.value;
     const { architectures } = lipo;
@@ -254,6 +260,7 @@ export class MachOSliceArtifactReader implements ArtifactReader {
         declaredIntegrity: null,
         unpacked: false,
         limitations: [
+          ...architecture.limitations,
           ...(structural.status === "not-mach-o"
             ? [
                 "Structural Mach-O facts were unavailable; slice range is based on lipo output.",
@@ -265,7 +272,10 @@ export class MachOSliceArtifactReader implements ArtifactReader {
               : []),
           ...(architecture.file_offset === null || architecture.size === null
             ? [
-                "Slice range was derived from structural Mach-O facts because lipo omitted it.",
+                architecture.fields.offset.kind === "uninterpretable" ||
+                architecture.fields.size.kind === "uninterpretable"
+                  ? "Slice range was derived from structural Mach-O facts because lipo's range declarations could not all be interpreted."
+                  : "Slice range was derived from structural Mach-O facts because lipo omitted it.",
               ]
             : []),
           ...(architecture.cpu_type !== null &&

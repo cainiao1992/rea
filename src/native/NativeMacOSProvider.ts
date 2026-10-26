@@ -641,6 +641,9 @@ class NativeMacOSClient implements AnalysisClient {
     );
     if (!parsed.ok) return parsed;
     const { architectures } = parsed.value;
+    const limitations = architectures.flatMap(
+      (architecture) => architecture.limitations,
+    );
     const result = listArchitecturesSchema.parse({
       architectures: {
         items: architectures,
@@ -649,11 +652,11 @@ class NativeMacOSClient implements AnalysisClient {
         limitations: [],
       },
       provenance,
-      limitations: [],
+      limitations,
     });
     return ok({
       result: jsonValueSchema.parse(result),
-      limitations: [],
+      limitations,
       locations: architectureLocations(result.architectures.items),
     });
   }

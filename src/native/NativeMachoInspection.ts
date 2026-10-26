@@ -149,7 +149,9 @@ export const inspectNativeMacho = async (
       return err(unusableNativeCommandOutput(captured.value));
     captures.push(captured.value);
   }
-  const limitations: string[] = [];
+  const limitations = architectures.flatMap(
+    (architecture) => architecture.limitations,
+  );
   if (optional === null)
     limitations.push(
       `vtool cannot select the ${selectedArchitecture} slice; build metadata is normalized from otool only.`,

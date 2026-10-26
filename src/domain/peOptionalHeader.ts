@@ -13,6 +13,9 @@ export interface PeOptionalHeaderStructure {
   readonly magic: 0x10b | 0x20b;
   readonly bits: 32 | 64;
   readonly format: "pe32" | "pe32-plus";
+  readonly imageBase: bigint;
+  readonly sectionAlignment: number;
+  readonly fileAlignment: number;
   readonly sizeOfHeaders: number;
   readonly directoryOffset: number;
   readonly directoryCount: number;
@@ -74,6 +77,12 @@ export const readPeOptionalHeaderStructure = (
     magic,
     bits,
     format: bits === 64 ? "pe32-plus" : "pe32",
+    imageBase:
+      bits === 64
+        ? view.getBigUint64(24, true)
+        : BigInt(view.getUint32(28, true)),
+    sectionAlignment: view.getUint32(32, true),
+    fileAlignment: view.getUint32(36, true),
     sizeOfHeaders: view.getUint32(60, true),
     directoryOffset,
     directoryCount,

@@ -1,4 +1,5 @@
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
+import type { ArtifactEmbeddedFormatProbeFacts } from "../ArtifactEmbeddedFormatProbes.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 
 import { AsarArtifactReader } from "../AsarArtifactReader.js";
@@ -67,16 +68,18 @@ export const scanCanonicalArtifactInventoryInScope = async (
 export const scanCanonicalArtifactInventoryForExtractionInScope = async (
   path: string,
   options: ArtifactInventoryOptions,
+  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<{
   readonly snapshot: ArtifactInventorySnapshot;
   readonly zipSource: TransferredZipInventorySource | undefined;
-}> => scanCanonical(path, options, createReader, "transfer-zip");
+}> => scanCanonical(path, options, createReader, "transfer-zip", probeFacts);
 
 const scanCanonical = async (
   path: string,
   options: ArtifactInventoryOptions,
   readerFactory: typeof createReader,
   rootDisposition: "release" | "transfer-zip",
+  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<{
   readonly snapshot: ArtifactInventorySnapshot;
   readonly zipSource: TransferredZipInventorySource | undefined;
@@ -93,6 +96,7 @@ const scanCanonical = async (
     metadata.isDirectory(),
     metadata,
     options,
+    probeFacts,
   );
   let reader: ArtifactReader | undefined;
   let readerCreationFailure: { readonly cause: unknown } | undefined;

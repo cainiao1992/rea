@@ -1,6 +1,13 @@
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
+import {
+  createArtifactReader,
+  type ArtifactReaderFormat,
+} from "../createArtifactReader.js";
 import { resolveAsarHeaderAdmission } from "../AsarHeader.js";
-import { locateGodotPck } from "../GodotPckLocation.js";
+import {
+  ArtifactEmbeddedFormatProbes,
+  type ArtifactEmbeddedFormatProbeFacts,
+} from "../ArtifactEmbeddedFormatProbes.js";
 import { withArtifactRegularFile } from "../ArtifactFileOperation.js";
 import type {
   ArtifactCleanupAttempt,
@@ -14,8 +21,6 @@ import { SafeOutputTreeDestinationRefusal } from "../SafeOutputTreeAdmission.js"
 
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import { digestCanonicalValue } from "../../domain/canonicalDigest.js";
-import { AsarArtifactReader } from "../AsarArtifactReader.js";
-import { GodotPckArtifactReader } from "../GodotPckArtifactReader.js";
 import {
   ArtifactPathRegistry,
   normalizeArtifactPath,
@@ -28,16 +33,9 @@ import {
 } from "../ArtifactReader.js";
 import { ArtifactTraversalObservation } from "../ArtifactTraversalObservation.js";
 import { abortIfNeeded } from "../ArtifactHash.js";
-import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { SafeOutputTree } from "../SafeOutputTree.js";
 import { SafeOutputTreeCreationFailure } from "../SafeOutputTreeCreationFailure.js";
-import { ZipArtifactReader } from "../ZipArtifactReader.js";
 import { isZipPackageFormat } from "../../domain/zipPackageFormat.js";
-import { MachOSliceArtifactReader } from "../MachOSliceArtifactReader.js";
-import { NodeSeaArtifactReader } from "../NodeSeaArtifactReader.js";
-import { PyInstallerArtifactReader } from "../PyInstallerArtifactReader.js";
-import { containsPyInstallerArchive } from "../pyinstaller/CArchiveLayout.js";
-import { locateNodeSea } from "../nodeSea/NodeSeaLocation.js";
 import {
   artifactExtractionResultSchema,
   type ArtifactExtractionResult,
@@ -78,17 +76,21 @@ const extractArtifactInScope = async (
   // Cancellation wins over every later refusal, including unsupported formats.
   abortIfNeeded(signal);
   const sourcePath = await realpath(input.inputPath);
-  await requireExtractableFormat(sourcePath, input, signal);
+  const admission = await requireExtractableFormat(sourcePath, input, signal);
   const { snapshot, zipSource } =
-    await scanArtifactInventoryForExtractionInScope(sourcePath, {
-      resourceScope: input.resourceScope,
-      signal,
-      environment: input.environment,
-      asarHeaderAdmission:
-        input.asarHeaderAdmission ??
-        resolveAsarHeaderAdmission(input.environment),
-      integrity: { mode: input.integrityPolicy },
-    });
+    await scanArtifactInventoryForExtractionInScope(
+      sourcePath,
+      {
+        resourceScope: input.resourceScope,
+        signal,
+        environment: input.environment,
+        asarHeaderAdmission:
+          input.asarHeaderAdmission ??
+          resolveAsarHeaderAdmission(input.environment),
+        integrity: { mode: input.integrityPolicy },
+      },
+      admission.probeFacts,
+    );
   const activeZipSource =
     zipSource === undefined
       ? undefined
@@ -100,6 +102,7 @@ const extractArtifactInScope = async (
       snapshot,
       signal,
       activeZipSource,
+      admission.probeFacts,
     );
   } catch (cause: unknown) {
     if (activeZipSource !== undefined && cause instanceof ArtifactReaderFailure)
@@ -141,6 +144,7 @@ export const materializeArtifactInventoryInScope = async (
   snapshot: ArtifactInventorySnapshot,
   signal?: AbortSignal,
   zipSource?: ActiveZipInventorySource,
+  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<ArtifactExtractionResult> => {
   abortIfNeeded(signal);
   // A directory source must never acquire its own output as a new member on
@@ -257,6 +261,7 @@ export const materializeArtifactInventoryInScope = async (
     selected,
     signal,
     zipSource,
+    probeFacts,
   });
 };
 
@@ -280,6 +285,7 @@ const materializeSelection = async ({
   selected,
   signal,
   zipSource,
+  probeFacts,
 }: {
   readonly input: ArtifactExtractionInput;
   readonly sourcePath: string;
@@ -287,6 +293,7 @@ const materializeSelection = async ({
   readonly selected: readonly SelectedOccurrence[];
   readonly signal: AbortSignal | undefined;
   readonly zipSource: ActiveZipInventorySource | undefined;
+  readonly probeFacts: ArtifactEmbeddedFormatProbeFacts | undefined;
 }): Promise<ArtifactExtractionResult> => {
   const byPath = new Map<string, SelectedOccurrence>();
   for (const item of selected) {
@@ -304,6 +311,7 @@ const materializeSelection = async ({
     inventory.manifest.root_format,
     signal,
     zipSource,
+    probeFacts,
   );
   const readerOwner: ArtifactResourceOwner = {
     kind: "reader" as const,
@@ -541,9 +549,18 @@ const requireExtractableFormat = async (
     "inputPath" | "inputFormat" | "resourceScope"
   >,
   signal?: AbortSignal,
-): Promise<boolean> => {
+  previous?: ArtifactEmbeddedFormatProbeFacts,
+): Promise<{
+  readonly directory: boolean;
+  readonly probeFacts?: ArtifactEmbeddedFormatProbeFacts;
+}> => {
   const format = input.inputFormat;
   const directory = (await lstat(path)).isDirectory();
+  if (directory && previous !== undefined)
+    throw new ArtifactReaderFailure(
+      "integrity",
+      `Root artifact changed before inventory: ${path}`,
+    );
   // A thin Mach-O has no child entries of its own: inventory lists only its
   // root unless it carries an embedded pack, so it takes the same pack probe
   // as ELF and PE while only the universal container has a slice reader.
@@ -554,31 +571,34 @@ const requireExtractableFormat = async (
     format !== "mach-o-universal" &&
     !isZipPackageFormat(format)
   ) {
-    const pack = await withArtifactRegularFile(
+    const detected = await withArtifactRegularFile(
       path,
       input.resourceScope,
       signal,
-      async ({ handle, initial }) => {
-        const size = initial.size;
-        if (await locateGodotPck(handle, size, signal)) return true;
-        if (format !== "elf" && format !== "pe" && format !== "mach-o")
-          return false;
-        abortIfNeeded(signal);
-        if (await locateNodeSea(handle, size, signal)) return true;
-        abortIfNeeded(signal);
-        const packaged = await containsPyInstallerArchive(handle, size, signal);
-        abortIfNeeded(signal);
-        return packaged;
+      async (source) => {
+        const probes = new ArtifactEmbeddedFormatProbes(
+          path,
+          source,
+          signal,
+          previous,
+        );
+        const pack =
+          (await probes.godotPck()) !== undefined ||
+          ((format === "elf" || format === "pe" || format === "mach-o") &&
+            ((await probes.nodeSea()) !== undefined ||
+              (await probes.pyInstaller())));
+        return { pack, probeFacts: probes.completedFacts() };
       },
     );
-    if (!pack)
+    if (!detected.pack)
       throw new AnalysisUnsupportedTargetError(
         "extract_artifact",
         input.inputPath,
         `Artifact format has no extraction reader: ${format}`,
       );
+    return { directory, probeFacts: detected.probeFacts };
   }
-  return directory;
+  return { directory };
 };
 
 const createReader = async (
@@ -594,29 +614,38 @@ const createReader = async (
   containerFormat: ArtifactGraphManifest["root_format"],
   signal?: AbortSignal,
   zipSource?: ActiveZipInventorySource,
+  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<ArtifactReader> => {
-  if (zipSource !== undefined && isZipPackageFormat(containerFormat))
-    return new ZipArtifactReader(
-      path,
-      containerFormat,
-      undefined,
-      zipSource.source,
-    );
-  const format = input.inputFormat;
-  if (containerFormat === "godot-pck") return new GodotPckArtifactReader(path);
-  if (containerFormat === "pyinstaller")
-    return new PyInstallerArtifactReader(path);
-  if (containerFormat === "node-sea") return new NodeSeaArtifactReader(path);
-  if (await requireExtractableFormat(path, input, signal))
-    return new DirectoryArtifactReader(path);
-  if (format === "asar")
-    return new AsarArtifactReader(path, {
-      headerAdmission:
-        input.asarHeaderAdmission ??
-        resolveAsarHeaderAdmission(input.environment),
-    });
-  if (isZipPackageFormat(format)) return new ZipArtifactReader(path, format);
-  return new MachOSliceArtifactReader(path, input.environment);
+  const transferredZip =
+    zipSource !== undefined && isZipPackageFormat(containerFormat);
+  let format: ArtifactReaderFormat;
+  if (transferredZip) format = containerFormat;
+  else if (
+    containerFormat === "godot-pck" ||
+    containerFormat === "pyinstaller" ||
+    containerFormat === "node-sea"
+  )
+    format = containerFormat;
+  else if (
+    (await requireExtractableFormat(path, input, signal, probeFacts)).directory
+  )
+    format = "directory";
+  else if (
+    input.inputFormat === "asar" ||
+    isZipPackageFormat(input.inputFormat)
+  )
+    format = input.inputFormat;
+  else format = "mach-o-universal";
+  return createArtifactReader(path, format, {
+    environment: input.environment,
+    unreadableDirectories: "fail",
+    admission: transferredZip ? zipSource.source : undefined,
+    asarHeaderAdmission:
+      format === "asar"
+        ? (input.asarHeaderAdmission ??
+          resolveAsarHeaderAdmission(input.environment))
+        : undefined,
+  });
 };
 
 const preflight = (entry: ArtifactEntry): void => {

@@ -12,6 +12,7 @@ import {
 } from "./scanCanonical.js";
 import type { ArtifactInventoryOptions } from "./types.js";
 import type { ArtifactInventorySnapshot } from "../../domain/artifactInventorySnapshot.js";
+import type { ArtifactEmbeddedFormatProbeFacts } from "../ArtifactEmbeddedFormatProbes.js";
 
 /** Inventory one local artifact and return every graph collection inline. */
 export const inventoryArtifact = async (
@@ -36,11 +37,16 @@ export const scanArtifactInventoryInScope = async (
 export const scanArtifactInventoryForExtractionInScope = async (
   inputPath: string,
   options: ArtifactInventoryOptions,
+  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<{
   readonly snapshot: ArtifactInventorySnapshot;
   readonly zipSource: TransferredZipInventorySource | undefined;
 }> => {
   abortIfNeeded(options.signal);
   const path = await realpath(inputPath);
-  return scanCanonicalArtifactInventoryForExtractionInScope(path, options);
+  return scanCanonicalArtifactInventoryForExtractionInScope(
+    path,
+    options,
+    probeFacts,
+  );
 };

@@ -1,10 +1,12 @@
-import { access, symlink, writeFile } from "node:fs/promises";
+import { access, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { writeOrderedZip } from "../../../fixtures/artifactEntryOrder.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import { buildGodotPck, embedGodotPck } from "../../../fixtures/godotPck.js";
+import { withArtifactClient } from "../../../support/artifactClientScope.js";
 
 import { ArtifactProvider } from "../../../../src/artifacts/ArtifactProvider.js";
 import {
@@ -109,6 +111,47 @@ describe("artifact extraction format support", () => {
     expect(
       extracted.artifacts.map(({ relative_path }) => relative_path),
     ).toContain("hello");
+  });
+});
+
+describe("artifact extraction reader selection", () => {
+  it("extracts an embedded PCK using its inventoried format rather than its executable carrier", async () => {
+    const root = await createTestTempDirectory("rea-extract-embedded-pck-");
+    const binary = join(root, "game");
+    const output = join(root, "output");
+    await writeFile(
+      binary,
+      embedGodotPck(
+        buildGodotPck(3, [{ path: "res://main.gd", data: "extends Node\n" }]),
+      ),
+    );
+    await withArtifactClient(
+      {
+        path: binary,
+        sourcePath: binary,
+        sha256: "0".repeat(64),
+        kind: "executable",
+        format: "elf",
+        architecture: "x86_64",
+        availableArchitectures: ["x86_64"],
+      },
+      async (client) => {
+        const result = await client.execute("extract_artifact", {
+          output_root: output,
+        });
+        if (!result.ok) throw result.error;
+        const extracted = artifactExtractionResultSchema.parse(
+          result.value.result,
+        );
+        expect(extracted.manifest.root_format).toBe("godot-pck");
+        expect(
+          extracted.artifacts.map(({ relative_path }) => relative_path),
+        ).toEqual(["main.gd"]);
+        expect(await readFile(join(output, "main.gd"), "utf8")).toBe(
+          "extends Node\n",
+        );
+      },
+    );
   });
 
   it.each(["zip", "hap", "hsp", "app-pack"] as const)(

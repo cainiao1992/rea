@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   TOOL_FAMILY_DEFINITIONS,
-  TOOL_FAMILY_IDS,
   contractsForToolFamilies,
   toolFamilyId,
 } from "./toolFamilies.js";
+import { TOOL_FAMILY_IDS } from "./toolFamilyIds.js";
 import { TOOL_CONTRACTS } from "./toolContracts.js";
 
 describe("tool families", () => {

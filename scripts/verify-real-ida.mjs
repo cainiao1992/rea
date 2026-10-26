@@ -54,7 +54,7 @@ const [
   { toolContract },
   { evidenceSchema },
   { functionDossierSchema },
-  { readIdaConfiguration },
+  { readIdaConfiguration, idaProtocol },
   { createIdaMcpConnection },
   { idaAddressSchema },
 ] = await Promise.all([
@@ -91,8 +91,7 @@ const environment = Object.fromEntries(
 const report = {
   passed: false,
   mode: config.mode,
-  protocol:
-    config.protocol ?? (config.mode === "attached" ? "legacy" : "modern"),
+  protocol: idaProtocol(config),
   checks: [],
   observations: [],
   unverified: [],

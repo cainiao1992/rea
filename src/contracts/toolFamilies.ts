@@ -46,8 +46,6 @@ import { FRIDA_TOOL_CONTRACTS } from "./fridaToolContracts.js";
 import { TOOL_CONTRACTS } from "./toolContracts.js";
 import { TOOL_FAMILY_IDS, type ToolFamilyId } from "./toolFamilyIds.js";
 
-export { TOOL_FAMILY_IDS, type ToolFamilyId } from "./toolFamilyIds.js";
-
 /** One selectable family: a stable selection id and its complete contract set. */
 export interface ToolFamilyDefinition {
   readonly id: ToolFamilyId;

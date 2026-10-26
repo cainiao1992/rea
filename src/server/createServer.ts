@@ -109,7 +109,7 @@ import {
   compactPresentationForMcpInputSchemaProfile,
   parseMcpInputSchemaProfile,
 } from "../config/mcpInputSchemaProfile.js";
-import type { CompactInputSchemaPresentation } from "./EvidenceMcpServer.js";
+import type { CompactInputSchemaPresentation } from "../contracts/compactInputSchema.js";
 import { isAbsolute } from "node:path";
 
 import type { BinarySessionPort } from "../application/binary/BinarySessionPort.js";

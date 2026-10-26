@@ -1432,13 +1432,6 @@ export type InspectAnalysisViewInput = z.output<
 export type AnalysisViewResult = z.output<typeof analysisViewResultSchema>;
 export type AnalysisViewCoverage = z.output<typeof coverageSchema>;
 
-export {
-  webBundleViewRequestSchema,
-  webBundleViewItemsSchema,
-  webBundleSummarySchema,
-  projectWebBundleView,
-};
-
 /** Parent record already resolved from inline Evidence or a session reference. */
 export interface AnalysisViewParent {
   readonly evidenceId: string;

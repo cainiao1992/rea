@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import type { MipsElfMetadata } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
 
@@ -38,12 +39,19 @@ export const readMipsElfSharedLoad = async (
   let dynamic: { offset: number; address: number; size: number } | undefined;
   for (let position = 0; position < programHeaders.length; position += 32) {
     checkCancelled();
-    const type = u32(programHeaders, position);
-    const offset = u32(programHeaders, position + 4);
-    const size = u32(programHeaders, position + 16);
+    const parsedProgram = readElfProgramHeader(
+      programHeaders.subarray(position, position + 32),
+      32,
+      little,
+    );
+    if (!parsedProgram.ok) return err(parsedProgram.error.message);
+    const program = parsedProgram.value;
+    const { type } = program;
+    const offset = Number(program.offset);
+    const size = Number(program.fileSize);
     if (type === 1) {
-      const address = u32(programHeaders, position + 8);
-      const memorySize = u32(programHeaders, position + 20);
+      const address = Number(program.virtualAddress);
+      const memorySize = Number(program.memorySize);
       if (
         offset > fileSize - size ||
         size > memorySize ||
@@ -54,7 +62,7 @@ export const readMipsElfSharedLoad = async (
     }
     if (type === 2) {
       if (dynamic !== undefined) return err("duplicate MIPS PT_DYNAMIC tables");
-      dynamic = { offset, address: u32(programHeaders, position + 8), size };
+      dynamic = { offset, address: Number(program.virtualAddress), size };
     }
   }
   if (dynamic === undefined)

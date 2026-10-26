@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import type { FileHandle } from "node:fs/promises";
 import type {
@@ -102,9 +103,6 @@ export const readMipsElfMetadata = async (
       count: programs.count,
       stride: programs.width,
       entrySize: 32,
-      typeOffset: 0,
-      dataOffset: 4,
-      sizeOffset: 16,
       recordType: 0x70000003, // PT_MIPS_ABIFLAGS
       optional: false,
     },
@@ -114,9 +112,6 @@ export const readMipsElfMetadata = async (
       count: sections.count,
       stride: sections.width,
       entrySize: 40,
-      typeOffset: 4,
-      dataOffset: 16,
-      sizeOffset: 20,
       recordType: 0x7000002a, // SHT_MIPS_ABIFLAGS
       optional: true,
     },
@@ -163,7 +158,17 @@ export const readMipsElfMetadata = async (
     for (let i = 0; i < count; i += 1) {
       checkCancelled();
       const position = i * table.entrySize;
-      const type = u32(contents.value, position + table.typeOffset);
+      const parsedProgram = !table.optional
+        ? readElfProgramHeader(
+            contents.value.subarray(position, position + table.entrySize),
+            32,
+            little,
+          )
+        : undefined;
+      if (parsedProgram !== undefined && !parsedProgram.ok)
+        return err(parsedProgram.error.message);
+      const program = parsedProgram?.value;
+      const type = program?.type ?? u32(contents.value, position + 4);
       if (table.optional && type === SHT_GNU_ATTRIBUTES) {
         if (gnuAttributes !== null)
           return err("duplicate MIPS GNU attribute sections");
@@ -197,8 +202,14 @@ export const readMipsElfMetadata = async (
       if (type !== table.recordType) continue;
       if (found) return err(`duplicate MIPS ABI records in ${table.label}`);
       found = true;
-      const offset = u32(contents.value, position + table.dataOffset);
-      const size = u32(contents.value, position + table.sizeOffset);
+      const offset =
+        program !== undefined
+          ? Number(program.offset)
+          : u32(contents.value, position + 16);
+      const size =
+        program !== undefined
+          ? Number(program.fileSize)
+          : u32(contents.value, position + 20);
       if (size !== 24)
         return err("unsupported MIPS ABI record size; expected 24 bytes");
       const candidate = await read(offset, 24, "ABI record");

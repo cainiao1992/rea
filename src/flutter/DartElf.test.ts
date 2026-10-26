@@ -545,3 +545,24 @@ it("checks raw symbol precision only after definition and requested-name selecti
     ],
   });
 });
+
+it("keeps precision admission limited to consumed ELF program fields and types", async () => {
+  const original = buildElf64Image([{ name: "selected", value: 64, size: 4 }]);
+  const expected = await readElfSymbols(original, ["selected"]);
+  const bytes = appendElfRanges(original, "program", [
+    { type: 0x70000001, offset: 0, size: 0 },
+  ]);
+  const table = Number(bytes.readBigUInt64LE(32));
+  const width = bytes.readUInt16LE(54);
+  for (const relative of [8, 16, 24, 32, 40, 48])
+    bytes.writeBigUInt64LE(0xffffffffffffffffn, table + width + relative);
+  // The load mapping does not consume physical address, memory size or alignment.
+  for (const relative of [24, 40, 48])
+    bytes.writeBigUInt64LE(0xffffffffffffffffn, table + relative);
+  expect(await readElfSymbols(bytes, ["selected"])).toEqual(expected);
+  bytes.writeBigUInt64LE(0xffffffffffffffffn, table + 32);
+  expect(await readElfSymbols(bytes, ["selected"])).toEqual({
+    symbols: [],
+    failures: [{ reason: "ELF segment 0 is not file-backed" }],
+  });
+});

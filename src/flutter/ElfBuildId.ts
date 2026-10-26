@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { MAX_FLUTTER_BUILD_ID_BYTES } from "../domain/flutter/flutterBuildAnalysis.js";
 import type { FileHandle } from "node:fs/promises";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
@@ -97,21 +98,33 @@ export const readElfBuildIds = async (
         signal?.throwIfAborted();
       }
       const base = index * table.width;
+      const parsedProgram = table.program
+        ? readElfProgramHeader(
+            bytes.subarray(base, base + table.width),
+            h.is64 ? 64 : 32,
+            true,
+          )
+        : undefined;
+      if (parsedProgram !== undefined && !parsedProgram.ok)
+        return failure(parsedProgram.error.message);
+      const program = parsedProgram?.value;
       if (
-        bytes.readUInt32LE(base + (table.program ? 0 : 4)) !==
+        (program?.type ?? bytes.readUInt32LE(base + 4)) !==
         (table.program ? 4 : 7)
       )
         continue;
-      const offsetAt =
-        base + (table.program ? (h.is64 ? 8 : 4) : h.is64 ? 0x18 : 0x10);
-      const sizeAt =
-        base + (table.program ? (h.is64 ? 0x20 : 0x10) : h.is64 ? 0x20 : 0x14);
-      const offset = h.is64
-        ? Number(bytes.readBigUInt64LE(offsetAt))
-        : bytes.readUInt32LE(offsetAt);
-      const size = h.is64
-        ? Number(bytes.readBigUInt64LE(sizeAt))
-        : bytes.readUInt32LE(sizeAt);
+      const offset =
+        program !== undefined
+          ? Number(program.offset)
+          : h.is64
+            ? Number(bytes.readBigUInt64LE(base + 0x18))
+            : bytes.readUInt32LE(base + 0x10);
+      const size =
+        program !== undefined
+          ? Number(program.fileSize)
+          : h.is64
+            ? Number(bytes.readBigUInt64LE(base + 0x20))
+            : bytes.readUInt32LE(base + 0x14);
       if (
         !Number.isSafeInteger(offset) ||
         !Number.isSafeInteger(size) ||
@@ -133,12 +146,11 @@ export const readElfBuildIds = async (
         }
       }
       if (size === 0) continue;
-      const alignmentAt =
-        base + (table.program ? (h.is64 ? 48 : 28) : h.is64 ? 48 : 32);
       const alignment = elfNoteAlignment(
-        h.is64
-          ? bytes.readBigUInt64LE(alignmentAt)
-          : bytes.readUInt32LE(alignmentAt),
+        program?.alignment ??
+          (h.is64
+            ? bytes.readBigUInt64LE(base + 48)
+            : bytes.readUInt32LE(base + 32)),
       );
       const key = `${offset}:${size}:${alignment}`;
       if (ranges.has(key)) continue;

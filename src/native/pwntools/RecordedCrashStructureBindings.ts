@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import {
@@ -50,25 +51,26 @@ const segmentMatches = (
   raw: Buffer,
   kinds: ReadonlyMap<number, string>,
 ): boolean => {
-  const type = raw.readUInt32LE(0);
+  const parsed = readElfProgramHeader(raw, 64, true);
+  if (!parsed.ok) return false;
+  const program = parsed.value;
+  const { type } = program;
   return (
     type === segment.type_id &&
     matchesKind(type, segment.type, kinds) &&
-    BigInt(segment.flags) === BigInt(raw.readUInt32LE(4)) &&
+    BigInt(segment.flags) === BigInt(program.flags) &&
     segment.file_backing ===
-      (type === 0 || raw.readBigUInt64LE(32) === 0n ? "none" : "file") &&
+      (type === 0 || program.fileSize === 0n ? "none" : "file") &&
     (
       [
-        [segment.offset, 8],
-        [segment.virtual_address, 16],
-        [segment.physical_address, 24],
-        [segment.file_size, 32],
-        [segment.memory_size, 40],
-        [segment.alignment, 48],
+        [segment.offset, program.offset],
+        [segment.virtual_address, program.virtualAddress],
+        [segment.physical_address, program.physicalAddress],
+        [segment.file_size, program.fileSize],
+        [segment.memory_size, program.memorySize],
+        [segment.alignment, program.alignment],
       ] as const
-    ).every(
-      ([field, relative]) => BigInt(field) === raw.readBigUInt64LE(relative),
-    )
+    ).every(([field, value]) => BigInt(field) === value)
   );
 };
 

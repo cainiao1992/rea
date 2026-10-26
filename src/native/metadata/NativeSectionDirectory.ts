@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
 import { readPeSectionHeader } from "../../domain/peSectionHeader.js";
 import { readElfTableDeclarations } from "../../domain/elfDeclaredRanges.js";
@@ -115,33 +116,37 @@ export function* readElfSectionDirectory(
   } = sectionTable;
   const programDeclarations: ElfProgramDeclaration[] = [];
   if (program_count !== 0) {
-    const programs = new BinaryReader(
-      yield request(
-        fileSize,
-        program_offset,
-        BigInt(program_count) * BigInt(program_width),
-      ),
-      little,
+    const programBytes = yield request(
+      fileSize,
+      program_offset,
+      BigInt(program_count) * BigInt(program_width),
     );
     // At most one record per table entry, bounded before allocation by the
     // existing 16 MiB table allowance and minimum 32/56-byte ELF record width.
     for (let index = 0; index < program_count; index++) {
       const at = index * program_width;
-      const type = programs.u32(at);
+      const parsedProgram = readElfProgramHeader(
+        programBytes.subarray(at, at + program_width),
+        bits,
+        little,
+      );
+      if (!parsedProgram.ok) return reject(parsedProgram.error.message);
+      const program = parsedProgram.value;
+      const { type } = program;
       if (type === 1)
         programDeclarations.push({
           type,
-          flags: programs.u32(at + (wide ? 4 : 24)),
-          file_offset: programs.word(at + (wide ? 8 : 4), bits),
-          virtual_address: programs.word(at + (wide ? 16 : 8), bits),
-          file_size: programs.word(at + (wide ? 32 : 16), bits),
-          memory_size: programs.word(at + (wide ? 40 : 20), bits),
+          flags: program.flags,
+          file_offset: program.offset,
+          virtual_address: program.virtualAddress,
+          file_size: program.fileSize,
+          memory_size: program.memorySize,
         });
       else if (type === 2)
         programDeclarations.push({
           type,
-          offset: programs.word(at + (wide ? 8 : 4), bits),
-          size: programs.word(at + (wide ? 32 : 16), bits),
+          offset: program.offset,
+          size: program.fileSize,
         });
     }
   }

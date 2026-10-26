@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "./elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "./elfRawTableDeclarations.js";
 import { readElfFixedHeader, type ElfFixedHeader } from "./elfFixedHeader.js";
 import { err, ok, type Result } from "./result.js";
@@ -208,14 +209,21 @@ function* inspectTableRanges(
     const r = reader(bytes, header);
     for (let item = 0; item < count; item++) {
       const at = item * table.width;
-      const type = r.u32(at + (kind === "program" ? 0 : 4));
+      const program =
+        kind === "program"
+          ? readElfProgramHeader(
+              bytes.subarray(at, at + table.width),
+              header.elfClass,
+              header.byteOrder === "little",
+            )
+          : undefined;
+      if (program !== undefined && !program.ok)
+        return err(program.error.message);
+      const facts = program?.value;
+      const type = facts?.type ?? r.u32(at + 4);
       if (type === 0 || (kind === "section" && type === 8)) continue;
-      const offset = r.word(
-        at + (kind === "program" ? (wide ? 8 : 4) : wide ? 24 : 16),
-      );
-      const length = r.word(
-        at + (kind === "program" ? (wide ? 32 : 16) : wide ? 32 : 20),
-      );
+      const offset = facts?.offset ?? r.word(at + (wide ? 24 : 16));
+      const length = facts?.fileSize ?? r.word(at + (wide ? 32 : 20));
       const failure = rangeFailure(
         `${kind} ${String(index + item)}`,
         offset,

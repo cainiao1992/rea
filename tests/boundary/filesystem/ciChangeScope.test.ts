@@ -1258,6 +1258,18 @@ it.each([
     { code: true, fixtures: true, readiness: true, package: false },
   ],
   [
+    "scripts/lib/conformance-fixtures.mjs",
+    { code: true, fixtures: true, readiness: true, package: false },
+  ],
+  [
+    "scripts/build-conformance-fixtures.mjs",
+    { code: true, fixtures: true, readiness: true, package: false },
+  ],
+  [
+    "scripts/verify-conformance-fixtures.mjs",
+    { code: true, fixtures: true, readiness: true, package: false },
+  ],
+  [
     "tests/conformance/swift/fixture.swift",
     { code: true, fixtures: true, readiness: true, package: false },
   ],

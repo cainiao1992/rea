@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
 import { parsePeResources } from "../../native/pe/PeResourceParser.js";
@@ -353,18 +354,28 @@ const locateElfNotes = async (
   if (programs === undefined) opaque = phnum > 0;
   else
     for (const entry of programs) {
-      if (readU32(entry, 0, little) !== PT_NOTE) continue;
-      const note = elf64
-        ? {
-            offset: readU64(entry, 8, little),
-            length: readU64(entry, 32, little),
-            align: readU64(entry, 48, little),
-          }
-        : {
-            offset: readU32(entry, 4, little),
-            length: readU32(entry, 16, little),
-            align: readU32(entry, 28, little),
-          };
+      const parsedProgram = readElfProgramHeader(
+        entry,
+        header.value.elfClass,
+        little,
+      );
+      if (!parsedProgram.ok) continue;
+      const program = parsedProgram.value;
+      if (program.type !== PT_NOTE) continue;
+      const note = {
+        offset:
+          program.offset <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(program.offset)
+            : undefined,
+        length:
+          program.fileSize <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(program.fileSize)
+            : undefined,
+        align:
+          program.alignment <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(program.alignment)
+            : undefined,
+      };
       const scanned = await scanElfNoteTable(
         carrier,
         note,

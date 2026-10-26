@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
 import { createHash } from "node:crypto";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
@@ -412,10 +413,23 @@ export const parseElfNotes = (
       return fail("ELF program header table overlaps the native header.");
     for (let index = 0; index < phnum; index += 1) {
       const at = phoff + index * phentsize;
-      if (reader.u32(at) !== PT_NOTE) continue;
-      const fileOffset = reader.word(at + (wide ? 8 : 4));
-      const fileSize = reader.word(at + (wide ? 32 : 16));
-      const alignment = noteAlignment(reader.word(at + (wide ? 48 : 28)));
+      const parsedProgram = readElfProgramHeader(
+        bytes.subarray(at, at + phentsize),
+        header.elfClass,
+        reader.little,
+      );
+      if (!parsedProgram.ok) return fail(parsedProgram.error.message);
+      const program = parsedProgram.value;
+      if (program.type !== PT_NOTE) continue;
+      if (
+        program.offset > BigInt(Number.MAX_SAFE_INTEGER) ||
+        program.fileSize > BigInt(Number.MAX_SAFE_INTEGER) ||
+        program.alignment > BigInt(Number.MAX_SAFE_INTEGER)
+      )
+        return fail("ELF offset or size exceeds a safe integer.");
+      const fileOffset = Number(program.offset);
+      const fileSize = Number(program.fileSize);
+      const alignment = noteAlignment(Number(program.alignment));
       tables.push({
         kind: "program",
         index,

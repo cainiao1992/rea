@@ -1,3 +1,4 @@
+import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { readElfSymbol } from "../domain/elfSymbol.js";
 import { readElfRawTableDeclarations } from "../domain/elfRawTableDeclarations.js";
 import { Buffer } from "node:buffer";
@@ -199,15 +200,25 @@ export const readElfSymbols = async (
       signal?.throwIfAborted();
     }
     const base = e_phoff + index * e_phentsize;
-    const type = reader.u32(base);
+    const parsedProgram = readElfProgramHeader(
+      bytes.subarray(base, base + e_phentsize),
+      is64 ? 64 : 32,
+      true,
+    );
+    if (!parsedProgram.ok) return failure(parsedProgram.error.message);
+    const program = parsedProgram.value;
+    const { type } = program;
     if (type !== PT_LOAD && type !== PT_DYNAMIC) continue;
-    const vaddr = is64 ? reader.u64(base + 0x10) : reader.u32(base + 8);
-    const offset = is64 ? reader.u64(base + 8) : reader.u32(base + 4);
-    const filesz = is64 ? reader.u64(base + 0x20) : reader.u32(base + 0x10);
     if (
-      vaddr === null ||
-      offset === null ||
-      filesz === null ||
+      program.virtualAddress > BigInt(Number.MAX_SAFE_INTEGER) ||
+      program.offset > BigInt(Number.MAX_SAFE_INTEGER) ||
+      program.fileSize > BigInt(Number.MAX_SAFE_INTEGER)
+    )
+      return failure(`ELF segment ${String(index)} is not file-backed`);
+    const vaddr = Number(program.virtualAddress);
+    const offset = Number(program.offset);
+    const filesz = Number(program.fileSize);
+    if (
       !Number.isSafeInteger(vaddr + filesz) ||
       offset > bytes.length ||
       filesz > bytes.length - offset

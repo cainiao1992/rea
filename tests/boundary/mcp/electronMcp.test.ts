@@ -25,6 +25,7 @@ import {
 } from "../../fixtures/fakeCdpBrowser.js";
 import { writeElectronBoundaryFixture } from "../../fixtures/electronBoundaryApplication.js";
 import { createElectronActiveObservationFixtureResult } from "../../../src/domain/javascript/electronActiveObservation.fixture.js";
+import { javascriptApplicationAnalysisResultSchema } from "../../../src/domain/javascript/javascriptApplicationAnalysis.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { AsarArtifactReader } from "../../../src/artifacts/AsarArtifactReader.js";
 import { toolAvailabilityInventory } from "../../../src/contracts/toolOutputSchemaPrimitives.js";
@@ -658,6 +659,77 @@ it("exposes the target-free static JavaScript application workflow", async () =>
 const evidenceFor = (value: unknown) => {
   return parseEvidence(value);
 };
+
+it.skipIf(process.platform === "win32")(
+  "admits the selected application source before canonicalizing its path through MCP",
+  async () => {
+    const root = await realpath(
+      await createTestTempDirectory("rea-application-source-admission-"),
+    );
+    await mkdir(join(root, "app"));
+    await mkdir(join(root, "selected/app"), { recursive: true });
+    await mkdir(join(root, "selected/child"));
+    await writeFile(join(root, "file"), "not a directory");
+    await writeFile(join(root, "app/package.json"), '{"name":"sibling"}');
+    await writeFile(
+      join(root, "selected/app/package.json"),
+      '{"name":"selected"}',
+    );
+    await symlink("selected/child", join(root, "link"));
+    const session = createTestBinarySession(() => {
+      throw new Error(
+        "Static application analysis must not start a deep provider",
+      );
+    });
+    const server = createServer({ kind: "session", session });
+    const client = new Client({
+      name: "application-source-admission",
+      version: "1",
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    resources.push(client, server, session);
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    const initial = await client.callTool({
+      name: "analyze_javascript_application",
+      arguments: { input_path: join(root, "app") },
+    });
+    expect(initial.isError, JSON.stringify(initial)).not.toBe(true);
+    const initialEvidence = parseEvidence(initial.structuredContent);
+    const refused = await client.callTool({
+      name: "analyze_javascript_application",
+      arguments: { input_path: `${root}/file/../app` },
+    });
+    expect(refused.isError).toBe(true);
+    expect(parseMcpToolError(refused)).toMatchObject({
+      error: {
+        code: "invalid_request",
+        details: { issues: [{ path: ["input_path"] }] },
+      },
+    });
+    const selected = `${root}/link/../app`;
+    const admitted = await client.callTool({
+      name: "analyze_javascript_application",
+      arguments: { input_path: selected },
+    });
+    expect(admitted.isError, JSON.stringify(admitted)).not.toBe(true);
+    const evidence = parseEvidence(admitted.structuredContent);
+    const result = javascriptApplicationAnalysisResultSchema.parse(
+      evidence.normalized_result,
+    );
+    expect(evidence.parameters.input_path).toBe(selected);
+    expect(evidence.subject?.local_path).toBe(join(root, "selected/app"));
+    expect(result.input_path).toBe(join(root, "selected/app"));
+    expect(result.root_artifact_sha256).not.toBe(
+      javascriptApplicationAnalysisResultSchema.parse(
+        initialEvidence.normalized_result,
+      ).root_artifact_sha256,
+    );
+    expect(initialEvidence.subject?.local_path).toBe(join(root, "app"));
+    await client.ping();
+  },
+);
 
 const activePathAdmissionClient = async (
   capture: ElectronActiveObservationPort["capture"],

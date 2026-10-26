@@ -15,9 +15,9 @@ import type { BinaryTarget } from "../../../../src/domain/binaryTargetTypes.js";
 import { withArtifactClient } from "../../../support/artifactClientScope.js";
 
 describe("artifact extraction", () => {
-  it.skipIf(process.platform === "win32")(
-    "refuses a regular-file parent before acquiring output and permits a corrected request",
-    async () => {
+  it.skipIf(process.platform === "win32").each(["file/..", "missing"])(
+    "refuses an invalid parent (%s) before acquiring output and permits a corrected request",
+    async (parent) => {
       const root = await createTestTempDirectory("rea-extract-invalid-parent-");
       const source = join(root, "source");
       await mkdir(source);
@@ -27,7 +27,7 @@ describe("artifact extraction", () => {
 
       await withArtifactClient(target(source, "directory"), async (client) => {
         const refused = await client.execute("extract_artifact", {
-          output_root: `${root}/file/../out`,
+          output_root: `${root}/${parent}/out`,
         });
         expect(refused).toMatchObject({
           ok: false,

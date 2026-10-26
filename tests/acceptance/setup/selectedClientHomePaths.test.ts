@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 
 import { expect } from "vitest";
 
+import { MANAGED_SKILL_FILES } from "../../../src/application/SetupSkill.js";
 import { parseClientConfiguration } from "../../../src/application/ClientConfigurationDocument.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest } from "../../support/cli/cliFixture.js";
@@ -111,7 +112,7 @@ cliTest.skipIf(process.platform === "win32")(
 );
 
 cliTest.skipIf(process.platform === "win32")(
-  "installs shared skills in the native HOME selection with backups and repeat setup",
+  "uses the native HOME selection for shared skill setup, readback and uninstall",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-selected-skill-home-");
     const selected = join(root, "selected");
@@ -136,7 +137,11 @@ cliTest.skipIf(process.platform === "win32")(
       cli.run({
         arguments: [...arguments_, "--json"],
         cwd: root,
-        environment: { HOME: home, USERPROFILE: home },
+        environment: {
+          HOME: home,
+          USERPROFILE: home,
+          XDG_CACHE_HOME: `${home}/.cache`,
+        },
       });
     const configured = await run([
       "setup",
@@ -200,5 +205,60 @@ cliTest.skipIf(process.platform === "win32")(
         name.startsWith(".rea-skill-"),
       ),
     ).toEqual([]);
+    const cacheRelative =
+      process.platform === "darwin"
+        ? "Library/Caches/rea/kuna"
+        : process.platform === "linux"
+          ? ".cache/rea/kuna"
+          : undefined;
+    const cacheDirectories = [
+      ".rea/cache",
+      ".rea/state",
+      ...(cacheRelative === undefined ? [] : [cacheRelative]),
+    ];
+    for (const relative of cacheDirectories) {
+      await mkdir(join(selected, relative), { recursive: true });
+      await mkdir(join(root, relative), { recursive: true });
+      await writeFile(join(selected, relative, "marker"), "selected cache");
+      await writeFile(join(root, relative, "marker"), "unselected cache");
+    }
+    const legacyUserNote = join(selected, ".rea/analyst-note.txt");
+    await writeFile(legacyUserNote, "legacy user note\n");
+    const userNote = join(skill, "analyst-note.txt");
+    await writeFile(userNote, "selected user note\n");
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const uninstalled = await run(["uninstall", "--purge-data"]);
+      expect(
+        uninstalled.exitCode,
+        uninstalled.stdout + uninstalled.stderr,
+      ).toBe(0);
+      expect(uninstalled.json).toMatchObject({ status: "complete" });
+      for (const relative of cacheDirectories) {
+        await expect(access(join(selected, relative))).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await readFile(join(root, relative, "marker"), "utf8")).toBe(
+          "unselected cache",
+        );
+      }
+      expect(await readFile(legacyUserNote, "utf8")).toBe("legacy user note\n");
+      for (const relativePath of MANAGED_SKILL_FILES)
+        await expect(access(join(skill, relativePath))).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      expect(await readFile(userNote, "utf8")).toBe("selected user note\n");
+      expect(await readFile(join(skill, "SKILL.md.rea.backup"), "utf8")).toBe(
+        original,
+      );
+      expect(
+        await readFile(`${join(skill, reference)}.rea.backup`, "utf8"),
+      ).toBe(oldReference);
+      expect(await readFile(join(lexicalSkill, "SKILL.md"), "utf8")).toBe(
+        sentinel,
+      );
+      expect(await readFile(join(lexicalSkill, reference), "utf8")).toBe(
+        sentinelReference,
+      );
+    }
   },
 );

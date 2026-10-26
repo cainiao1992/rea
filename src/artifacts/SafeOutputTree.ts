@@ -100,7 +100,7 @@ export class SafeOutputTree {
     options: { readonly acceptExistingEmpty?: boolean } = {},
   ): Promise<SafeOutputTree> {
     const { requested, canonicalOutput } =
-      await this.#resolveDestination(outputRoot);
+      await this.resolveDestination(outputRoot);
     let created = true;
     await mkdir(canonicalOutput, { mode: 0o700 }).catch((cause: unknown) => {
       if (!isAlreadyExists(cause)) throw cause;
@@ -147,7 +147,7 @@ export class SafeOutputTree {
 
   /** Read-only early admission; create() still rechecks and acquires exclusively. */
   static async checkDestination(outputRoot: string): Promise<void> {
-    const { canonicalOutput } = await this.#resolveDestination(outputRoot);
+    const { canonicalOutput } = await this.resolveDestination(outputRoot);
     const existing = await lstat(canonicalOutput).catch((cause: unknown) => {
       if (cause instanceof Error && "code" in cause && cause.code === "ENOENT")
         return undefined;
@@ -183,7 +183,8 @@ export class SafeOutputTree {
     });
   }
 
-  static async #resolveDestination(outputRoot: string) {
+  /** Resolve an admissible parent without acquiring output; create rechecks it. */
+  static async resolveDestination(outputRoot: string) {
     if (!isAbsolute(outputRoot))
       throw new SafeOutputTreeDestinationRefusal(
         "Extraction output root must be absolute",

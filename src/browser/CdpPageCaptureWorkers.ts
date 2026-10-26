@@ -4,11 +4,13 @@ import {
   admitRecords,
   allowedSanitizedUrl,
   recordValue,
-  cdpStringValue,
 } from "./CdpCaptureValues.js";
 import type { CaptureContext } from "./CdpPageCapture.js";
 import { optionalCdpCommand } from "./CdpOptionalCommand.js";
-import { workerTargetOwnership } from "./CdpWorkerTargetOwnership.js";
+import {
+  parseCdpWorkerTarget,
+  workerTargetOwnership,
+} from "./CdpWorkerTarget.js";
 import { exclusionReasonForUrl } from "./CdpCaptureEventHelpers.js";
 
 interface CaptureWorkersInput {
@@ -42,59 +44,38 @@ export const captureWorkers = async (
   }
   let malformedEntries = 0;
   for (const entry of targets ?? []) {
-    const target = recordValue(entry);
-    if (target === undefined) {
+    const parsed = parseCdpWorkerTarget(entry);
+    if (!parsed.ok) {
       malformedEntries += 1;
       continue;
     }
-    const type = cdpStringValue(target.type);
-    if (type === undefined || type.length === 0) {
-      malformedEntries += 1;
-      continue;
-    }
-    if (!type.includes("worker")) continue;
-    const targetId = cdpStringValue(target.targetId);
-    if (
-      targetId === undefined ||
-      targetId.length === 0 ||
-      typeof target.attached !== "boolean" ||
-      typeof target.url !== "string"
-    ) {
-      malformedEntries += 1;
-      continue;
-    }
+    const target = parsed.value;
+    if (target.kind === "non_worker") continue;
     const ownership = workerTargetOwnership(
       target,
       context.target.id,
       frameIds,
     );
-    if (!ownership.ok) {
-      malformedEntries += 1;
-      continue;
-    }
-    if (ownership.value.scope !== "selected") {
+    if (ownership !== "selected") {
       completeness.exclude(
         "workers",
-        ownership.value.scope === "unknown"
-          ? "unattributed_target"
-          : "out_of_target_scope",
+        ownership === "unknown" ? "unattributed_target" : "out_of_target_scope",
       );
       continue;
     }
     const url = allowedSanitizedUrl(target.url, allowedOrigins);
     if (url === undefined) {
-      const rawUrl = cdpStringValue(target.url);
-      completeness.exclude("workers", exclusionReasonForUrl(rawUrl));
+      completeness.exclude("workers", exclusionReasonForUrl(target.url));
       continue;
     }
     items.push({
-      target_id: targetId,
-      type,
+      target_id: target.targetId,
+      type: target.type,
       url: url.url,
       origin: url.origin,
       attached: target.attached,
-      opener_target_id: ownership.value.openerTargetId,
-      parent_frame_id: ownership.value.parentFrameId,
+      opener_target_id: target.openerTargetId,
+      parent_frame_id: target.parentFrameId,
     });
   }
   if (malformedEntries > 0)

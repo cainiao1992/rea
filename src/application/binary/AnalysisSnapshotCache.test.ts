@@ -8,7 +8,10 @@ import {
   ANALYSIS_SNAPSHOT_TARGET,
 } from "../../domain/analysisSnapshot.fixture.js";
 import { createEvidence } from "../../domain/evidence.js";
-import { createEvidenceBundle } from "../../domain/evidenceBundle.js";
+import {
+  createEvidenceBundle,
+  evidenceBundleForTarget,
+} from "../../domain/evidenceBundle.js";
 import { ok } from "../../domain/result.js";
 import { createAnalysisExecution } from "../AnalysisProvider.js";
 import {
@@ -288,6 +291,90 @@ it.each(["provider", "workflow"] as const)(
         ? before.value.entries
         : before.value.workflow_entries;
     expect(originalEntries[0]?.execution.subject?.path).toBe(target.path);
+  },
+);
+
+it.each(["provider", "workflow"] as const)(
+  "exports target-scoped %s rows without changing retained observations",
+  (kind) => {
+    const cache = new AnalysisSnapshotCache();
+    const ledger = new EvidenceLedger();
+    const target = ANALYSIS_SNAPSHOT_TARGET;
+    const profile = ANALYSIS_SNAPSHOT_PROFILE;
+    const operation = kind === "provider" ? "procedure_info" : "trace_feature";
+    const provider =
+      kind === "provider" ? ANALYSIS_SNAPSHOT_PROVIDER : REA_WORKFLOW_PROVIDER;
+    const analysisProfile =
+      kind === "provider"
+        ? profile
+        : workflowAnalysisProfile(profile, operation);
+    const child = { ...target, path: "/tmp/child", sha256: "b".repeat(64) };
+    for (const [index, subject] of [target, null, child].entries()) {
+      const parameters = { address: `0x${index}000` };
+      const result = { observation: index };
+      const execution = createAnalysisExecution(result, provider, {
+        subject,
+        analysisProfile,
+      });
+      const input = {
+        target,
+        profile,
+        operation,
+        parameters,
+        execution: { ...execution, subject, analysisProfile },
+      };
+      if (kind === "provider")
+        cache.record({ ...input, operation: "procedure_info" });
+      else cache.recordWorkflow(input);
+      expect(
+        ledger.record(
+          createEvidence(subject ?? undefined, provider, {
+            operation,
+            parameters,
+            result,
+            analysisProfile,
+            confidence: kind === "provider" ? "observed" : "derived",
+          }),
+        ).ok,
+      ).toBe(true);
+    }
+    const before =
+      kind === "provider" ? cache.entries() : cache.workflowEntries();
+    expect(before).toHaveLength(3);
+    const evidence = ledger.export();
+    const exported = cache.export(
+      target,
+      profile,
+      evidenceBundleForTarget(evidence, target.sha256),
+    );
+    if (!exported.ok) throw exported.error;
+    const snapshot = parseAnalysisSnapshot(
+      JSON.parse(serializeAnalysisSnapshot(exported.value)),
+    );
+    const saved =
+      kind === "provider" ? snapshot.entries : snapshot.workflow_entries;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.execution.subject?.sha256).toBe(target.sha256);
+    expect(snapshot.evidence_bundle.records).toHaveLength(1);
+    expect(
+      kind === "provider" ? cache.entries() : cache.workflowEntries(),
+    ).toEqual(before);
+    expect(ledger.export()).toEqual(evidence);
+    const restored = new AnalysisSnapshotCache();
+    expect(restored.stage(snapshot)).toBe(1);
+    expect(
+      kind === "provider" ? restored.entries() : restored.workflowEntries(),
+    ).toEqual(saved);
+    if (kind === "provider") {
+      expect(
+        cache.lookup(target, profile, "procedure_info", { address: "0x1000" })
+          ?.subject,
+      ).toBeNull();
+      expect(
+        cache.lookup(target, profile, "procedure_info", { address: "0x2000" })
+          ?.subject?.sha256,
+      ).toBe(child.sha256);
+    }
   },
 );
 

@@ -291,13 +291,19 @@ export class AnalysisSnapshotCache {
     try {
       const snapshotTargetIdentity = snapshotTarget(target);
       const binding = snapshotBinding(profile);
-      const entries = [...this.#entries.values()].sort((left, right) =>
-        compareUnicodeCodePoints(left.query_id, right.query_id),
-      );
-      const workflows = [...this.#workflowEntries.values()].sort(
-        (left, right) =>
+      // In-memory replay can preserve unbound and child-artifact observations.
+      // A persisted target snapshot can authenticate only rows whose Evidence
+      // has that target subject; the record owner applies the same scope to its bundle.
+      const entries = [...this.#entries.values()]
+        .filter((entry) => entry.execution.subject?.sha256 === target.sha256)
+        .sort((left, right) =>
           compareUnicodeCodePoints(left.query_id, right.query_id),
-      );
+        );
+      const workflows = [...this.#workflowEntries.values()]
+        .filter((entry) => entry.execution.subject?.sha256 === target.sha256)
+        .sort((left, right) =>
+          compareUnicodeCodePoints(left.query_id, right.query_id),
+        );
       // Parsing owns the returned JSON and metadata; pre-cloning the same
       // payloads here only adds another full materialization.
       return ok(

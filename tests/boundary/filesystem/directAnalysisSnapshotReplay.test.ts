@@ -213,8 +213,12 @@ const makeProvider = (
               },
             ],
             list_documents: ["fixture"],
-            list_procedures: ["0x1000"],
-            list_strings: { "0x1000": "fixture" },
+            list_procedures: [
+              { address: "0x1000", value: "fixture" },
+            ] satisfies z.infer<typeof nativeInventoryRowsSchemas.names>,
+            list_strings: [
+              { address: "0x1000", value: "fixture" },
+            ] satisfies z.infer<typeof nativeInventoryRowsSchemas.strings>,
             analyze_function: functionDossier,
             list_names: [
               { address: "0x1000", value: "fixture" },

@@ -491,6 +491,11 @@ Dispatching a provider metadata write invalidates the active session's snapshot 
 even if its reply fails: the provider may already have applied the write.
 Close and reopen the target before importing or saving another snapshot.
 
+Saved snapshots include only cache entries whose subject identifies the selected
+target. Unbound observations and observations of child artifacts remain available
+in the open session and its Evidence bundle; they are excluded from the target's
+saved replay entries without changing their subjects.
+
 Snapshots retain eligible target-scoped question histories in full, including
 mutation Evidence recorded while another target was active. Observations and
 related questions must still belong to the saved target. If those dependencies

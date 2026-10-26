@@ -1,3 +1,5 @@
+import { toolContract } from "../../../src/contracts/toolContracts.js";
+import type { ToolContract } from "../../../src/contracts/toolContractTypes.js";
 import { createEvidence } from "../../../src/domain/evidence.js";
 import {
   createEvidenceBundle,
@@ -6,6 +8,12 @@ import {
 import { expect, it } from "vitest";
 
 interface VerifierResults {
+  readonly requireMcpOutput: (
+    result: unknown,
+    operation: string,
+    contract?: ToolContract,
+  ) => unknown;
+  readonly requireMcpToolError: (result: unknown) => unknown;
   readonly requireMcpEvidenceBundle: (result: unknown) => EvidenceBundle;
   readonly requireMcpLifecycleResult: (
     result: unknown,
@@ -180,5 +188,81 @@ it("retains summary discovery in the generic lifecycle reader but refuses it as 
   ).toEqual(summary);
   expect(() => requireMcpEvidenceBundle(bundleReply(summary))).toThrow(
     "summary metadata instead of complete Evidence",
+  );
+});
+
+const namedEvidence = () =>
+  createEvidence(
+    {
+      path: "/fixture/image.bin",
+      sha256: "a".repeat(64),
+      format: "elf",
+      architecture: "x86_64",
+    },
+    { id: "fixture", name: "Fixture", version: "1" },
+    {
+      operation: "address_name",
+      parameters: { address: "0x1000" },
+      result: "entry",
+      rawResult: { engine_name: "entry", source: "symbol table" },
+    },
+  );
+const textReply = (value: unknown) => ({
+  content: [{ type: "text", text: JSON.stringify(value) }],
+});
+
+it("returns complete named Evidence with its subject, provider and analysis provenance", async () => {
+  const { requireMcpOutput } = await verifierResults();
+  const evidence = namedEvidence();
+  expect(requireMcpOutput(textReply(evidence), "address_name")).toEqual(
+    evidence,
+  );
+});
+
+it("rejects mismatched named contracts, error-marked success and malformed normalized results", async () => {
+  const { requireMcpOutput } = await verifierResults();
+  const evidence = namedEvidence();
+  expect(() =>
+    requireMcpOutput(
+      textReply(evidence),
+      "address_name",
+      toolContract("set_address_name"),
+    ),
+  ).toThrow("received the set_address_name contract");
+  expect(() =>
+    requireMcpOutput({ ...textReply(evidence), isError: true }, "address_name"),
+  ).toThrow("address_name failed");
+  expect(() =>
+    requireMcpOutput(
+      textReply({ ...evidence, normalized_result: { name: "entry" } }),
+      "address_name",
+    ),
+  ).toThrow();
+});
+
+it("requires canonical complete tool errors before inspecting their diagnostic fields", async () => {
+  const { requireMcpToolError } = await verifierResults();
+  const error = {
+    code: "invalid_request",
+    category: "invalid_input",
+    message: "The address is invalid",
+    retryable: false,
+    remediation: { action: "Choose an observed address" },
+    details: { operation: "address_name", address: "bad" },
+  };
+  expect(
+    requireMcpToolError({ ...textReply({ error }), isError: true }),
+  ).toEqual(error);
+  for (const value of [
+    { error: { category: "invalid_input" } },
+    error,
+    { error: { ...error, retryable: "false" } },
+    { error: { ...error, code: "vendor_failure" } },
+  ])
+    expect(() =>
+      requireMcpToolError({ ...textReply(value), isError: true }),
+    ).toThrow();
+  expect(() => requireMcpToolError(textReply({ error }))).toThrow(
+    "Expected an MCP tool failure",
   );
 });

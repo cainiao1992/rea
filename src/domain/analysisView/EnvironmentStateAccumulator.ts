@@ -262,7 +262,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     // A body that is not JSON-like is refused before its decoding is charged.
     if (entry === undefined || !isJsonLike(mediaTypeEssence(entry.contentType)))
       return { kind: "unusable" };
-    const declaration = readRecordedResponseDeclaration(entry.record);
+    const declaration = readRecordedResponseDeclaration(entry.record.reported);
     const content = declaration?.content;
     if (typeof content?.text !== "string") return { kind: "unusable" };
     // Larger bodies are never parsed; within the limit, decoding copies at most the retained text and the tree is linear in it.

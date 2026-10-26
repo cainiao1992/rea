@@ -102,7 +102,7 @@ interface GroupState extends ToolGroup {
 
 /** Manifest eligibility also accepts declared bodyless statuses and a recorded zero size when no text was retained. */
 const manifestResponseIsEmpty = (record: WebNetworkCaptureRecord): boolean => {
-  const response = readRecordedResponseDeclaration(record);
+  const response = readRecordedResponseDeclaration(record.reported);
   if (response === undefined) return false;
   const { status, content } = response;
   return (

@@ -49,7 +49,12 @@ export class ArtifactFileSource {
   /** Bind verified bytes to the inventory's expected whole-carrier identity. */
   bindSha256(expectedSha256: string, signal?: AbortSignal): Promise<void> {
     return this.#scope.run(() =>
-      this.#bind(expectedSha256, signal, () => this.#verify(signal)),
+      this.#bind(
+        expectedSha256,
+        signal,
+        () => this.#verify(signal),
+        () => this.#verify(),
+      ),
     );
   }
 
@@ -77,7 +82,7 @@ export class ArtifactFileSource {
     expectedSha256: string,
     signal: AbortSignal | undefined,
     verify: () => Promise<StableRegularFileDescriptor>,
-    verifyCompletion: () => Promise<StableRegularFileDescriptor> = verify,
+    verifyCompletion: () => Promise<StableRegularFileDescriptor>,
   ): Promise<void> {
     const { handle } = await verify();
     const observed =
@@ -96,8 +101,9 @@ export class ArtifactFileSource {
           signal,
         )
       ).sha256;
+    // A completed digest needs source validation before late cancellation can
+    // decide the outcome; unverified bytes must not establish a contradiction.
     await verifyCompletion();
-    assertArtifactReadActive(signal);
     if (observed !== expectedSha256)
       throw new ArtifactReaderFailure(
         "integrity",
@@ -110,6 +116,7 @@ export class ArtifactFileSource {
           false,
         ),
       );
+    assertArtifactReadActive(signal);
     this.#boundSha256 = observed;
   }
 

@@ -107,10 +107,19 @@ const classifyPwntoolsDecoderFailure = (
               truncated:
                 context.precedingOutput.truncated || currentOutput.truncated,
             };
-    const outputOptions =
-      combinedOutput === undefined
-        ? undefined
-        : { capturedOutput: combinedOutput };
+    const outputOptions = {
+      ...(combinedOutput === undefined
+        ? {}
+        : { capturedOutput: combinedOutput }),
+      ...(failureEvidence.finalizationFailures === undefined
+        ? {}
+        : {
+            diagnostics: {
+              receipt_finalization_failures:
+                failureEvidence.finalizationFailures,
+            },
+          }),
+    };
     if (cause.cleanupFailure !== null)
       return new ProviderCleanupError(
         context.providerId,
@@ -322,6 +331,11 @@ const classifyPwntoolsDecoderFailure = (
     diagnostics: {
       phase,
       path,
+      ...(failureEvidence.finalizationFailures === undefined
+        ? {}
+        : {
+            receipt_finalization_failures: failureEvidence.finalizationFailures,
+          }),
       ...(context.precedingOutput === undefined
         ? {}
         : { preceding_output: { ...context.precedingOutput } }),

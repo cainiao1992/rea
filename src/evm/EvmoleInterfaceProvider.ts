@@ -783,30 +783,37 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
         cause instanceof OwnedCommandFailure &&
         cause.snapshot?.exitCode === EVM_FILE_SIZE_FAILURE_EXIT &&
         cause.snapshot.signal === null &&
+        cause.cleanupOwner === undefined &&
+        cause.cleanupFailure === null &&
+        processOwner === undefined &&
         root !== undefined
       ) {
         try {
-          const marker = await readStableArtifact(
-            join(root.path, "resource.failure"),
-            1,
-            undefined,
-            undefined,
-            this.#resources,
-          );
+          let marker;
+          try {
+            marker = await readStableArtifact(
+              join(root.path, "resource.failure"),
+              1,
+              undefined,
+              undefined,
+              this.#resources,
+            );
+          } catch (markerFailure: unknown) {
+            if (
+              markerFailure instanceof ArtifactReaderFailure &&
+              markerFailure.cleanup !== undefined
+            )
+              markerCleanupFailure = markerFailure;
+            const completed = completedStableArtifact(markerFailure);
+            if (completed === undefined) throw markerFailure;
+            marker = completed;
+          }
           if (!marker.bytes.equals(Buffer.from("F")))
             throw new Error(
               "Private worker failure marker does not match the observed exit status.",
             );
           fileFailure = { verified: true, failure: null };
         } catch (markerFailure: unknown) {
-          if (
-            markerFailure instanceof ArtifactReaderFailure &&
-            markerFailure.cleanup !== undefined
-          )
-            markerCleanupFailure = ArtifactReaderFailure.withCleanup(
-              cause,
-              markerFailure.cleanup,
-            );
           fileFailure = {
             verified: false,
             failure:
@@ -816,42 +823,39 @@ export class EvmoleInterfaceProvider implements EvmInterfacePort {
           };
         }
       }
-      const failure =
-        markerCleanupFailure !== undefined
-          ? evmInterfaceFailure(
-              markerCleanupFailure,
-              "artifact-read",
+      let failure =
+        options?.signal?.aborted &&
+        (cause === options.signal.reason ||
+          (cause instanceof Error && cause.name === "AbortError"))
+          ? new AnalysisCancelledError(OPERATION, {
+              cause,
+              ...(retainedOutput === undefined
+                ? {}
+                : { capturedOutput: retainedOutput }),
+              ...(cause instanceof ArtifactReaderFailure &&
+              cause.cleanup !== undefined
+                ? { cleanup: cause.cleanup }
+                : {}),
+            })
+          : evmInterfaceFailure(
+              cause,
+              phase,
               input.path,
               workerLimits,
               limiter,
               fileFailure,
               timeoutMs,
-            )
-          : options?.signal?.aborted &&
-              (cause === options.signal.reason ||
-                (cause instanceof Error && cause.name === "AbortError"))
-            ? new AnalysisCancelledError(OPERATION, {
-                cause,
-                ...(retainedOutput === undefined
-                  ? {}
-                  : { capturedOutput: retainedOutput }),
-                ...(cause instanceof ArtifactReaderFailure &&
-                cause.cleanup !== undefined
-                  ? { cleanup: cause.cleanup }
-                  : {}),
-              })
-            : evmInterfaceFailure(
-                cause,
-                phase,
-                input.path,
-                workerLimits,
-                limiter,
-                fileFailure,
-                timeoutMs,
-              );
+            );
+      if (markerCleanupFailure !== undefined) {
+        const cleanup = retainedCleanupFailure(markerCleanupFailure);
+        failure = analysisErrorWithCleanupFailure(
+          failure,
+          cleanup,
+          OPERATION,
+        ).bindCleanupDependencies([failure, cleanup]);
+      }
       const artifactFailure =
-        markerCleanupFailure ??
-        (cause instanceof ArtifactReaderFailure ? cause : undefined);
+        cause instanceof ArtifactReaderFailure ? cause : undefined;
       if (artifactFailure !== undefined)
         bindArtifactFileCleanup(artifactFailure, failure);
       // Only the selected-carrier read can establish caller-path snapshot identity.

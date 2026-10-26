@@ -893,3 +893,126 @@ it.each(["physical-read", "completed-late-cancel"] as const)(
     }
   },
 );
+
+it.each([
+  "valid-denied",
+  "malformed-denied",
+  "physical-read",
+  "valid-clean",
+  "wrong-exit",
+  "signal-exit",
+  "unresolved-process",
+] as const)(
+  "preserves exact reserved-exit marker receipt and cleanup: %s",
+  async (scenario) => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    const arch = Object.getOwnPropertyDescriptor(process, "arch");
+    Object.defineProperty(process, "platform", { ...platform, value: "linux" });
+    Object.defineProperty(process, "arch", { ...arch, value: "x64" });
+    const workspace = await mkdtemp(join(tmpdir(), "rea-evm-marker-receipt-"));
+    const input = join(workspace, "selected.hex");
+    await writeFile(input, "0x60006000f3\n");
+    let markerPath = "";
+    let markerCloseAttempts = 0;
+    let allowProcessCleanup = scenario !== "unresolved-process";
+    const deniedDescriptor =
+      scenario.endsWith("denied") || scenario === "physical-read";
+    const provider = new EvmoleInterfaceProvider(
+      { REA_EVM_PRLIMIT_COMMAND: process.execPath },
+      async (spawn) => {
+        const request = JSON.parse(
+          await readFile(spawn.arguments.at(-1)!, "utf8"),
+        ) as { failure_marker_path: string };
+        markerPath = request.failure_marker_path;
+        closeState.path = markerPath;
+        closeState.failures = deniedDescriptor ? 2 : 0;
+        closeState.onClosing = () => {
+          markerCloseAttempts++;
+        };
+        if (scenario === "physical-read")
+          closeState.readFailure = Object.assign(
+            new Error("physical marker EIO"),
+            { code: "EIO" },
+          );
+        if (platform !== undefined)
+          Object.defineProperty(process, "platform", platform);
+        if (arch !== undefined) Object.defineProperty(process, "arch", arch);
+        // The inert owned child authors a controlled marker; this does not run EVMole or target bytecode.
+        const launched = await spawnOwnedProviderProcess({
+          ...spawn,
+          command: process.execPath,
+          arguments: [
+            "-e",
+            "require('node:fs').writeFileSync(process.argv[1],process.argv[2]); process.stderr.write('controlled marker worker diagnostic'); if(process.argv[3]==='signal') process.kill(process.pid,'SIGTERM'); else process.exit(Number(process.argv[3]));",
+            markerPath,
+            scenario === "malformed-denied" ? "X" : "F",
+            scenario === "wrong-exit"
+              ? "75"
+              : scenario === "signal-exit"
+                ? "signal"
+                : "76",
+          ],
+        });
+        const cleanup =
+          launched.cleanup ??
+          (() => cleanupOwnedProcessGroup(launched.ownership));
+        return {
+          ...launched,
+          cleanup: async () => {
+            if (!allowProcessCleanup)
+              throw new Error("controlled unresolved worker cleanup");
+            return cleanup();
+          },
+        };
+      },
+    );
+    try {
+      const result = await provider.inspect({ path: input, encoding: "hex" });
+      if (result.ok) throw new Error("Expected reserved worker failure");
+      const original = result.error;
+      expect(original.partialObservation).toBeUndefined();
+      expect(JSON.stringify(projectAnalysisError(original))).toContain(
+        "controlled marker worker diagnostic",
+      );
+      if (deniedDescriptor) {
+        expect(original.cleanupIncomplete).toBe(true);
+        expect(original.cleanupResources).toContain(markerPath);
+        await expect(provider.close()).rejects.toMatchObject({
+          cleanupIncomplete: true,
+        });
+        expect(original.cleanupIncomplete).toBe(true);
+        await provider.close();
+        expect(original.cleanupIncomplete).toBe(false);
+        expect(original.cleanupResources).toEqual([]);
+        expect(markerCloseAttempts).toBe(3);
+      } else if (scenario === "unresolved-process") {
+        expect(markerCloseAttempts).toBe(0);
+        expect(original.cleanupIncomplete).toBe(true);
+        allowProcessCleanup = true;
+        await provider.close();
+      }
+      expect(projectAnalysisError(original).code).toBe(
+        scenario.startsWith("valid")
+          ? "resource_constraint"
+          : "execution_failure",
+      );
+      if (scenario === "malformed-denied" || scenario === "physical-read")
+        expect(JSON.stringify(projectAnalysisError(original))).toContain(
+          '"verified":false',
+        );
+      if (scenario === "wrong-exit" || scenario === "signal-exit")
+        expect(markerCloseAttempts).toBe(0);
+    } finally {
+      allowProcessCleanup = true;
+      closeState.path = "";
+      closeState.failures = 0;
+      closeState.onClosing = undefined;
+      closeState.readFailure = undefined;
+      await provider.close();
+      await rm(workspace, { recursive: true, force: true });
+      if (platform !== undefined)
+        Object.defineProperty(process, "platform", platform);
+      if (arch !== undefined) Object.defineProperty(process, "arch", arch);
+    }
+  },
+);

@@ -9,9 +9,12 @@ import {
 } from "./MachoImage.fixture.js";
 import { readMachoImage } from "./MachoLoadCommandReader.js";
 import { javaClassFile } from "../../../tests/fixtures/javaClassFile.js";
+import { classifyArtifactBytes } from "../inventory/ArtifactGraphConstruction.js";
+import { createArtifactClassificationProbe } from "../ArtifactClassificationProbe.js";
 import { parseExecutableHeader } from "../../domain/binaryTarget.js";
 import {
   classifyFatContainerIdentity,
+  classifyFatContainerEvidence,
   findOverlappingFatSlices,
   readFatContainerHeader,
   readFatSliceDeclarations,
@@ -116,6 +119,64 @@ describe("FAT declaration facts", () => {
     ).toBeNull();
     expect(findOverlappingFatSlices([first])).toBeNull();
     expect(findOverlappingFatSlices([])).toBeNull();
+  });
+});
+
+it("preserves explicit unknown slice evidence instead of falling back to retained bytes", () => {
+  const bytes = Buffer.from(
+    fatImage([{ cpu: CPU.arm64, bytes: machoImage({ cpu: CPU.arm64 }) }]),
+  );
+  const header = readFatContainerHeader(bytes, bytes.length);
+  if (header.state !== "parsed") throw new Error("Expected FAT header");
+  const offset = header.slices[0]!.offset;
+  const unknown = new Map([[offset, { magic: null, identity: null }]]);
+  expect(classifyFatContainerEvidence(header, bytes, new Map())).toEqual({
+    state: "mach-o",
+  });
+  expect(classifyFatContainerEvidence(header, bytes, unknown)).toEqual({
+    state: "needs-slice-header",
+    offsets: [offset],
+  });
+  const probe = createArtifactClassificationProbe();
+  probe.write(bytes);
+  const evidence = probe.finish(bytes.length);
+  expect(
+    classifyArtifactBytes(
+      {
+        ...evidence,
+        fatSliceHeaders: { header, sliceHeadersByOffset: new Map() },
+      },
+      bytes.length,
+    ),
+  ).toBe("mach-o-universal");
+  expect(
+    classifyArtifactBytes(
+      {
+        ...evidence,
+        fatSliceHeaders: { header, sliceHeadersByOffset: unknown },
+      },
+      bytes.length,
+    ),
+  ).toBe("unknown");
+  const native = parseExecutableHeader(
+    bytes,
+    "arm64",
+    bytes.length,
+    undefined,
+    {
+      header,
+      sliceHeadersByOffset: unknown,
+    },
+  );
+  expect(native).toEqual({
+    ok: false,
+    error: "FAT slice identity is outside the bounded prefix",
+  });
+  expect(
+    classifyFatContainerEvidence(header, bytes.subarray(0, offset + 3)),
+  ).toEqual({
+    state: "needs-slice-header",
+    offsets: [offset],
   });
 });
 

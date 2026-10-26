@@ -231,6 +231,28 @@ export const classifyFatContainerIdentity = (
   return { state: "not-mach-o" };
 };
 
+/** Explicit slice observations take precedence over bytes retained in a root prefix. */
+export const classifyFatContainerEvidence = (
+  header: Extract<FatContainerHeader, { readonly state: "parsed" }>,
+  prefix: Uint8Array,
+  sliceHeadersByOffset?: ReadonlyMap<number, MachoHeaderPrefixFacts>,
+): FatContainerIdentity =>
+  classifyFatContainerIdentity(header, (offset) => {
+    if (sliceHeadersByOffset?.has(offset))
+      return sliceHeadersByOffset.get(offset)?.magic;
+    const slice = header.slices.find(
+      (candidate) => candidate.offset === offset,
+    );
+    if (slice === undefined || offset >= prefix.byteLength) return undefined;
+    const available = Math.max(
+      0,
+      Math.min(slice.size, prefix.byteLength - offset, 12),
+    );
+    return readMachoHeaderPrefixFacts(
+      prefix.subarray(offset, offset + available),
+    ).magic;
+  });
+
 /** Decode FAT table entries once so artifact and native readers share identity facts. */
 export const readFatSliceDeclarations = (
   tableBytes: Uint8Array,

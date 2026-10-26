@@ -24,7 +24,7 @@ import {
 } from "./dosMz.js";
 import { decodePeMachine, readPeOptionalHeader } from "./peMachine.js";
 import {
-  classifyFatContainerIdentity,
+  classifyFatContainerEvidence,
   readFatContainerHeader,
   readMachoHeaderPrefixFacts,
   validateFatSliceIdentity,
@@ -369,21 +369,11 @@ const fatIdentityError = (
     ReturnType<typeof readMachoHeaderPrefixFacts>
   >,
 ): string | null => {
-  const identity = classifyFatContainerIdentity(header, (offset) => {
-    if (sliceHeadersByOffset?.has(offset))
-      return sliceHeadersByOffset.get(offset)?.magic;
-    const slice = header.slices.find(
-      (candidate) => candidate.offset === offset,
-    );
-    if (slice === undefined || offset >= bytes.length) return undefined;
-    const available = Math.max(
-      0,
-      Math.min(slice.size, bytes.length - offset, 12),
-    );
-    return readMachoHeaderPrefixFacts(
-      bytes.subarray(offset, offset + available),
-    ).magic;
-  });
+  const identity = classifyFatContainerEvidence(
+    header,
+    bytes,
+    sliceHeadersByOffset,
+  );
   if (identity.state === "needs-slice-header")
     return "FAT slice identity is outside the bounded prefix";
   if (identity.state === "not-mach-o") return "unsupported binary format";

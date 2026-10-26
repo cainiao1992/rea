@@ -30,9 +30,8 @@ import {
 } from "../../domain/zipPackageFormat.js";
 import { parseMzHeaderEvidence } from "../../domain/dosMz.js";
 import {
-  classifyFatContainerIdentity,
+  classifyFatContainerEvidence,
   readFatContainerHeader,
-  readMachoHeaderPrefixFacts,
 } from "../../domain/apple/machoContainer.js";
 
 /** Mutable internal occurrence used until root-bound IDs are known. */
@@ -631,21 +630,11 @@ const classifyFatArtifact = (
   if (fatHeader.state === "needs-data" || fatHeader.state === "malformed")
     return "unknown";
   if (fatHeader.state === "not-fat") return null;
-  const identity = classifyFatContainerIdentity(fatHeader, (offset) => {
-    if (fatSliceHeaders?.sliceHeadersByOffset.has(offset) === true)
-      return fatSliceHeaders.sliceHeadersByOffset.get(offset)?.magic;
-    const slice = fatHeader.slices.find(
-      (candidate) => candidate.offset === offset,
-    );
-    if (slice === undefined || offset >= prefix.length) return undefined;
-    const available = Math.max(
-      0,
-      Math.min(slice.size, prefix.length - offset, 12),
-    );
-    return readMachoHeaderPrefixFacts(
-      prefix.subarray(offset, offset + available),
-    ).magic;
-  });
+  const identity = classifyFatContainerEvidence(
+    fatHeader,
+    prefix,
+    fatSliceHeaders?.sliceHeadersByOffset,
+  );
   return identity.state === "mach-o" ? "mach-o-universal" : "unknown";
 };
 

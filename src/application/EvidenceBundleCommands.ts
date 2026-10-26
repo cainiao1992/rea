@@ -208,9 +208,12 @@ const persistEvidenceBundleCommand = async (
   if (
     !written.error.cleanupIncomplete &&
     written.error instanceof EvidenceFileError &&
-    written.error.published
+    written.error.published?.path !== undefined
   ) {
-    return ok(written.error.published);
+    return ok({
+      path: written.error.published.path,
+      bytes: written.error.published.bytes,
+    });
   }
   return written;
 };

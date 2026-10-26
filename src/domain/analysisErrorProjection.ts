@@ -425,7 +425,9 @@ const artifactStateErrorDetails = (
         : {
             published: true,
             bytes: error.published.bytes,
-            published_path: error.published.path,
+            ...(error.published.path === undefined
+              ? {}
+              : { published_path: error.published.path }),
           }),
     };
   return undefined;

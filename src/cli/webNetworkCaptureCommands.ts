@@ -17,7 +17,6 @@ import {
 import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { explicitSensitiveValueOptions } from "./explicitSensitiveArguments.js";
-import { redactExplicitFailure } from "../domain/explicitSensitiveFailure.js";
 
 /** Expose offline historical capture inspection with the same selection contract as MCP. */
 export const registerWebNetworkCaptureCommands = (
@@ -117,8 +116,7 @@ export const registerWebNetworkCaptureCommands = (
               signal,
               detail: options.detail,
               evidenceOutput: options.evidence_output,
-              redactFailure: (error) =>
-                redactExplicitFailure(error, options.sensitiveValue ?? []),
+              sensitiveValues: options.sensitiveValue ?? [],
             });
           },
         ),

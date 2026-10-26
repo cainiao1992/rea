@@ -46,7 +46,6 @@ import { ProviderCleanupError } from "../../src/domain/providerCleanupError.js";
 import { analysisErrorWithCleanupFailure } from "../../src/domain/analysisErrorCleanup.js";
 import { err } from "../../src/domain/result.js";
 import { deliverCliAnalysisEvidence } from "../../src/cli/analysisEvidenceDelivery.js";
-import { redactExplicitFailure } from "../../src/domain/explicitSensitiveFailure.js";
 
 const services: WebNetworkCaptureService[] = [];
 afterEach(async () => {
@@ -149,7 +148,7 @@ it("redacts repeated selected-file close failures at final CLI delivery and reta
       signal: new AbortController().signal,
       detail: "complete",
       evidenceOutput: undefined,
-      redactFailure: (error) => redactExplicitFailure(error, values),
+      sensitiveValues: values,
     }),
   );
   expect(output.code).toBe("cleanup_incomplete");

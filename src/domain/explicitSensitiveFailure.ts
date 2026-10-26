@@ -1,8 +1,10 @@
+import { EvidenceFileError } from "./evidenceErrors.js";
 import type { AnalysisError } from "./analysisErrorBase.js";
 import {
   AnalysisAccessDeniedError,
   AnalysisArtifactChangedError,
   AnalysisInputError,
+  type AnalysisInputIssue,
   AnalysisOutputError,
   AnalysisCapabilityUnavailableError,
   AnalysisResourceConstraintError,
@@ -128,6 +130,18 @@ const redactFailure = (
     if (typeof value === "object" && value !== null) return diagnostics(value);
     return value;
   };
+  const issueProjection = (issue: AnalysisInputIssue): AnalysisInputIssue => ({
+    ...issue,
+    // Unknown arguments are literal names, not producer JSON pointers.
+    path: path(issue.path, issue.reason === "unknown_argument"),
+    ...(issue.message === undefined ? {} : { message: text(issue.message) }),
+    ...(issue.expected === undefined
+      ? {}
+      : { expected: visit(issue.expected) }),
+    ...(issue.observed === undefined
+      ? {}
+      : { observed: visit(issue.observed) }),
+  });
   const context = {
     cause: error,
     ...(error.limit === undefined ? {} : { limit: error.limit }),
@@ -157,6 +171,33 @@ const redactFailure = (
           },
         }),
   };
+  if (error instanceof EvidenceFileError) {
+    const identity = (value: string | undefined): string | undefined =>
+      value !== undefined &&
+      values.some((literal) => literal !== "" && value.includes(literal))
+        ? undefined
+        : value;
+    const retainedPath = identity(error.path);
+    const publishedPath = identity(error.published?.path);
+    return new EvidenceFileError(error.operation, error.reason, {
+      ...context,
+      ...(retainedPath === undefined ? {} : { path: retainedPath }),
+      ...(error.userMessage === undefined
+        ? {}
+        : { userMessage: text(error.userMessage) }),
+      ...(error.published === undefined
+        ? {}
+        : {
+            published: {
+              bytes: error.published.bytes,
+              ...(publishedPath === undefined ? {} : { path: publishedPath }),
+            },
+          }),
+      ...(error.contentIssues === undefined
+        ? {}
+        : { contentIssues: error.contentIssues.map(issueProjection) }),
+    });
+  }
   if (error instanceof AnalysisCancelledError)
     return new AnalysisCancelledError(error.operation, {
       ...context,
@@ -190,21 +231,7 @@ const redactFailure = (
     return new AnalysisInputError(
       error.operation,
       context,
-      error.issues.map((issue) => ({
-        ...issue,
-        // Unknown-argument paths contain literal field names, including names
-        // beginning with '/'; they are not producer JSON-pointer coordinates.
-        path: path(issue.path, issue.reason === "unknown_argument"),
-        ...(issue.message === undefined
-          ? {}
-          : { message: text(issue.message) }),
-        ...(issue.expected === undefined
-          ? {}
-          : { expected: visit(issue.expected) }),
-        ...(issue.observed === undefined
-          ? {}
-          : { observed: visit(issue.observed) }),
-      })),
+      error.issues.map(issueProjection),
     );
   if (error instanceof AnalysisOutputError)
     return new AnalysisOutputError(

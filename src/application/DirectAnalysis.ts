@@ -507,13 +507,15 @@ const runAnalysis = async (
       );
       if (written.ok) publishedSnapshot = written.value;
       else {
-        if (written.error instanceof EvidenceFileError)
-          publishedSnapshot = written.error.published;
-        const recovered =
-          written.error instanceof EvidenceFileError &&
-          written.error.published !== undefined &&
-          (await session.closeFileResources()).ok;
-        if (!recovered)
+        const published =
+          written.error instanceof EvidenceFileError
+            ? written.error.published
+            : undefined;
+        if (published?.path !== undefined)
+          publishedSnapshot = { path: published.path, bytes: published.bytes };
+        const released =
+          published !== undefined && (await session.closeFileResources()).ok;
+        if (!released || published?.path === undefined)
           return err(written.error.retainPartialObservation(evidence));
       }
     }

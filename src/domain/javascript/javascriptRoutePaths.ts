@@ -105,7 +105,7 @@ export const classifyNextAppRoutePath = (
   }
   if (relative === undefined) {
     if (
-      /(?:^|\/)app\/(?:.*\/)?page(?:\.[cm]?[jt]sx?|-[^/?#]+\.js|)(?:[?#].*)?$/u.test(
+      /(?:^|\/)app\/(?:[\s\S]*\/)?page(?:\.[cm]?[jt]sx?|-[^/?#]+\.js|)(?:[?#].*)?$/u.test(
         value,
       )
     )
@@ -137,7 +137,7 @@ export const classifyNextAppRoutePath = (
     }
   }
   const match =
-    /^(?:(.*?)\/)?page(?:-([^/?#]+)\.js|\.(?:[cm]?jsx?|tsx?)|)([?#].*)?$/u.exec(
+    /^(?:([\s\S]*?)\/)?page(?:-([^/?#]+)\.js|\.(?:[cm]?jsx?|tsx?)|)([?#].*)?$/u.exec(
       relative,
     );
   if (
@@ -148,6 +148,11 @@ export const classifyNextAppRoutePath = (
     (match[3] !== undefined && (urlPath || context.kind === "source-path"))
   )
     return;
+  if (/[\u0000-\u001f\u007f]/u.test(relative))
+    return {
+      kind: "unknown",
+      reason: "A Next page filename contains a control character.",
+    };
   const sourceSegments = (match[1] ?? "").split("/");
   // A private folder excludes the whole page, including intercepted ancestors.
   // Keep filesystem segment spelling: only Next's explicit %5F escape is
@@ -178,8 +183,9 @@ export const classifyNextAppRoutePath = (
             : segment,
     );
   }
-  const path = routePath(`/${segments.filter(Boolean).join("/")}`);
-  return path === undefined ? undefined : { kind: "known", path };
+  // These are filename-derived patterns, not navigation URLs. Preserve spaces
+  // and literal delimiters rather than applying URL syntax validation.
+  return { kind: "known", path: `/${segments.filter(Boolean).join("/")}` };
 };
 
 export const nextScriptBasePath = (source: string): string | undefined => {

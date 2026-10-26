@@ -39,15 +39,81 @@ const build = (inputs: JavaScriptRouteInventoryInput[], bytes?: number) =>
     completeSemanticSteps(buildJavaScriptRouteInventorySteps(inputs, bytes)),
   );
 
-it("does not promote page-shaped paths without source-router applicability", () => {
-  const unknown = source("app/page.js", "");
-  delete (unknown as { next_app_context?: unknown }).next_app_context;
-  const result = build([unknown]);
-  expect(result.routes).toEqual([]);
-  expect(result.unknowns).toMatchObject([
-    { kind: "interpretation", reason: expect.stringContaining("not measured") },
-  ]);
-});
+it.each([
+  ["hello world", "hello%20world"],
+  ["team?admin", "team%3Fadmin"],
+  ["team#admin", "team%23admin"],
+] as const)(
+  "preserves Next filename pattern %s and its source identity",
+  (segment, encoded) => {
+    const url = `https://example.test/_next/static/chunks/app/${encoded}/page-abc.js`;
+    const result = build([
+      source(`app/${segment}/page.js`, ""),
+      source("captured.js", "", url),
+      source(
+        "runtime.js",
+        `globalThis.TURBOPACK=[];const page=${JSON.stringify(url)};`,
+      ),
+    ]);
+    expect(result.routes).toMatchObject([
+      { path: `/${segment}`, source_count: 3, occurrence_count: 3 },
+    ]);
+    expect(result.routes).toHaveLength(1);
+    expect(result.occurrences.map(({ source_id }) => source_id).sort()).toEqual(
+      result.sources.map(({ id }) => id).sort(),
+    );
+    expect(result.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: `app/${segment}/page.js`, url: null }),
+        expect.objectContaining({ path: null, url }),
+      ]),
+    );
+    expect(result.unknowns).toEqual([]);
+    expect(result.coverage).toEqual({
+      scope: "provided-code-sources",
+      source_parsing: "complete",
+      candidate_enumeration: "complete",
+      application_routes: "unknown",
+    });
+  },
+);
+
+it.each(["%00", "%09", "%0A", "%7F"])(
+  "retains an interpretation gap for a Next filename containing %s",
+  (encoded) => {
+    const url = `https://example.test/_next/static/chunks/app/hello${encoded}world/page-abc.js`;
+    const result = build([source("captured.js", "", url)]);
+    expect(result.routes).toEqual([]);
+    expect(result.unknowns).toMatchObject([
+      {
+        source_id: result.sources[0]!.id,
+        kind: "interpretation",
+        reason: expect.stringContaining("control character"),
+      },
+    ]);
+    expect(result.sources[0]!.url).toBe(url);
+    expect(result.coverage.candidate_enumeration).toBe("partial");
+  },
+);
+
+it.each(["app/page.js", "app/hello\nworld/page.js"])(
+  "does not promote page-shaped path %j without source-router applicability",
+  (path) => {
+    const unknown = source(path, "");
+    delete (unknown as { next_app_context?: unknown }).next_app_context;
+    const result = build([unknown]);
+    expect(result.routes).toEqual([]);
+    expect(result.unknowns).toMatchObject([
+      {
+        source_id: result.sources[0]!.id,
+        kind: "interpretation",
+        reason: expect.stringContaining("not measured"),
+      },
+    ]);
+    expect(result.sources[0]!.path).toBe(path);
+    expect(result.coverage.candidate_enumeration).toBe("partial");
+  },
+);
 
 it("binds source identity to the package evidence establishing router applicability", () => {
   const first = source("app/page.js", "");

@@ -4,7 +4,7 @@ import { parseExactJson } from "../exactJsonNumber.js";
 import { MAX_JSON_DEPTH, type JsonValue } from "../jsonValue.js";
 import {
   compareOffsetDateTimeInstants,
-  readRecordedDateTime,
+  readRecordedStart,
 } from "../offsetDateTime.js";
 import { ok, type Result } from "../result.js";
 import {
@@ -96,7 +96,9 @@ interface RecordEntry {
   /** Null for a write whose URL was redacted: its target is unknown, so it bounds every type. */
   readonly origin: string | null;
   readonly contentType: string;
-  /** Exact ordering fact; request interval coordinates remain milliseconds. */
+  readonly startInterpretation:
+    | NonNullable<ReturnType<typeof readRecordedStart>>["interpretation"]
+    | undefined;
   readonly record: WebNetworkCaptureRecord;
 }
 
@@ -150,9 +152,10 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       )
     )
       return this.overBudget();
-    const startInstant = started.success
-      ? readRecordedDateTime(started.data.startedDateTime)?.instant
+    const reading = started.success
+      ? readRecordedStart(started.data.startedDateTime)
       : undefined;
+    const startInstant = reading?.instant;
     // Keep the established millisecond interval policy independently of sorting.
     const startMs =
       startInstant === undefined
@@ -178,7 +181,12 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
         : 0;
     if (line.kind === "excluded")
       return line.reason === "url-redacted"
-        ? this.#redactedWrite(record, timing, instantBytes)
+        ? this.#redactedWrite(
+            record,
+            timing,
+            instantBytes,
+            reading?.interpretation,
+          )
         : ok(undefined);
     // The entry keeps the line's strings and a reference to the already admitted record.
     if (
@@ -206,6 +214,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       },
       origin: line.origin,
       contentType: line.rawMime,
+      startInterpretation: reading?.interpretation,
       record,
     });
     return ok(undefined);
@@ -216,6 +225,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     record: WebNetworkCaptureRecord,
     timing: StateRecordFacts["timing"],
     instantBytes: number,
+    startInterpretation: RecordEntry["startInterpretation"],
   ): Result<void, AnalysisError> {
     const parsed = redactedWriteSchema.safeParse(record.reported);
     if (!parsed.success) return ok(undefined);
@@ -239,6 +249,7 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
       facts,
       origin: null,
       contentType: "",
+      startInterpretation,
       record,
     });
     return ok(undefined);
@@ -369,6 +380,11 @@ export class EnvironmentStateAccumulator extends EnvironmentManifestAccumulator 
     }).run();
     if (state === null) return this.overBudget();
     const limitations = this.addLimitations([
+      ...(entries.some((entry) => entry.startInterpretation === "native-date")
+        ? [
+            "Some recorded start spellings use native Date parsing at millisecond precision; spellings without an explicit zone depend on the host timezone.",
+          ]
+        : []),
       ...(redactedWrites > 0
         ? [
             `${String(redactedWrites)} of the recorded writes had a redacted URL; each ends the initial state of every type, since its target is unknown.`,

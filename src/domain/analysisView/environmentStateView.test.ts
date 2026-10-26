@@ -1950,3 +1950,68 @@ it("preserves own prototype-named entity and document fields through capture pro
     expect.objectContaining({ value: document }),
   );
 });
+
+it.each([
+  {
+    starts: [
+      "Tue, 20 Oct 2026 09:00:00 GMT",
+      "Tue, 20 Oct 2026 09:02:00 GMT",
+      "Tue, 20 Oct 2026 09:01:00 GMT",
+    ],
+    missingDuration: false,
+  },
+  {
+    starts: [
+      "Tue, 20 Oct 2026 14:30:00 GMT+0530",
+      "Tue, 20 Oct 2026 14:32:00 GMT+0530",
+      "Tue, 20 Oct 2026 14:31:00 GMT+0530",
+    ],
+    missingDuration: true,
+  },
+  {
+    starts: [
+      "October 20, 2026 09:00:00",
+      "October 20, 2026 09:02:00",
+      "October 20, 2026 09:01:00",
+    ],
+    missingDuration: true,
+  },
+])(
+  "preserves native chronological state and discloses interpretation ($missingDuration)",
+  ({ starts, missingDuration }) => {
+    const entries = starts.map((startedDateTime, ordinal) => ({
+      startedDateTime,
+      ...(missingDuration && ordinal === 2 ? {} : { time: 0 }),
+      request: {
+        method: ordinal === 2 ? "PATCH" : "GET",
+        url: "http://app.example/api/settings",
+      },
+      response: {
+        status: 200,
+        content: {
+          mimeType: "application/json",
+          text: ordinal === 0 ? '{"theme":"light"}' : '{"theme":"dark"}',
+        },
+      },
+    }));
+    const capture = webNetworkCaptureSchema.parse(
+      environmentManifestCaptureFixture(entries),
+    );
+    const original = structuredClone(capture.records);
+    const state = stateOf(parentOf(analysisViewCaptureEvidence(capture)));
+    expect(state.timeline).toBe("recorded-start-time");
+    expect(state.documents).toEqual([
+      {
+        tool: "get_settings",
+        path: "/api/settings",
+        value: { theme: "light" },
+        record_ordinal: 0,
+      },
+    ]);
+    expect(state.limitations).toContain(
+      "Some recorded start spellings use native Date parsing at millisecond precision; spellings without an explicit zone depend on the host timezone.",
+    );
+    expect(capture.records).toEqual(original);
+    if (missingDuration) expect(state.write_clock).toBeNull();
+  },
+);

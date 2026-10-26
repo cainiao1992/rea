@@ -109,6 +109,31 @@ export const readRecordedDateTime = (
   return inspected.kind === "valid" ? inspected.reading : undefined;
 };
 
+/** Interpret recorded starts once, preserving exact ISO facts and legacy native-Date admission. */
+export const readRecordedStart = (
+  value: string,
+):
+  | {
+      readonly instant: OffsetDateTimeInstant;
+      readonly interpretation: "recorded-iso" | "native-date";
+    }
+  | undefined => {
+  const inspected = inspectRecordedDateTime(value);
+  if (inspected.kind === "valid")
+    return {
+      instant: inspected.reading.instant,
+      interpretation: "recorded-iso",
+    };
+  if (inspected.kind === "invalid") return undefined;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds)
+    ? {
+        instant: offsetDateTimeInstantFromEpochMilliseconds(milliseconds),
+        interpretation: "native-date",
+      }
+    : undefined;
+};
+
 /** Convert a Date.now-style integer into the same exact comparison shape. */
 export const offsetDateTimeInstantFromEpochMilliseconds = (
   epochMilliseconds: number,

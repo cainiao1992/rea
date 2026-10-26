@@ -18,8 +18,7 @@ import { parseExactJson } from "../../domain/exactJsonNumber.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import {
   compareOffsetDateTimeInstants,
-  offsetDateTimeInstantFromEpochMilliseconds,
-  inspectRecordedDateTime,
+  readRecordedStart,
   type OffsetDateTimeInstant,
 } from "../../domain/offsetDateTime.js";
 import type { WebNetworkCaptureRecord } from "../../domain/webNetworkCapture.js";
@@ -55,14 +54,7 @@ const startedInstant = (
 ): OffsetDateTimeInstant | undefined => {
   const started = startedSchema.safeParse(record.reported);
   if (!started.success) return undefined;
-  const reading = inspectRecordedDateTime(started.data.startedDateTime);
-  if (reading.kind === "valid") return reading.reading.instant;
-  if (reading.kind === "invalid") return undefined;
-  // Preserve native-Date admission for legacy spellings, at its original precision.
-  const ms = Date.parse(started.data.startedDateTime);
-  return Number.isFinite(ms)
-    ? offsetDateTimeInstantFromEpochMilliseconds(ms)
-    : undefined;
+  return readRecordedStart(started.data.startedDateTime)?.instant;
 };
 
 /** Whether a probe makes calls that carry a request body: a POST, PUT or PATCH. */

@@ -5,6 +5,8 @@ import {
   inspectRecordedDateTime,
   offsetDateTimeSchema,
   readRecordedDateTime,
+  readRecordedStart,
+  offsetDateTimeInstantFromEpochMilliseconds,
   utcDateTimeSchema,
 } from "./offsetDateTime.js";
 
@@ -244,3 +246,34 @@ const findPattern = (value: unknown): string | undefined => {
   }
   return undefined;
 };
+
+it.each([
+  "Tue, 20 Oct 2026 09:00:00 GMT",
+  "Tue, 20 Oct 2026 14:30:00 GMT+0530",
+  "October 20, 2026 09:00:00",
+])("preserves native start interpretation for %s", (value) => {
+  const milliseconds = Date.parse(value);
+  expect(Number.isFinite(milliseconds)).toBe(true);
+  expect(readRecordedStart(value)).toEqual({
+    instant: offsetDateTimeInstantFromEpochMilliseconds(milliseconds),
+    interpretation: "native-date",
+  });
+});
+
+it.each([
+  "2026-02-30T09:00:00Z",
+  "1900-02-29 09:00:00",
+  "2026-10-20T24:00:00Z",
+  "not a recorded start",
+])("keeps invalid start %s unknown without native rollover", (value) => {
+  expect(readRecordedStart(value)).toBeUndefined();
+});
+
+it("keeps every ISO start fraction digit and treats its absent zone as UTC", () => {
+  const value = "2026-10-20 09:00:00.000000000123";
+  expect(readRecordedStart(value)).toEqual({
+    instant: readRecordedDateTime(`${value}Z`)!.instant,
+    interpretation: "recorded-iso",
+  });
+  expect(readRecordedStart(value)?.instant.fraction).toBe("000000000123");
+});

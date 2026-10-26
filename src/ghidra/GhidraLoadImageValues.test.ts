@@ -1,3 +1,4 @@
+import { parseMzHeaderEvidence } from "../domain/dosMz.js";
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import {
@@ -22,7 +23,9 @@ it("accepts DOS header padding after a complete relocation table", () => {
   bytes.writeUInt16LE(4, 8);
   bytes.writeUInt16LE(28, 24);
   bytes.write("ABCD", 60, "ascii");
-  expect(prepareGhidraDosLoadImage(bytes, bytes.length)).toMatchObject({
+  expect(
+    prepareGhidraDosLoadImage(bytes, parseMzHeaderEvidence(bytes)),
+  ).toMatchObject({
     ok: true,
     value: {
       header: {
@@ -38,20 +41,25 @@ it("accepts DOS header padding after a complete relocation table", () => {
   });
 });
 
-it("does not interpret an unresolved Windows-header candidate as a DOS image", () => {
-  const bytes = Buffer.alloc(128);
-  bytes.write("MZ", 0, "ascii");
-  bytes.writeUInt16LE(128, 2);
-  bytes.writeUInt16LE(1, 4);
-  bytes.writeUInt16LE(0, 6);
-  bytes.writeUInt16LE(4, 8);
-  bytes.writeUInt16LE(28, 24);
-  bytes.write("ABCD", 60, "ascii");
-  expect(prepareGhidraDosLoadImage(bytes, bytes.length)).toEqual({
-    ok: false,
-    error: "MZ Windows new-header candidate is unresolved",
-  });
-});
+it.each([0, 1])(
+  "prioritizes an unresolved Windows-header candidate over DOS page validity (pages=%s)",
+  (pages) => {
+    const bytes = Buffer.alloc(128);
+    bytes.write("MZ", 0, "ascii");
+    bytes.writeUInt16LE(128, 2);
+    bytes.writeUInt16LE(pages, 4);
+    bytes.writeUInt16LE(0, 6);
+    bytes.writeUInt16LE(4, 8);
+    bytes.writeUInt16LE(28, 24);
+    bytes.write("ABCD", 60, "ascii");
+    expect(
+      prepareGhidraDosLoadImage(bytes, parseMzHeaderEvidence(bytes)),
+    ).toEqual({
+      ok: false,
+      error: "MZ Windows new-header candidate is unresolved",
+    });
+  },
+);
 
 const damage: ReadonlyArray<
   readonly [string, (observation: NativeLoadImageObservation) => void]
@@ -505,7 +513,10 @@ it("applies duplicate aliases and overlapping DOS fixups in declared order with 
   bytes.writeUInt16LE(0, 42);
   bytes.set([1, 0, 2], 80);
   const before = Buffer.from(bytes);
-  const prepared = prepareGhidraDosLoadImage(bytes, bytes.length);
+  const prepared = prepareGhidraDosLoadImage(
+    bytes,
+    parseMzHeaderEvidence(bytes),
+  );
   if (!prepared.ok) throw new Error(prepared.error);
   expect(bytes.equals(before)).toBe(true);
   expect(

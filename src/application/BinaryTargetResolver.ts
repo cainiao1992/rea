@@ -57,9 +57,10 @@ import { admitGamecubeDol } from "../domain/gamecubeDolAdmission.js";
 import { DOL_HEADER_SIZE } from "../domain/gamecubeDol.js";
 import {
   mzWindowsHeaderLayoutLimitation,
-  observeMzWindowsHeader,
   parseMzHeaderEvidence,
+  withMzWindowsHeaderSignature,
   type DosMzHeader,
+  type MzHeaderEvidence,
   type MzWindowsHeaderObservation,
 } from "../domain/dosMz.js";
 import {
@@ -80,6 +81,7 @@ import {
   parseCodeViewData,
   claimsExecutableHeader,
   parseExecutableHeader,
+  parseMzExecutableMetadata,
   parsePeRecordFacts,
   peDebugDirectoryEntry,
   peCodeViewDataRanges,
@@ -877,7 +879,12 @@ const readExecutableMetadata = async (
         offset,
         bytes: signature.subarray(0, observedSignature.bytesRead),
       };
-      evidence = parseMzHeaderEvidence(bytes, fileSize, signatureEvidence);
+      evidence = withMzWindowsHeaderSignature(
+        bytes,
+        fileSize,
+        evidence,
+        signatureEvidence,
+      );
     }
     const { windowsHeader } = evidence;
     if (windowsHeader.state === "declared") {
@@ -890,31 +897,28 @@ const readExecutableMetadata = async (
             mz_windows_header: { ...windowsHeader },
           },
         });
-      return readPeMetadata(
-        handle,
-        windowsHeader.offset,
-        bytes,
+      return readPeMetadata(handle, windowsHeader.offset, {
+        mzPrefix: bytes,
         fileSize,
+        mzEvidence: evidence,
         signal,
-      );
+      });
     }
     // MZ relocation records may extend past the initial probe; their format
     // bounds are at most 65535 records inside a 65535-paragraph header.
-    const tableEnd =
-      bytes.length >= 28
-        ? bytes.readUInt16LE(24) + bytes.readUInt16LE(6) * 4
-        : 0;
-    const headerBytes = bytes.length >= 28 ? bytes.readUInt16LE(8) * 16 : 0;
-    if (
-      tableEnd > bytes.length &&
-      tableEnd <= headerBytes &&
-      tableEnd <= fileSize
-    ) {
-      const table = Buffer.alloc(tableEnd);
-      const observed = await handle.read(table, 0, table.length, 0);
+    const { relocationTableRead } = evidence;
+    if (relocationTableRead !== undefined) {
+      const table = Buffer.alloc(relocationTableRead.byteLength);
+      const observed = await handle.read(
+        table,
+        0,
+        table.length,
+        relocationTableRead.offset,
+      );
       throwIfTargetResolutionCancelled(signal);
+      const observedBytes = table.subarray(0, observed.bytesRead);
       evidence = parseMzHeaderEvidence(
-        table.subarray(0, observed.bytesRead),
+        observedBytes,
         fileSize,
         signatureEvidence,
       );
@@ -922,21 +926,11 @@ const readExecutableMetadata = async (
         return err(
           unresolvedMzHeaderFailure(evidence.windowsHeader, evidence.dos),
         );
-      return parseExecutableHeader(
-        table.subarray(0, observed.bytesRead),
-        hostArchitecture,
-        fileSize,
-        signatureEvidence,
-      );
+      return parseMzExecutableMetadata(observedBytes, evidence);
     }
     if (windowsHeader.state === "candidate")
       return err(unresolvedMzHeaderFailure(windowsHeader, evidence.dos));
-    return parseExecutableHeader(
-      bytes,
-      hostArchitecture,
-      fileSize,
-      signatureEvidence,
-    );
+    return parseMzExecutableMetadata(bytes, evidence);
   }
   if (bytes.length >= 4 && bytes.toString("hex", 0, 4) === "7f454c46")
     return readElfMetadata(handle, bytes, {
@@ -1264,9 +1258,17 @@ const readFatSliceHeaderEvidence = async (
 const readPeMetadata = async (
   handle: FileHandle,
   offset: number,
-  mzPrefix: Buffer,
-  fileSize: number,
-  signal?: AbortSignal,
+  {
+    mzPrefix,
+    fileSize,
+    mzEvidence,
+    signal,
+  }: {
+    readonly mzPrefix: Buffer;
+    readonly fileSize: number;
+    readonly mzEvidence: MzHeaderEvidence;
+    readonly signal: AbortSignal | undefined;
+  },
 ): Promise<Result<ExecutableMetadata, string>> => {
   throwIfTargetResolutionCancelled(signal);
   const fileHeader = Buffer.alloc(24);
@@ -1279,10 +1281,12 @@ const readPeMetadata = async (
   throwIfTargetResolutionCancelled(signal);
   if (fileHeaderRead.bytesRead !== fileHeader.length)
     return err("invalid or truncated PE header");
-  const windowsHeader = observeMzWindowsHeader(mzPrefix, fileSize, {
-    offset,
-    bytes: fileHeader.subarray(0, 4),
-  });
+  const { windowsHeader } = withMzWindowsHeaderSignature(
+    mzPrefix,
+    fileSize,
+    mzEvidence,
+    { offset, bytes: fileHeader.subarray(0, 4) },
+  );
   if (windowsHeader.state !== "declared")
     return err("invalid Windows new-header signature in MZ image");
   if (["NE", "LE", "LX"].includes(windowsHeader.signature))

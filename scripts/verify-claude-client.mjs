@@ -195,10 +195,13 @@ await withVerifierCleanup(async () => {
             assert.ok(outputProfile.ok);
             assert.deepEqual(
               status.result.server_identity.catalog,
-              createCatalogIdentity(
-                compactPresentationForMcpInputSchemaProfile(inputProfile.value),
-                outputProfile.value ?? "full",
-              ),
+              createCatalogIdentity({
+                compactPresentation:
+                  compactPresentationForMcpInputSchemaProfile(
+                    inputProfile.value,
+                  ),
+                outputSchemaProfile: outputProfile.value ?? "full",
+              }),
               "binary_session must return the selected input/output profile's catalog identity",
             );
             assert.equal(

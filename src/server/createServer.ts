@@ -6,8 +6,7 @@ import { pcapCaptureHostSupported } from "../domain/pcap/pcapAnalysis.js";
 import { createGpuCodeObjectsService } from "../composition/gpu.js";
 import { registerGpuCodeObjectsTools } from "./registerGpuCodeObjectsTools.js";
 import type { PacketCaptureService } from "../application/captures/PacketCaptureService.js";
-import { UNTRUSTED_CONTENT_INSTRUCTIONS } from "./toolResultEncoding.js";
-import { RECOVERY_INSTRUCTIONS } from "./recoveryInstructions.js";
+import { serverInstructions } from "./serverInstructions.js";
 import {
   createPacketCaptureService,
   tsharkHostSupported,
@@ -96,8 +95,9 @@ import { registerBinaryDiagnosticsTools } from "./registerBinaryDiagnosticsTools
 import { FridaInstrumentationManager } from "../frida/FridaInstrumentationManager.js";
 import { registerFridaTools } from "./registerFridaTools.js";
 import type { BinaryLayoutService } from "../application/binaryDiagnostics/BinaryLayoutService.js";
-import { createCatalogIdentity } from "../catalogIdentity.js";
 import { EvidenceMcpServer } from "./EvidenceMcpServer.js";
+import { catalogIdentityForToolFamilies } from "../catalogIdentity.js";
+import { parseMcpToolFamilies } from "../config/mcpToolFamilies.js";
 import { createToolResultDelivery } from "./toolResult.js";
 import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import { parseMcpResponseBudget } from "../config/mcpResponseBudget.js";
@@ -208,12 +208,6 @@ import { GdbSessionManager } from "../gdb/GdbSessionManager.js";
 import { registerGdbTools } from "./registerGdbTools.js";
 import { RizinDebugSessionManager } from "../rizin/RizinDebugSessionManager.js";
 import { registerRizinDebugTools } from "./registerRizinDebugTools.js";
-
-const TARGET_FREE_INSTRUCTIONS =
-  "REA provides reverse-engineering tools for local artifacts, native binaries, managed code, browser pages, and runtimes. Use the tool that directly answers the question; discover targets or inspect inventory only when needed. Tool results include inline Evidence and report their coverage and limitations. An opened target persists across turns. When finished, export needed Evidence and call close_binary; its snapshot_path can retain analysis.";
-
-const ACTIVE_TARGET_INSTRUCTIONS =
-  "REA analyzes the active reverse-engineering target. Use the analysis tool that answers the question directly. Search or list symbols when discovery is needed; analyze_function provides a function dossier, and focused procedure tools return individual facets.";
 
 export interface CreateServerOptions {
   readonly analysisSettings?: AnalysisSettings;
@@ -412,6 +406,7 @@ const createMcpServer = (
   delivery: ToolResultDelivery,
   compactPresentation: CompactInputSchemaPresentation | undefined,
   outputSchemaProfile: McpOutputSchemaProfile,
+  advertisedToolFamilies: ReadonlySet<string> | undefined,
 ): EvidenceMcpServer =>
   new EvidenceMcpServer(
     {
@@ -420,11 +415,10 @@ const createMcpServer = (
     },
     {
       capabilities: {},
-      instructions: `${
-        session === undefined
-          ? ACTIVE_TARGET_INSTRUCTIONS
-          : TARGET_FREE_INSTRUCTIONS
-      } ${RECOVERY_INSTRUCTIONS} ${UNTRUSTED_CONTENT_INSTRUCTIONS}`,
+      instructions: serverInstructions(
+        session !== undefined,
+        advertisedToolFamilies,
+      ),
     },
     session === undefined
       ? undefined
@@ -432,7 +426,12 @@ const createMcpServer = (
     delivery,
     compactPresentation,
     outputSchemaProfile,
-    createCatalogIdentity(compactPresentation, outputSchemaProfile),
+    catalogIdentityForToolFamilies(
+      compactPresentation,
+      outputSchemaProfile,
+      advertisedToolFamilies,
+    ),
+    advertisedToolFamilies,
   );
 
 /**
@@ -452,6 +451,7 @@ export const createServer = (
   const compactInputPresentation =
     selectCompactInputSchemaPresentation(environment);
   const selectedOutputSchemaProfile = outputSchemaProfile(environment);
+  const advertisedToolFamilies = selectAdvertisedToolFamilies(environment);
   const providerEnvironment = captureProviderEnvironment(
     options.providerEnvironment,
     environment,
@@ -520,6 +520,7 @@ export const createServer = (
       delivery,
       compactInputPresentation,
       selectedOutputSchemaProfile,
+      advertisedToolFamilies,
     );
   server.analysisSettings = analysisSettings;
   registerAnalysisSettingsTools(server, analysisSettings);
@@ -529,9 +530,10 @@ export const createServer = (
         ? undefined
         : (evidence) => session.recordEvidence(evidence),
       delivery,
-      createCatalogIdentity(
+      catalogIdentityForToolFamilies(
         compactInputPresentation,
         selectedOutputSchemaProfile,
+        advertisedToolFamilies,
       ),
     );
   }
@@ -1323,4 +1325,12 @@ const registerObservationTools = ({
     recordEvidenceWithUnknown,
     withAdmittedAnalysis,
   });
+};
+
+const selectAdvertisedToolFamilies = (
+  environment: Readonly<NodeJS.ProcessEnv>,
+): ReadonlySet<string> | undefined => {
+  const configured = parseMcpToolFamilies(environment.REA_MCP_TOOL_FAMILIES);
+  if (!configured.ok) throw configured.error;
+  return configured.value === undefined ? undefined : new Set(configured.value);
 };

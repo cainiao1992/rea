@@ -15,10 +15,9 @@ import { finalizeRetainedQueryReceipt } from "./retained-query-finalization.mjs"
 
 const { values } = parseArgs({
   options: Object.fromEntries(
-    ["runtime", "output", "profile", "target", "receive-bytes"].map((key) => [
-      key,
-      { type: "string" },
-    ]),
+    ["runtime", "output", "profile", "target", "receive-bytes", "families"].map(
+      (key) => [key, { type: "string" }],
+    ),
   ),
 });
 for (const key of ["runtime", "output", "target"]) {
@@ -31,6 +30,7 @@ assert.ok(Number.isSafeInteger(receiveBytes) && receiveBytes > 0);
 await mkdir(values.output);
 const report = {
   profile: values.profile,
+  families: values.families ?? null,
   receive_bytes: receiveBytes,
   runtime: values.runtime,
   target: values.target,
@@ -65,6 +65,9 @@ try {
       NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=3072",
       REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
       REA_MCP_OUTPUT_SCHEMA_PROFILE: values.profile,
+      ...(values.families === undefined
+        ? {}
+        : { REA_MCP_TOOL_FAMILIES: values.families }),
     },
     stderr: "pipe",
   });

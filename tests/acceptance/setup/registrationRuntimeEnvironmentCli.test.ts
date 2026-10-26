@@ -123,6 +123,74 @@ cliTest(
   },
 );
 
+cliTest(
+  "persists, updates and validates tool-family scopes without losing client configuration",
+  async ({ cli }) => {
+    const home = await createTestTempDirectory("rea-family-registration-");
+    const config = join(home, ".qwen/settings.json");
+    const foreign = { command: "foreign-tool", args: ["keep"] };
+    const original = JSON.stringify({ mcpServers: { foreign } });
+    await mkdir(dirname(config), { recursive: true });
+    await writeFile(config, original);
+    const environment = {
+      HOME: home,
+      USERPROFILE: home,
+      QWEN_HOME: join(home, ".qwen"),
+      ...missingHopperAndGhidraEnvironment(home),
+      REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
+      REA_MCP_OUTPUT_SCHEMA_PROFILE: "compact",
+    };
+    const run = (families: string) =>
+      cli.run({
+        arguments: [
+          "setup",
+          "--client",
+          "qwen_code",
+          "--tool-families",
+          families,
+          "--skill=false",
+          "--yes",
+          "--json",
+        ],
+        cwd: home,
+        environment,
+      });
+    const first = await run("session");
+    expect(first.exitCode, first.stdout).toBe(0);
+    expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(original);
+    const scope = "native,application,session";
+    const updated = await run(scope);
+    expect(updated.exitCode, updated.stdout).toBe(0);
+    const selected = await readFile(config, "utf8");
+    expect(JSON.parse(selected)).toMatchObject({
+      mcpServers: {
+        foreign,
+        rea: {
+          env: {
+            REA_MCP_TOOL_FAMILIES: scope,
+            REA_MCP_INPUT_SCHEMA_PROFILE: "compact",
+            REA_MCP_OUTPUT_SCHEMA_PROFILE: "compact",
+          },
+        },
+      },
+    });
+    const backup = await readFile(`${config}.rea.backup`, "utf8");
+    const repeated = await run(scope);
+    expect(repeated.exitCode, repeated.stdout).toBe(0);
+    expect(repeated.json).toMatchObject({
+      plannedActions: [],
+      appliedActions: [],
+    });
+    const rejected = await run("session,typo");
+    expect(rejected.exitCode).not.toBe(0);
+    expect(rejected.stdout + rejected.stderr).toContain(
+      "REA_MCP_TOOL_FAMILIES",
+    );
+    expect(await readFile(config, "utf8")).toBe(selected);
+    expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(backup);
+  },
+);
+
 cliTest.skipIf(process.platform !== "win32")(
   "rejects lowercase Windows provider settings in doctor and setup without writing",
   async ({ cli }) => {

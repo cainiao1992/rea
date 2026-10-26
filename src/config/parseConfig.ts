@@ -100,6 +100,9 @@ export const parseConfig = (
   if (!parsed.ok) return parsed;
   const env = parsed.value;
   return ok({
+    ...(env.REA_MCP_TOOL_FAMILIES === undefined
+      ? {}
+      : { mcpToolFamilies: env.REA_MCP_TOOL_FAMILIES }),
     ...(env.REA_MCP_MAX_RESPONSE_BYTES === undefined
       ? {}
       : { mcpMaxResponseBytes: env.REA_MCP_MAX_RESPONSE_BYTES }),

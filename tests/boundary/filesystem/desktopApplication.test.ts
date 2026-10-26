@@ -192,6 +192,8 @@ it("reads sparse embedded PCK ranges without hashing or retaining a large execut
   pck.write("GDPC");
   pck.writeUInt32LE(3, 4);
   pck.writeUInt32LE(4, 8);
+  pck.writeUInt32LE(0x80000001, 12);
+  pck.writeUInt32LE(0xffffffff, 16);
   const trailer = Buffer.alloc(12);
   trailer.writeBigUInt64LE(BigInt(pck.length));
   trailer.write("GDPC", 8);
@@ -203,9 +205,15 @@ it("reads sparse embedded PCK ranges without hashing or retaining a large execut
   expect(report.candidates.map((row) => row.family)).toContain("godot");
   expect(report.coverage.bytes_read).toBeLessThan(4096);
   expect(report.files[0]?.bytes).toBe(size);
-  expect(report.files[0]?.facts).toContainEqual(
-    expect.objectContaining({ kind: "godot-pck-header", offset: size - 32 }),
-  );
+  expect(report.files[0]?.facts).toContainEqual({
+    kind: "godot-pck-header",
+    offset: size - 32,
+    value: {
+      pack_version: 3,
+      engine_version: [4, 0x80000001, 0xffffffff],
+      placement: "embedded-trailer",
+    },
+  });
 });
 
 it("does not promote filenames, arbitrary pak files or symlink targets into byte facts", async () => {

@@ -1,3 +1,7 @@
+import {
+  hasGodotPckHeader,
+  readGodotPckHeaderFacts,
+} from "../domain/godotPckFormat.js";
 import type { FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { setImmediate } from "node:timers/promises";
@@ -108,20 +112,22 @@ export const inspectDesktopFile = async (
         raw_version: metadataPrefix.rawVersion,
       },
     });
-  if (prefix.length >= 20 && prefix.toString("latin1", 0, 4) === "GDPC")
+  if (prefix.length >= 20 && hasGodotPckHeader(prefix)) {
+    const pckHeader = readGodotPckHeaderFacts(prefix);
     fact({
       kind: "godot-pck-header",
       offset: 0,
       value: {
-        pack_version: prefix.readUInt32LE(4),
+        pack_version: pckHeader.formatVersion,
         engine_version: [
-          prefix.readUInt32LE(8),
-          prefix.readUInt32LE(12),
-          prefix.readUInt32LE(16),
+          pckHeader.engineMajor,
+          pckHeader.engineMinor,
+          pckHeader.enginePatch,
         ],
         placement: "standalone",
       },
     });
+  }
   if (
     prefix.length >= 16 &&
     prefix.toString("latin1", 0, 4) === "FORM" &&
@@ -320,21 +326,22 @@ const inspectPckTrailer = async (
         "Embedded PCK trailer declares an invalid pack extent",
       );
     const offset = size - 12 - Number(packSize);
-    const header = await read(offset, 20);
-    if (header.toString("latin1", 0, 4) !== "GDPC")
+    const bytes = await read(offset, 20);
+    if (!hasGodotPckHeader(bytes))
       throw new ArtifactReaderFailure(
         "format",
         "Embedded PCK trailer does not locate a pack header",
       );
+    const header = readGodotPckHeaderFacts(bytes);
     fact({
       kind: "godot-pck-header",
       offset,
       value: {
-        pack_version: header.readUInt32LE(4),
+        pack_version: header.formatVersion,
         engine_version: [
-          header.readUInt32LE(8),
-          header.readUInt32LE(12),
-          header.readUInt32LE(16),
+          header.engineMajor,
+          header.engineMinor,
+          header.enginePatch,
         ],
         placement: "embedded-trailer",
       },

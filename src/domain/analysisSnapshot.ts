@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
+import { evidenceSubjectDeclarationShapes } from "./evidenceSubject.js";
+
 import {
   compareUnicodeCodePoints,
   compositeKey,
@@ -82,33 +84,10 @@ const subjectBaseSchema = z.object({
   path: localPathStringSchema,
   sha256: digestSchema,
 });
-const subjectFormatSchema = z.enum([
-  ...formatSchema.options,
-  "hopper",
-  "directory",
-  "file",
-  "unknown",
-  "javascript-bundle",
-  "entitlements",
-  "pyinstaller",
-  "node-sea",
-]);
-// Snapshot entries retain the same raw-only architecture boundary as targets.
 const subjectSchema = z.discriminatedUnion("format", [
-  subjectBaseSchema.extend({
-    format: subjectFormatSchema.exclude(["raw-binary", "gamecube-dol"]),
-    architecture: architectureSchema
-      .exclude([...RAW_ONLY_ARCHITECTURES])
-      .nullable(),
-  }),
-  subjectBaseSchema.extend({
-    format: z.literal("raw-binary"),
-    architecture: architectureSchema.nullable(),
-  }),
-  subjectBaseSchema.extend({
-    format: z.literal("gamecube-dol"),
-    architecture: z.literal("powerpc"),
-  }),
+  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[0]),
+  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[1]),
+  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[2]),
 ]);
 const targetIdentitySchema = z.object({
   sha256: digestSchema,

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readPeSectionHeader } from "../peSectionHeader.js";
 import type { NativeMetadataRecovery } from "./nativeMetadataRecovery.js";
 
 const RTR_SIGNATURE = 0x00525452;
@@ -115,7 +116,6 @@ const nativeAotHydrationFailure = (cause: unknown): string =>
       : "DEHYDRATED_DATA could not be hydrated";
 
 type Section = {
-  readonly name: string;
   readonly rva: number;
   readonly virtualSize: number;
   readonly rawOffset: number;
@@ -530,14 +530,15 @@ class PeImage {
       );
     this.sections = Array.from({ length: count }, (_, index) => {
       const p = sectionOffset + index * 40;
-      const name = bytes.toString("ascii", p, p + 8).replace(/\0.*$/u, "");
+      const parsed = readPeSectionHeader(bytes.subarray(p, p + 40));
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      const section = parsed.value;
       return {
-        name,
-        virtualSize: this.#u32(p + 8),
-        rva: this.#u32(p + 12),
-        rawSize: this.#u32(p + 16),
-        rawOffset: this.#u32(p + 20),
-        characteristics: this.#u32(p + 36),
+        virtualSize: section.virtual_size,
+        rva: section.virtual_address,
+        rawSize: section.raw_size,
+        rawOffset: section.offset,
+        characteristics: section.characteristics,
       };
     });
     for (const section of this.sections) {

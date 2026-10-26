@@ -9,6 +9,7 @@ import type {
   UniversalMachOSlice,
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
+import { readPeSectionHeader } from "./peSectionHeader.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
 import {
   mzWindowsHeaderLayoutLimitation,
@@ -595,10 +596,15 @@ export const peRvaToFileOffset = (
   if (rva < sizeOfHeaders && size <= sizeOfHeaders - rva) return rva;
   for (let i = 0; i < numberOfSections; i++) {
     const offset = i * 40;
-    if (sectionTable.length < offset + 40) break;
-    const virtualAddress = sectionTable.readUInt32LE(offset + 12);
-    const sizeOfRawData = sectionTable.readUInt32LE(offset + 16);
-    const pointerToRawData = sectionTable.readUInt32LE(offset + 20);
+    const parsed = readPeSectionHeader(
+      sectionTable.subarray(offset, offset + 40),
+    );
+    if (!parsed.ok) break;
+    const {
+      virtual_address: virtualAddress,
+      raw_size: sizeOfRawData,
+      offset: pointerToRawData,
+    } = parsed.value;
     if (
       pointerToRawData > 0 &&
       rva >= virtualAddress &&

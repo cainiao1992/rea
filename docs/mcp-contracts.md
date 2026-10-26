@@ -1000,6 +1000,12 @@ A successful MCP initialize handshake establishes the REA connection.
 that Ghidra has finished importing the target. The first Ghidra-backed query,
 such as `binary_overview`, starts the engine and waits for import, default
 auto-analysis, bridge connection, and health readiness before returning analysis.
+With `REA_GHIDRA_PROJECT_PATH`, shared CLI/MCP configuration instead selects an
+[existing project copy](installation.md#reuse-an-existing-ghidra-project), whose
+content fingerprint is committed into the profile. Import, auto-analysis and
+repair scripts are skipped; original analysis completeness/settings stay unknown,
+and bridge database edits are unavailable. The same startup/client deadlines
+still cover copy verification, engine launch and the authenticated handshake.
 
 These deadlines have different owners:
 

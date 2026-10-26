@@ -116,6 +116,16 @@ export const parseConfig = (
     ...(env.REA_IDA_MCP_CONFIG === undefined
       ? {}
       : { idaMcpConfigPath: env.REA_IDA_MCP_CONFIG }),
+    ...(env.REA_GHIDRA_PROJECT_PATH === undefined
+      ? {}
+      : {
+          ghidraExistingProject: {
+            path: env.REA_GHIDRA_PROJECT_PATH,
+            ...(env.REA_GHIDRA_PROGRAM_NAME === undefined
+              ? {}
+              : { programName: env.REA_GHIDRA_PROGRAM_NAME }),
+          },
+        }),
     ghidraInstallDir: env.GHIDRA_INSTALL_DIR,
     ghidraJavaHome: env.JAVA_HOME,
     ghidraStartupTimeoutMs: env.REA_GHIDRA_STARTUP_TIMEOUT_MS,

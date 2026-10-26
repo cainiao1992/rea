@@ -1091,7 +1091,9 @@ export class GhidraClient {
     const parsed = parseGhidraSessionInfo(value, {
       runId,
       expectedReadOnly:
+        this.#options.existingProject === true ||
         this.#options.transport === "authenticated-loopback-tcp",
+      expectedExistingProject: this.#options.existingProject === true,
       providerVersion: this.#options.providerVersion,
       profileDigest: this.#options.profileDigest,
       targetSha256: this.#options.targetSha256,

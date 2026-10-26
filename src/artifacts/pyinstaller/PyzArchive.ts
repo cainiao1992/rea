@@ -38,12 +38,38 @@ export type PyzArchive =
   | {
       readonly kind: "opaque";
       readonly pythonMagic: Buffer;
+      readonly pythonVersion: string | undefined;
       readonly sha256: string;
       readonly limitation: string;
     };
 
 /** Bound the transient marshal table allocation independently of image expansion. */
 export const MAX_PYZ_TABLE_BYTES = 16 * 1024 * 1024;
+
+interface PyzHeaderFacts {
+  readonly signatureMatches: boolean;
+  readonly pythonMagic: Buffer;
+  readonly pythonVersion: string | undefined;
+  readonly tocOffset: number;
+  /** Null means the declaration lies outside this image, not an empty table. */
+  readonly tableBytes: number | null;
+}
+
+/** Called only after the exact fixed-header read has succeeded. */
+const readPyzHeaderFacts = (header: Buffer, size: number): PyzHeaderFacts => {
+  const pythonMagic = Buffer.from(header.subarray(4, 8));
+  const tocOffset = header.readUInt32BE(8);
+  return {
+    signatureMatches: header.subarray(0, 4).equals(PYZ_MAGIC),
+    pythonMagic,
+    pythonVersion: pythonVersionForMagic(pythonMagic),
+    tocOffset,
+    tableBytes:
+      tocOffset >= PYZ_HEADER_BYTES && tocOffset <= size
+        ? size - tocOffset
+        : null,
+  };
+};
 
 /** Parse only the header and table in memory; hash the complete file range in chunks. */
 export const readPyzArchive = async (
@@ -63,12 +89,9 @@ export const readPyzArchive = async (
     signal,
   });
   if (!headerRead.ok) return headerRead;
-  const header = headerRead.value;
-  const tocOffset =
-    header.length === PYZ_HEADER_BYTES ? header.readUInt32BE(8) : size;
-  const validOffset = tocOffset >= PYZ_HEADER_BYTES && tocOffset <= size;
-  const knownMagic = pythonVersionForMagic(header.subarray(4, 8)) !== undefined;
-  const tableSize = validOffset && knownMagic ? size - tocOffset : 0;
+  const header = readPyzHeaderFacts(headerRead.value, size);
+  const tableSize =
+    header.pythonVersion === undefined ? 0 : (header.tableBytes ?? 0);
   if (tableSize > MAX_PYZ_TABLE_BYTES)
     return err(
       pyInstallerFailure(
@@ -77,7 +100,7 @@ export const readPyzArchive = async (
       ),
     );
   const read = await readPyInstallerBytes(handle, {
-    position: start + tocOffset,
+    position: start + header.tocOffset,
     length: tableSize,
     label: "PYZ table",
     signal,
@@ -96,33 +119,28 @@ export const readPyzArchive = async (
     return err(
       pyInstallerFailure("format", "PYZ image extends outside the file"),
     );
-  return parsePyzParts(header, table, size, digest.sha256);
+  return parsePyzParts(header, table, digest.sha256);
 };
 
 const parsePyzParts = (
-  header: Buffer,
+  header: PyzHeaderFacts,
   table: Buffer,
-  size: number,
   sha256: string,
 ): Result<PyzArchive, PyInstallerFailure> => {
-  if (
-    header.length < PYZ_HEADER_BYTES ||
-    !header.subarray(0, 4).equals(PYZ_MAGIC)
-  )
+  if (!header.signatureMatches)
     return err(
       pyInstallerFailure("format", "PYZ archive magic does not match"),
     );
-  const pythonMagic = Buffer.from(header.subarray(4, 8));
-  const pythonVersion = pythonVersionForMagic(pythonMagic);
+  const { pythonMagic, pythonVersion, tocOffset } = header;
   if (pythonVersion === undefined)
     return ok({
       kind: "opaque",
       pythonMagic,
+      pythonVersion,
       sha256,
       limitation: `PYZ Python magic ${pythonMagic.toString("hex")} is not in the supported set; the member was left opaque.`,
     });
-  const tocOffset = header.readUInt32BE(8);
-  if (tocOffset < PYZ_HEADER_BYTES || tocOffset > size)
+  if (header.tableBytes === null)
     return err(
       pyInstallerFailure(
         "format",
@@ -135,6 +153,7 @@ const parsePyzParts = (
     return ok({
       kind: "opaque",
       pythonMagic,
+      pythonVersion,
       sha256,
       limitation: `PYZ table of contents could not be parsed (${marshalled.error.message}); the member was left opaque.`,
     });
@@ -145,6 +164,7 @@ const parsePyzParts = (
       ? ok({
           kind: "opaque",
           pythonMagic,
+          pythonVersion,
           sha256,
           limitation: `${entries.error.message}; the member was left opaque.`,
         })

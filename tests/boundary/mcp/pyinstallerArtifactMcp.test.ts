@@ -436,3 +436,139 @@ it("preserves surrogatepass PYZ module names through inspect_artifact", async ()
     await session.close();
   }
 });
+
+it.each([
+  {
+    name: "recognized opaque magic agrees with cookie",
+    cookie: 309,
+    magic: PYTHON_39_MAGIC,
+    version: "3.9",
+    conflict: false,
+    derived: true,
+  },
+  {
+    name: "recognized opaque magic disagrees with cookie",
+    cookie: 312,
+    magic: PYTHON_39_MAGIC,
+    version: "3.9",
+    conflict: false,
+    derived: false,
+  },
+  {
+    name: "unknown opaque magic with invalid TOC",
+    cookie: 309,
+    magic: Buffer.alloc(4),
+    version: null,
+    conflict: false,
+    derived: false,
+  },
+  {
+    name: "recognized opaque siblings disagree",
+    cookie: 309,
+    magic: PYTHON_39_MAGIC,
+    version: "3.9",
+    conflict: true,
+    derived: false,
+  },
+])(
+  "retains PYZ header evidence through inspect_artifact: $name",
+  async ({ cookie, magic, version, conflict, derived }) => {
+    const payload = pyzArchive({
+      magic,
+      modules: [],
+      toc: Buffer.from([0x4e]),
+    });
+    if (version === null) payload.writeUInt32BE(0xffffffff, 8);
+    const directory = await createTestTempDirectory("rea-opaque-pyz-metadata-");
+    const path = join(directory, "opaque-header");
+    await writeFile(
+      path,
+      cArchiveExecutable({
+        layout: "2.1",
+        pythonVersion: cookie,
+        members: [
+          {
+            name: "hello",
+            typeCode: "s",
+            payload: Buffer.from("entry script"),
+            compress: false,
+          },
+          { name: "PYZ.pyz", typeCode: "z", payload, compress: true },
+          ...(conflict
+            ? [
+                {
+                  name: "other.pyz",
+                  typeCode: "z",
+                  payload: pyzArchive({
+                    magic: Buffer.from("f30d0d0a", "hex"),
+                    modules: [],
+                    toc: Buffer.from([0x4e]),
+                  }),
+                  compress: false,
+                },
+              ]
+            : []),
+        ],
+      }),
+    );
+    const session = await createArtifactBinarySession(process.env);
+    const server = createServer({ kind: "session", session });
+    const client = new Client({
+      name: "opaque-pyz-metadata-test",
+      version: "1",
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      expect(
+        (await client.callTool({ name: "open_binary", arguments: { path } }))
+          .isError,
+      ).not.toBe(true);
+      const reply = await client.callTool({
+        name: "inspect_artifact",
+        arguments: {},
+      });
+      expect(reply.isError).not.toBe(true);
+      const inspection = artifactInspectionResultSchema.parse(
+        parseEvidence(reply.structuredContent).normalized_result,
+      );
+      const inventory = inspection.substeps[0]?.evidence.normalized_result;
+      expect(inventory?.coverage.status).toBe("unknown");
+      expect(
+        inventory?.occurrences.find((row) => row.logical_path === "PYZ.pyz"),
+      ).toMatchObject({
+        entry_kind: "file",
+        hash_status: "verified",
+        format_metadata: {
+          pyz_status: "opaque",
+          pyz_sha256: createHash("sha256").update(payload).digest("hex"),
+          pyz_python_magic: magic.toString("hex"),
+          pyz_python_version: version,
+          pyz_entry_count: null,
+        },
+      });
+      expect(
+        inventory?.occurrences.find((row) => row.logical_path === "hello")
+          ?.format_metadata,
+      ).toMatchObject({
+        bytecode_header: derived ? "derived" : "unknown",
+        bytecode_magic: derived ? magic.toString("hex") : null,
+      });
+      if (conflict)
+        expect(
+          inventory?.occurrences.find((row) => row.logical_path === "other.pyz")
+            ?.format_metadata,
+        ).toMatchObject({
+          pyz_status: "opaque",
+          pyz_python_version: "3.13",
+          pyz_python_magic: "f30d0d0a",
+        });
+    } finally {
+      await client.close();
+      await server.close();
+      await session.close();
+    }
+  },
+);

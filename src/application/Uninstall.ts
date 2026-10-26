@@ -963,11 +963,9 @@ const removeClient = async (
   try {
     return await publication.verify(async () => {
       try {
-        const readback = parseClientConfiguration(
-          await fileSystem.readText(publication.path),
-          client.format,
-        );
-        await publication.assertCurrent();
+        const text = await fileSystem.readText(publication.path);
+        await publication.assertCurrent(text);
+        const readback = parseClientConfiguration(text, client.format);
         if (
           (removeNative && Object.hasOwn(readback.servers, name)) ||
           (readback.dialect === "dsh" &&

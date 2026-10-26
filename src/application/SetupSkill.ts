@@ -2,6 +2,7 @@ import { copyFile, lstat, mkdir, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { dirname, join } from "node:path";
 import { err, ok, type Result } from "../domain/result.js";
+import { parseSkillManifestMetadata } from "../domain/skillManifest.js";
 import { readBoundedFileBytes } from "../process/BoundedFileBytes.js";
 import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
@@ -698,17 +699,15 @@ export const readInstalledSkillIdentity = async (
     ? inspection.value.manifest
     : inspection.error.manifest;
   const issues = inspection.ok ? [] : inspection.error.issues;
-  const toolCount =
-    content === undefined
-      ? undefined
-      : /^\s{2}tool_count:\s*(\d+)\s*$/mu.exec(content)?.[1];
+  const parsedMetadata =
+    content === undefined ? undefined : parseSkillManifestMetadata(content);
+  const metadata = parsedMetadata?.ok
+    ? parsedMetadata.value
+    : parsedMetadata?.error.metadata;
   return {
     canonical: inspection.ok && inspection.value.canonical,
-    version:
-      content === undefined
-        ? null
-        : (/^\s{2}version:\s*"([^"]+)"\s*$/mu.exec(content)?.[1] ?? null),
-    toolCount: toolCount === undefined ? null : Number.parseInt(toolCount, 10),
+    version: metadata?.version ?? null,
+    toolCount: metadata?.toolCount ?? null,
     ...(issues.length === 0 ? {} : { issues }),
   };
 };

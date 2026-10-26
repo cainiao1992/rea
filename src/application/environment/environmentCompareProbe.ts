@@ -56,15 +56,7 @@ const startedInstant = (
   const started = startedSchema.safeParse(record.reported);
   if (!started.success) return undefined;
   const reading = readRecordedDateTime(started.data.startedDateTime);
-  if (reading !== undefined) {
-    const { spelling } = reading;
-    const offsetTimestamp =
-      spelling.separator === "T" &&
-      (spelling.zone === "Z" || spelling.zone.includes(":"));
-    const clockTimestamp =
-      spelling.secondsPresent && spelling.fractionDigits <= 9;
-    if (offsetTimestamp || clockTimestamp) return reading.instant;
-  }
+  if (reading !== undefined) return reading.instant;
   // Preserve native-Date admission for legacy spellings, at its original precision.
   const ms = Date.parse(started.data.startedDateTime);
   return Number.isFinite(ms)

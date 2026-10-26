@@ -53,6 +53,21 @@ it.each([undefined, "SIGTERM"] as const)(
   },
 );
 
+it.each([undefined, "SIGTERM"] as const)(
+  "closes unused command input with stop signal %s",
+  async (stopSignal) => {
+    const result = await execFileOutput(
+      process.execPath,
+      [
+        "-e",
+        'process.stdin.resume(); process.stdin.on("end", () => process.stdout.write("input closed"));',
+      ],
+      { timeout: 2_000, ...(stopSignal === undefined ? {} : { stopSignal }) },
+    );
+    expect(result.stdout).toBe("input closed");
+  },
+);
+
 describe("execFileOutput", () => {
   it("ignores non-Error and incomplete failure metadata", () => {
     expect(execFileOutputFailure("failure")).toBeUndefined();

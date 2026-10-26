@@ -142,7 +142,7 @@ export const execFileFailureCapturedOutput = (
   truncated: failure.outputTruncated,
 });
 
-/** Run a shell-free command while capturing its complete output bytes. */
+/** Run a shell-free command with no input while capturing its complete output bytes. */
 export const execFileBytes = (
   command: string,
   arguments_: readonly string[],
@@ -175,7 +175,7 @@ export const execFileBytes = (
       resolve({ stdout, stderr });
     };
     if (stopSignal === undefined) {
-      execFile(
+      const child = execFile(
         command,
         [...arguments_],
         {
@@ -194,6 +194,8 @@ export const execFileBytes = (
             stderr,
           ),
       );
+      // This promise API exposes no input writer; EOF belongs to the owner.
+      child.stdin?.end();
       return;
     }
     startStoppableCommand(
@@ -229,7 +231,7 @@ const startStoppableCommand = (
   // pipe lifetime of descendants still using caller-owned temporary files.
   const child = spawn(command, [...arguments_], {
     ...execOptions,
-    stdio: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
     killSignal: stopSignal,
   });
   // The first stop request names the failure; a later one is not resent.

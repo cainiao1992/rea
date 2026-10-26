@@ -123,11 +123,10 @@ export const compareManagedMemberPaths = async (
       const selectedPath = input[inputField];
       let snapshot: Awaited<ReturnType<typeof readManagedSnapshot>>;
       try {
-        snapshot = await readSnapshot(
-          path,
-          operation,
-          resources === undefined ? {} : { resources },
-        );
+        snapshot = await readSnapshot(path, operation, {
+          expectedSha256: target.sha256,
+          ...(resources === undefined ? {} : { resources }),
+        });
       } catch (cause: unknown) {
         const failure = classifyBinaryTargetFilesystemFailure(path, cause);
         if (failure !== undefined) throw failure;

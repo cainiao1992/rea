@@ -178,6 +178,7 @@ export const SCOPES = {
     "tests/boundary/providers/native/artifactProvider.extractionCompleteness.test.ts",
     "tests/boundary/filesystem/setupUnavailableProvider.test.ts",
     "tests/boundary/filesystem/windowsNpxRegistration.test.ts",
+    "tests/boundary/filesystem/claudeDesktopSkillUninstallWindows.test.ts",
     "tests/boundary/filesystem/clientConfigurationEnvironment.test.ts",
     "tests/boundary/filesystem/clientConfigurationLayeredEnvironment.test.ts",
     "tests/acceptance/setup/registrationRuntimeEnvironmentCli.test.ts",

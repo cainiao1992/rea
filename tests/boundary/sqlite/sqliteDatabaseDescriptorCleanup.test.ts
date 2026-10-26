@@ -19,11 +19,16 @@ import { silentLogger } from "../../../src/logger.js";
 import { SqliteDatabaseProvider } from "../../../src/sqlite/SqliteDatabaseProvider.js";
 import { PrivateRuntimeRoot } from "../../../src/process/PrivateRuntimeRoot.js";
 import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
-import { createSqliteDatabaseFixture } from "../../fixtures/sqlite/database.js";
+import {
+  createSqliteDatabaseFixture,
+  SQLITE_NATIVE_LIMITS_AVAILABLE,
+} from "../../fixtures/sqlite/database.js";
 import {
   createTestWorkspace,
   removeTestWorkspace,
 } from "../../support/workspace/workspaceFixture.js";
+
+const nativeInspectionTest = it.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE);
 
 const descriptorCleanup = vi.hoisted(() => ({
   path: "",
@@ -351,7 +356,7 @@ it("retains reply-read cancellation and retries the failed reply descriptor clos
     await expect(access(root.path)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
-it.each([
+nativeInspectionTest.each([
   { cancel: false, denied: false },
   { cancel: true, denied: false },
   { cancel: false, denied: true },
@@ -480,64 +485,70 @@ it.each([
   },
 );
 
-it("keeps a completed reply close failure primary when abort follows lease retention", async () => {
-  const selected = await fixture("reply");
-  const controller = new AbortController();
-  const reason = { requested: "abort after reply close failure capture" };
-  let retainedReplyLease: string | undefined;
-  const retain = ArtifactResourceScope.prototype.retain;
-  const retainSpy = vi
-    .spyOn(ArtifactResourceScope.prototype, "retain")
-    .mockImplementation(function (this: ArtifactResourceScope, owner) {
-      retain.call(this, owner);
-      if (owner.kind === "lease" && owner.resource === descriptorCleanup.path) {
-        retainedReplyLease = owner.resource;
-        controller.abort(reason);
-      }
-    });
+nativeInspectionTest(
+  "keeps a completed reply close failure primary when abort follows lease retention",
+  async () => {
+    const selected = await fixture("reply");
+    const controller = new AbortController();
+    const reason = { requested: "abort after reply close failure capture" };
+    let retainedReplyLease: string | undefined;
+    const retain = ArtifactResourceScope.prototype.retain;
+    const retainSpy = vi
+      .spyOn(ArtifactResourceScope.prototype, "retain")
+      .mockImplementation(function (this: ArtifactResourceScope, owner) {
+        retain.call(this, owner);
+        if (
+          owner.kind === "lease" &&
+          owner.resource === descriptorCleanup.path
+        ) {
+          retainedReplyLease = owner.resource;
+          controller.abort(reason);
+        }
+      });
 
-  try {
-    const result = await selected.provider.inspect(
-      { path: selected.database.path },
-      { signal: controller.signal },
-    );
-    expect(controller.signal.aborted).toBe(true);
-    expect(controller.signal.reason).toBe(reason);
-    expect(retainedReplyLease).toBe(descriptorCleanup.path);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
+    try {
+      const result = await selected.provider.inspect(
+        { path: selected.database.path },
+        { signal: controller.signal },
+      );
+      expect(controller.signal.aborted).toBe(true);
+      expect(controller.signal.reason).toBe(reason);
+      expect(retainedReplyLease).toBe(descriptorCleanup.path);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
 
-    const primary = primaryAnalysisError(result.error);
-    expect(primary).toBeInstanceOf(ProviderCleanupError);
-    if (!(primary instanceof ProviderCleanupError)) return;
-    expect(primary).not.toMatchObject({ _tag: "AnalysisCancelledError" });
-    expect(primary.cause).toBeInstanceOf(ArtifactFileCleanupFailure);
-    expect(primary.cause).toMatchObject({
-      fileCleanupFailure: {
-        path: descriptorCleanup.path,
-        outcome: { kind: "completed" },
-        completionCancellation: undefined,
-      },
-    });
-    expect(primary.cleanupIncomplete).toBe(true);
-    expect(primary.cleanupResources).toContain(descriptorCleanup.path);
+      const primary = primaryAnalysisError(result.error);
+      expect(primary).toBeInstanceOf(ProviderCleanupError);
+      if (!(primary instanceof ProviderCleanupError)) return;
+      expect(primary).not.toMatchObject({ _tag: "AnalysisCancelledError" });
+      expect(primary.cause).toBeInstanceOf(ArtifactFileCleanupFailure);
+      expect(primary.cause).toMatchObject({
+        fileCleanupFailure: {
+          path: descriptorCleanup.path,
+          outcome: { kind: "completed" },
+          completionCancellation: undefined,
+        },
+      });
+      expect(primary.cleanupIncomplete).toBe(true);
+      expect(primary.cleanupResources).toContain(descriptorCleanup.path);
 
-    const handle = descriptorCleanup.handles[0];
-    if (handle === undefined)
-      throw new Error("Expected owned reply descriptor");
-    expect(handle.fd).toBeGreaterThanOrEqual(0);
-    expect(descriptorCleanup.attempts).toBe(1);
+      const handle = descriptorCleanup.handles[0];
+      if (handle === undefined)
+        throw new Error("Expected owned reply descriptor");
+      expect(handle.fd).toBeGreaterThanOrEqual(0);
+      expect(descriptorCleanup.attempts).toBe(1);
 
-    descriptorCleanup.denied = false;
-    await selected.provider.close();
-    expect(descriptorCleanup.attempts).toBe(2);
-    expect(handle.fd).toBe(-1);
-    expect(primary.cleanupIncomplete).toBe(false);
-    expect(primary).toBeInstanceOf(ProviderCleanupError);
-  } finally {
-    retainSpy.mockRestore();
-  }
-});
+      descriptorCleanup.denied = false;
+      await selected.provider.close();
+      expect(descriptorCleanup.attempts).toBe(2);
+      expect(handle.fd).toBe(-1);
+      expect(primary.cleanupIncomplete).toBe(false);
+      expect(primary).toBeInstanceOf(ProviderCleanupError);
+    } finally {
+      retainSpy.mockRestore();
+    }
+  },
+);
 
 it("retries source cleanup before admitting another snapshot", async () => {
   const selected = await fixture("database");

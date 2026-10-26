@@ -677,3 +677,54 @@ it.each(["cancel", "close"] as const)(
     }
   },
 );
+
+it.each(["__TEXT", "NODE_SEA"])(
+  "keeps an incomplete %s segment unrecognized before SEA admission",
+  async (name) => {
+    const bytes = Buffer.alloc(32 + 24);
+    bytes.writeUInt32LE(0xfeedfacf, 0);
+    bytes.writeUInt32LE(0x0100000c, 4);
+    bytes.writeUInt32LE(1, 16);
+    bytes.writeUInt32LE(24, 20);
+    bytes.writeUInt32LE(0x19, 32);
+    bytes.writeUInt32LE(24, 36);
+    bytes.write(name, 40, "latin1");
+    const handle = await open(
+      await writeCarrier("incomplete-segment", bytes),
+      "r",
+    );
+    try {
+      expect(await locateNodeSea(handle, bytes.length)).toBeUndefined();
+    } finally {
+      await handle.close();
+    }
+  },
+);
+
+it("retains SEA admission for a complete segment with a nonaligned command size", async () => {
+  const original = nodeSeaMachO();
+  const commandSize = original.readUInt32LE(20);
+  const payloadAt = 32 + commandSize;
+  const bytes = Buffer.concat([
+    original.subarray(0, payloadAt),
+    Buffer.alloc(1),
+    original.subarray(payloadAt),
+  ]);
+  bytes.writeUInt32LE(commandSize + 1, 20);
+  bytes.writeUInt32LE(commandSize + 1, 32 + 4);
+  bytes.writeBigUInt64LE(BigInt(payloadAt + 1), 32 + 40);
+  bytes.writeUInt32LE(payloadAt + 1, 32 + 72 + 48);
+  const handle = await open(
+    await writeCarrier("unaligned-command", bytes),
+    "r",
+  );
+  try {
+    expect(await locateNodeSea(handle, bytes.length)).toEqual({
+      carrier: "mach-o",
+      blobOffset: payloadAt + 1,
+      blobLength: Number(original.readBigUInt64LE(32 + 72 + 40)),
+    });
+  } finally {
+    await handle.close();
+  }
+});

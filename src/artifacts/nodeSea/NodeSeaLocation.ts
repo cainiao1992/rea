@@ -1,3 +1,5 @@
+import { readMachoSegmentHeader } from "../../domain/apple/machoSegmentHeader.js";
+import { readMachoSectionHeader } from "../../domain/apple/machoSectionHeader.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
@@ -273,12 +275,15 @@ const locateThinMachO = async (
         (name === "NODE_SEA" || name === "__NODE_SEA") &&
         cmdsize >= segmentHeader
       ) {
-        const nsects = readU32(
-          commands,
-          offset + (segment64 ? 64 : 48),
+        const parsedSegment = readMachoSegmentHeader(
+          commands.subarray(offset, offset + cmdsize),
+          segment64,
           little,
         );
-        const table = offset + segmentHeader;
+        if (!parsedSegment.ok)
+          throw formatFailure(NODE_SEA_MACHO_SEGMENT_TRUNCATED);
+        const nsects = parsedSegment.value.sectionCount;
+        const table = offset + parsedSegment.value.headerSize;
         if (
           nsects > Math.floor((cmdsize - segmentHeader) / sectionSize) ||
           table + nsects * sectionSize > offset + cmdsize
@@ -286,17 +291,18 @@ const locateThinMachO = async (
           throw formatFailure(NODE_SEA_MACHO_SEGMENT_TRUNCATED);
         for (let index = 0; index < nsects; index += 1) {
           const section = table + index * sectionSize;
-          if (cString(commands, section, 16) !== SEA_SECTION) continue;
-          const length = segment64
-            ? readU64(commands, section + 40, little)
-            : readU32(commands, section + 36, little);
-          const fileOffset = readU32(
-            commands,
-            section + (segment64 ? 48 : 40),
+          const parsedSection = readMachoSectionHeader(
+            commands.subarray(section, section + sectionSize),
+            segment64,
             little,
           );
-          if (length === undefined) throw limitFailure(NODE_SEA_BLOB_TOO_LARGE);
-          if (length > NODE_SEA_MAX_BLOB_BYTES)
+          if (!parsedSection.ok)
+            throw formatFailure(NODE_SEA_MACHO_SEGMENT_TRUNCATED);
+          const record = parsedSection.value;
+          if (cString(record.nameBytes, 0, 16) !== SEA_SECTION) continue;
+          const length = Number(record.size);
+          const fileOffset = record.offset;
+          if (!Number.isSafeInteger(length) || length > NODE_SEA_MAX_BLOB_BYTES)
             throw limitFailure(NODE_SEA_BLOB_TOO_LARGE);
           if (fileOffset > sliceSize || length > sliceSize - fileOffset)
             throw formatFailure(NODE_SEA_TRUNCATED);
@@ -676,16 +682,3 @@ const cString = (bytes: Buffer, offset: number, length: number): string => {
 
 const readU32 = (bytes: Buffer, offset: number, little: boolean): number =>
   little ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
-
-const readU64 = (
-  bytes: Buffer,
-  offset: number,
-  little: boolean,
-): number | undefined => {
-  if (offset < 0 || offset > bytes.length - 8) return undefined;
-  const value = little
-    ? bytes.readBigUInt64LE(offset)
-    : bytes.readBigUInt64BE(offset);
-  if (value > BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
-  return Number(value);
-};

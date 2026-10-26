@@ -1,3 +1,5 @@
+import { GpuInventory } from "../../../src/gpu/GpuInventory.js";
+import { GpuBufferSource } from "../../../src/gpu/GpuSource.js";
 import { open, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -215,4 +217,38 @@ it("keeps a PE signature outside an inspected prefix unresolved until its requir
   expect(() => readPeHeaders(prefix, bytes.length)).toThrow(
     "PE range 128 + 24 leaves the artifact.",
   );
+});
+
+it("does not inventory PE GPU sections from relocation-owned DOS bytes", async () => {
+  const bytes = relocationOwnedPointer(peResourceFixture().bytes);
+  const buffer = new GpuBufferSource(bytes, null);
+  const reads: { offset: number; size: number }[] = [];
+  const source = {
+    size: buffer.size,
+    containerId: buffer.containerId,
+    read: (offset: number, size: number) => {
+      reads.push({ offset, size });
+      return buffer.read(offset, size);
+    },
+  };
+  const inventory = new GpuInventory({
+    path: "/fixture",
+    analysis: "inventory",
+  });
+  await expect(inventory.inspect(source)).rejects.toThrow(/PE/u);
+  expect(reads).toEqual([
+    { offset: 0, size: 32 },
+    { offset: 0, size: 64 },
+  ]);
+});
+
+it("preserves PE GPU section inventory after a short DOS header with a confirmed signature", async () => {
+  const bytes = shortDosHeader(peResourceFixture().bytes);
+  const inventory = new GpuInventory({
+    path: "/fixture",
+    analysis: "inventory",
+  });
+  await expect(
+    inventory.inspect(new GpuBufferSource(bytes, null)),
+  ).resolves.toBe("pe");
 });

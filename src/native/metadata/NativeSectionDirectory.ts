@@ -1,3 +1,4 @@
+import { observeMzWindowsHeader } from "../../domain/dosMz.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readPeCoffHeader } from "../../domain/peCoffHeader.js";
@@ -285,10 +286,18 @@ export function* readPeSectionDirectory(
 ): Generator<NativeReadRequest, NativeSectionDirectory, Buffer> {
   const dos = new BinaryReader(yield request(fileSize, 0n, 64n), true);
   if (dos.u16(0) !== 0x5a4d) reject("Missing DOS MZ header");
-  const pe = dos.u32(60);
+  const observed = observeMzWindowsHeader(dos.bytes, fileSize);
+  if (observed.state === "absent" || observed.state === "header-needed")
+    return reject("MZ header does not declare a PE image");
+  const pe = observed.offset;
   if (pe < 64) reject("PE signature overlaps the DOS header");
   const coff = new BinaryReader(yield request(fileSize, BigInt(pe), 24n), true);
-  if (coff.u32(0) !== 0x4550) reject("PE signature is invalid");
+  const confirmed = observeMzWindowsHeader(dos.bytes, fileSize, {
+    offset: pe,
+    bytes: coff.bytes,
+  });
+  if (confirmed.state !== "declared" || confirmed.signature !== "PE")
+    reject("PE signature is invalid");
   const parsedCoff = readPeCoffHeader(coff.bytes.subarray(4, 24));
   if (!parsedCoff.ok) return reject(parsedCoff.error.message);
   const {

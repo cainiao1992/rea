@@ -1,3 +1,4 @@
+import { readElfDynamicEntry } from "../domain/elfDynamicEntry.js";
 import { readElfSectionHeader } from "../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import { readElfSymbol } from "../domain/elfSymbol.js";
@@ -344,8 +345,17 @@ export const readElfSymbols = async (
         await yieldToEventLoop();
         signal?.throwIfAborted();
       }
-      const tag = is64 ? reader.u64(base) : reader.u32(base);
-      if (tag === null) return failure("Dynamic entry is not representable");
+      const parsedEntry = readElfDynamicEntry(
+        bytes.subarray(base, base + dynamicEntrySize),
+        is64 ? 64 : 32,
+        true,
+      );
+      if (!parsedEntry.ok) return failure(parsedEntry.error.message);
+      // This reader historically admits tag identities as unsigned, safe numbers.
+      const tagBits = BigInt.asUintN(is64 ? 64 : 32, parsedEntry.value.tag);
+      if (tagBits > BigInt(Number.MAX_SAFE_INTEGER))
+        return failure("Dynamic entry is not representable");
+      const tag = Number(tagBits);
       // ELF defines d_un as ignored for DT_NULL; validate the complete entry
       // above, but do not interpret a value that has no meaning.
       if (tag === DT_NULL) {
@@ -366,8 +376,9 @@ export const readElfSymbols = async (
         ].includes(tag)
       )
         continue;
-      const value = is64 ? reader.u64(base + 8) : reader.u32(base + 4);
-      if (value === null) return failure("Dynamic entry is not representable");
+      if (parsedEntry.value.value > BigInt(Number.MAX_SAFE_INTEGER))
+        return failure("Dynamic entry is not representable");
+      const value = Number(parsedEntry.value.value);
       if (tags.has(tag) && tags.get(tag) !== value)
         return failure("Conflicting dynamic table tags");
       tags.set(tag, value);

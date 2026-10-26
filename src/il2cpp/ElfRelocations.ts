@@ -1,3 +1,4 @@
+import { readElfDynamicEntry } from "../domain/elfDynamicEntry.js";
 import {
   BinaryMappingFailure,
   mappedFileOffset,
@@ -113,11 +114,17 @@ function* dynamicTags(
   ]);
   for (let at = dynamic.offset; at < dynamic.offset + dynamic.size; at += 16) {
     if ((at - dynamic.offset) % 65536 === 0) yield;
-    const tag = image.readBigInt64LE(at);
+    const parsedEntry = readElfDynamicEntry(
+      image.subarray(at, at + 16),
+      64,
+      true,
+    );
+    if (!parsedEntry.ok) throw malformed(parsedEntry.error.message);
+    const { tag, value } = parsedEntry.value;
     if (tag === 0n) return tags;
     if (tags.has(tag) && unique.has(tag))
       throw malformed(`duplicate dynamic tag ${tag}`);
-    tags.set(tag, image.readBigUInt64LE(at + 8));
+    tags.set(tag, value);
   }
   throw malformed("PT_DYNAMIC has no DT_NULL terminator");
 }

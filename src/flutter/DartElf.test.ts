@@ -585,3 +585,22 @@ it("keeps section precision checks on consumed declarations and mapping fields",
     ],
   });
 });
+
+it("keeps ignored DT_NULL payloads separate from unsigned tag precision admission", async () => {
+  const names = ["_kDartVmSnapshotData"];
+  const control = await readElfSymbols(strippedImageWithSections(), names);
+  expect(control.failures).toEqual([]);
+  expect(
+    await readElfSymbols(
+      strippedImageWithSections([[0, 0xffffffffffffffffn]]),
+      names,
+    ),
+  ).toEqual(control);
+  const bytes = strippedImageWithSections([[16, 0n]]);
+  const table = Number(bytes.readBigUInt64LE(64 + 56 + 8));
+  bytes.writeBigInt64LE(-1n, table + 5 * 16);
+  expect(await readElfSymbols(bytes, names)).toEqual({
+    symbols: [],
+    failures: [{ reason: "Dynamic entry is not representable" }],
+  });
+});

@@ -1,3 +1,4 @@
+import { readElfDynamicEntry } from "../domain/elfDynamicEntry.js";
 import { readElfProgramHeader } from "../domain/elfProgramHeader.js";
 import type { MipsElfMetadata } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -127,14 +128,20 @@ export const readMipsElfSharedLoad = async (
     if (!chunk.ok) return chunk;
     for (let position = 0; position < chunk.value.length; position += 8) {
       checkCancelled();
-      const tag = u32(chunk.value, position);
+      const parsedEntry = readElfDynamicEntry(
+        chunk.value.subarray(position, position + 8),
+        32,
+        little,
+      );
+      if (!parsedEntry.ok) return err(parsedEntry.error.message);
+      const tag = Number(BigInt.asUintN(32, parsedEntry.value.tag));
       if (tag === 0) {
         terminated = true;
         break;
       }
       if (!relevant.has(tag)) continue;
       if (tags.has(tag)) return err(`duplicate MIPS dynamic tag ${tag}`);
-      tags.set(tag, u32(chunk.value, position + 4));
+      tags.set(tag, Number(parsedEntry.value.value));
     }
   }
   if (!terminated) return err("MIPS dynamic table has no DT_NULL terminator");

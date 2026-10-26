@@ -247,7 +247,7 @@ import {
 import {
   machoSummarySchema,
   machoViewContextSchema,
-  machoViewItemSchema,
+  machoViewRows,
   machoViewRequestSchema,
   projectMachoView,
 } from "./machoView.js";
@@ -1102,6 +1102,36 @@ export const sourceToBundlePageViewResultSchema = z.strictObject({
   items: sourceToBundleViewItemsSchema,
 });
 
+/** Bind the existing nested facet selection to its producer-owned rows. */
+const machoPage = <Facet extends keyof typeof machoViewRows>(facet: Facet) =>
+  z.strictObject({
+    ...viewResultBase,
+    ...machoViewContextSchema.shape,
+    kind: z.literal("macho"),
+    parent_operation: z.literal("inspect_macho"),
+    view: machoViewRequestSchema.extend({ facet: z.literal(facet) }),
+    item: machoViewRows[facet],
+  });
+
+// The input tag preserves kind dispatch; the output projection advertises the
+// correlated pages without adding a discriminator to their public wire shape.
+const machoPageViewResultSchema = z
+  .object({ kind: z.literal("macho") })
+  .passthrough()
+  .pipe(
+    z.union([
+      machoPage("entrypoints"),
+      machoPage("architectures"),
+      machoPage("build_metadata"),
+      machoPage("load_commands"),
+      machoPage("dependencies"),
+      machoPage("imports"),
+      machoPage("exports"),
+      machoPage("segments"),
+      machoPage("provenance"),
+    ]),
+  );
+
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   nativeObservationPageViewResultSchema,
@@ -1324,14 +1354,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     source_coverage: desktopCoverageSchema,
     parent_operation: z.literal("inspect_desktop_application"),
   }),
-  z.strictObject({
-    kind: z.literal("macho"),
-    view: machoViewRequestSchema,
-    item: machoViewItemSchema,
-    ...viewResultBase,
-    ...machoViewContextSchema.shape,
-    parent_operation: z.literal("inspect_macho"),
-  }),
+  machoPageViewResultSchema,
   z.strictObject({
     kind: z.literal("interface-builder"),
     view: interfaceBuilderViewRequestSchema,

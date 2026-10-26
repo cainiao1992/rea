@@ -27,6 +27,7 @@ import {
   type JsonValue,
 } from "../../../src/domain/jsonValue.js";
 import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
+import { inspectMachoSchema } from "../../../src/domain/native/nativeInspection.js";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
 import { ok } from "../../../src/domain/result.js";
 import {
@@ -1540,6 +1541,114 @@ it("advertises unserved learned clock rules when a retained capture has no globa
   );
   expect(independent).toMatchObject({ served: true });
   expect(unknown.writes).toContainEqual(independent);
+});
+
+it("advertises Mach-O pages whose selected facet owns their exact rows", async () => {
+  const { client, session } = await connect();
+  const { ajv, outputSchema } = await advertisedMcpToolSchemas(
+    client,
+    "inspect_analysis_view",
+    schemaValidation.assertions,
+  );
+  const coverage = <Row>(items: Row[]) => ({
+    items,
+    total: items.length,
+    exhaustive: true,
+    limitations: [],
+  });
+  const symbol = {
+    name: "_entry",
+    address: null,
+    weak: null,
+    reexport: null,
+    source: null,
+  };
+  const report = inspectMachoSchema.parse({
+    format: "mach-o",
+    selected_architecture: { name: "arm64", container_file_offset: 0 },
+    endian: "little",
+    word_size: 64,
+    file_type: "2",
+    flags: [],
+    uuid: null,
+    entrypoints: coverage([{ file_offset: 64 }]),
+    architectures: coverage([]),
+    build_metadata: coverage([]),
+    load_commands: coverage([]),
+    dependencies: coverage([]),
+    imports: coverage([
+      {
+        ...symbol,
+        name: null,
+        raw_name: "_entry+0x4",
+        name_status: "ambiguous",
+        addend: null,
+      },
+    ]),
+    exports: coverage([symbol]),
+    segments: coverage([]),
+    provenance: [],
+    limitations: [],
+  });
+  const parent = createEvidence(
+    { path: "/fixtures/tool", format: "mach-o", sha256: "a".repeat(64) },
+    { id: "native", name: "Native fixture", version: "1" },
+    { operation: "inspect_macho", parameters: {}, result: report },
+  );
+  const original = structuredClone(parent);
+  expect(session.recordEvidence(parent).ok).toBe(true);
+  for (const facet of [
+    "entrypoints",
+    "imports",
+    "exports",
+    "segments",
+  ] as const) {
+    for (const offset of [0, 999]) {
+      const response = await client.callTool({
+        name: "inspect_analysis_view",
+        arguments: {
+          source: {
+            kind: "retained-evidence",
+            evidence_id: parent.evidence_id,
+          },
+          view: { kind: "macho", facet, offset, limit: 64 },
+        },
+      });
+      expect(response.isError, JSON.stringify(response.content)).not.toBe(true);
+      expect(
+        ajv.validate(outputSchema, response.structuredContent),
+        JSON.stringify(ajv.errors),
+      ).toBe(true);
+      const delivered = parseEvidence(response.structuredContent);
+      const page = analysisViewResultSchema.parse(delivered.normalized_result);
+      if (page.kind !== "macho") throw new Error("Expected Mach-O page");
+      expect(page.item).toEqual(report[facet].items.slice(offset, offset + 64));
+      if (page.item.length > 0) {
+        const mismatched = {
+          ...delivered,
+          normalized_result: {
+            ...page,
+            view: {
+              ...page.view,
+              facet: facet === "entrypoints" ? "exports" : "entrypoints",
+            },
+          },
+        };
+        expect(ajv.validate(outputSchema, mismatched)).toBe(false);
+      }
+      expect(
+        ajv.validate(outputSchema, {
+          ...delivered,
+          normalized_result: {
+            ...page,
+            item: undefined,
+          },
+        }),
+      ).toBe(false);
+    }
+  }
+  expect(parent).toEqual(original);
+  expect(session.evidenceById(parent.evidence_id)).toEqual(original);
 });
 
 it("extracts an environment state identically from retained, portable and file MCP Evidence", async () => {

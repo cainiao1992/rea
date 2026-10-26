@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import {
   regularFileCancellation,
   RegularFileCleanupFailure,
@@ -1561,6 +1562,7 @@ export class KunaSessionClient implements AnalysisClient {
   async #lookupOrBuild(installation: KunaInstallation): Promise<void> {
     const key = kunaProjectKey({
       targetSha256: this.#target.sha256,
+      targetBasename: basename(this.#target.path),
       kunaSha256: installation.sha256,
       kunaCommand: installation.configuration.command,
       kunaExecutable: installation.executable,

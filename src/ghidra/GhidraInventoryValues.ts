@@ -2,6 +2,7 @@ import { nativeSymbolMetadataSchema } from "../domain/native/nativeSymbol.js";
 import { nativeAddressObservationSchema } from "../domain/native/nativeAddress.js";
 import { nativeByteReadSchema } from "../domain/native/nativeByteRead.js";
 import { z } from "zod";
+import { jsonRecordSchema } from "../domain/jsonRecord.js";
 import {
   bytePatternFields,
   validateBytePattern,
@@ -125,7 +126,7 @@ const inputSchemas = {
   set_addresses_names: z
     .object({
       document,
-      names: z.record(explicitAddress, z.string().min(1)),
+      names: jsonRecordSchema(z.string().min(1), explicitAddress),
     })
     .strict()
     .refine(

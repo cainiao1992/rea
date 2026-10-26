@@ -150,6 +150,40 @@ const connect = async (analysis: AnalysisOperationPort) => {
 };
 
 describe("official tool input contracts", () => {
+  it("preserves every batch naming destination and rejects malformed own values before dispatch", async () => {
+    const invocations: Invocation[] = [];
+    const client = await connect({
+      execute: (name, arguments_) => {
+        invocations.push({ name, arguments_ });
+        return Promise.resolve(ok(null));
+      },
+    });
+    const names = JSON.parse('{"0x1000":"entry","__proto__":"other"}');
+    await client.callTool({
+      name: "set_addresses_names",
+      arguments: { names },
+    });
+    expect(invocations).toEqual([
+      { name: "set_addresses_names", arguments_: { names } },
+    ]);
+    expect(JSON.stringify(invocations[0]!.arguments_)).toContain(
+      '"__proto__":"other"',
+    );
+    for (const value of [42, null, {}]) {
+      const result = await client.callTool({
+        name: "set_addresses_names",
+        arguments: {
+          names: Object.fromEntries([
+            ["0x1000", "entry"],
+            ["__proto__", value],
+          ]),
+        },
+      });
+      expect(result.isError).toBe(true);
+    }
+    expect(invocations).toHaveLength(1);
+  });
+
   it("rejects misspelled top-level inputs before dispatch and keeps record keys open", async () => {
     const invocations: Invocation[] = [];
     const client = await connect({

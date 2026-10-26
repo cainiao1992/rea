@@ -5,6 +5,28 @@ import {
   parseGhidraInventoryResult,
 } from "./GhidraInventoryValues.js";
 
+it.each(["other", 42, null, {}])(
+  "rejects an invalid own destination with value %j before admitting any batch naming subset",
+  (value) => {
+    const input = {
+      names: Object.fromEntries([
+        ["0x1000", "entry"],
+        ["__proto__", value],
+      ]),
+    };
+    expect(
+      parseGhidraInventoryInput("set_addresses_names", input),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisInputError",
+        issues: [{ path: ["names", "__proto__"] }],
+      },
+    });
+    expect(Object.keys(input.names)).toEqual(["0x1000", "__proto__"]);
+  },
+);
+
 it.each(["list_procedures", "search_procedures"] as const)(
   "preserves real bridge symbol provenance in %s",
   (operation) => {

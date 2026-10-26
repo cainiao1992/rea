@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { jsonRecordSchema } from "../../src/domain/jsonRecord.js";
 
 /** Independent expected outcomes supplied by the verification scenario. */
-export const structuredScopeExpectationsSchema = z.record(
-  z.string().min(1),
+export const structuredScopeExpectationsSchema = jsonRecordSchema(
   z.strictObject({
     operation: z.enum([
       "parse-package-json",
@@ -12,10 +12,27 @@ export const structuredScopeExpectationsSchema = z.record(
     ]),
     analysis_status: z.enum(["interrupted", "not-started"]),
   }),
+  z.string().min(1),
 );
 
+export type StructuredScopeExpectation = z.output<
+  typeof structuredScopeExpectationsSchema
+>[string];
+
+export interface StructuredProcessingScope {
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly evidence: {
+    readonly authority: string;
+    readonly state: string;
+    readonly confidence: string;
+  };
+}
+
 /** Every retained gap must match the named phase and its unavailable status. */
-export const matchesStructuredScopeExpectation = (scopes, expected) =>
+export const matchesStructuredScopeExpectation = (
+  scopes: readonly StructuredProcessingScope[],
+  expected: StructuredScopeExpectation | undefined,
+): boolean =>
   expected !== undefined &&
   scopes.length > 0 &&
   scopes.every(

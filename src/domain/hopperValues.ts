@@ -3,7 +3,7 @@ import { z } from "zod";
 import { fixedTupleSchema } from "./fixedTupleSchema.js";
 import { addressCoordinate } from "./native/addressCoordinate.js";
 
-import type { JsonValue } from "./jsonValue.js";
+import { jsonObjectSchema, type JsonValue } from "./jsonValue.js";
 
 import { err, ok, type Result } from "./result.js";
 import { nativeApiBoundarySchema } from "./native/nativeApiBoundary.js";
@@ -577,7 +577,7 @@ export const parseListCount = (
   const unwrapped = unwrapProperty(value, property);
   const list = z.array(z.unknown()).safeParse(unwrapped);
   if (list.success) return ok(list.data.length);
-  const map = z.record(z.string(), z.unknown()).safeParse(unwrapped);
+  const map = jsonObjectSchema.safeParse(unwrapped);
   return map.success
     ? ok(Object.keys(map.data).length)
     : invalid(operation, `${property} list`, map.error);

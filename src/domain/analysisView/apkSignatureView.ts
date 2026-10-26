@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   apkSignatureResultSchema,
   apkSignatureUninterpretedBytes,
+  apkSignatureMatchesSubject,
   type ApkSignatureResult,
 } from "../apkSignature/apkSignatureReport.js";
 import {
@@ -106,8 +107,11 @@ const read = (parent: AnalysisViewParent): Result<Checked, AnalysisError> => {
   // Parent identity is checked on every read, independently of reusable facts.
   if (
     parent.subject != null &&
-    (parent.subject.local_path !== report.artifact.path ||
-      parent.subject.digest.sha256 !== report.artifact.sha256)
+    !apkSignatureMatchesSubject(report.artifact, {
+      path: parent.subject.local_path,
+      sha256: parent.subject.digest.sha256,
+      format: parent.subject.format,
+    })
   )
     return err(
       analysisViewInputError([

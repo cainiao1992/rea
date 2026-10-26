@@ -2,6 +2,7 @@ import type { FileHandle } from "node:fs/promises";
 import {
   hasGodotPckHeader,
   readGodotPckTrailerFacts,
+  type GodotPckTrailerFacts,
 } from "../domain/godotPckFormat.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { assertArtifactReadActive } from "./ArtifactFileOperation.js";
@@ -11,6 +12,46 @@ export interface GodotPckLocation {
   readonly end: number;
   readonly embedded: boolean;
 }
+
+type DeclaredGodotPckTrailer = Extract<
+  GodotPckTrailerFacts,
+  { readonly state: "declared" }
+>;
+
+/** A malformed declaration remains distinct from an examined missing marker. */
+export type EmbeddedGodotPckObservation =
+  | { readonly state: "absent" }
+  | {
+      readonly state: "invalid-extent" | "header-mismatch";
+      readonly declaration: DeclaredGodotPckTrailer;
+    }
+  | {
+      readonly state: "located";
+      readonly declaration: DeclaredGodotPckTrailer;
+      readonly start: number;
+      readonly header: Buffer;
+    };
+
+/**
+ * Observe an admitted source of at least 12 bytes. Caller-owned exact reads retain
+ * admission, cancellation, budgets and range evidence; read failures propagate.
+ */
+export const observeEmbeddedGodotPck = async (
+  size: number,
+  headerBytes: 4 | 20,
+  read: (offset: number, bytes: number, end: number) => Promise<Buffer>,
+): Promise<EmbeddedGodotPckObservation> => {
+  const trailer = await read(size - 12, 12, size);
+  const declaration = readGodotPckTrailerFacts(trailer, size);
+  if (declaration.state === "absent") return declaration;
+  const { start, end, packBytes } = declaration;
+  if (start === null || packBytes < BigInt(headerBytes))
+    return { state: "invalid-extent", declaration };
+  const header = await read(start, headerBytes, end);
+  if (!hasGodotPckHeader(header))
+    return { state: "header-mismatch", declaration };
+  return { state: "located", declaration, start, header };
+};
 
 /** Positional exact reads preserve short-read, cancellation and I/O semantics. */
 export const readPckBytes = async (
@@ -67,13 +108,15 @@ export const locateGodotPck = async (
       : await readPckBytes(handle, 0, 4, size, signal);
   if (hasGodotPckHeader(magic)) return { start: 0, end: size, embedded: false };
   if (size < 12) return undefined;
-  const trailer = await readPckBytes(handle, size - 12, 12, size, signal);
-  const declaration = readGodotPckTrailerFacts(trailer, size);
-  // The terminal marker is only a candidate until its range resolves to a PCK header.
-  if (declaration.state === "absent") return undefined;
-  const { start, end, packBytes } = declaration;
-  if (start === null || packBytes < 4n) return undefined;
-  if (!hasGodotPckHeader(await readPckBytes(handle, start, 4, end, signal)))
-    return undefined;
-  return { start, end, embedded: true };
+  const observation = await observeEmbeddedGodotPck(
+    size,
+    4,
+    (offset, bytes, end) => readPckBytes(handle, offset, bytes, end, signal),
+  );
+  if (observation.state !== "located") return undefined;
+  return {
+    start: observation.start,
+    end: observation.declaration.end,
+    embedded: true,
+  };
 };

@@ -3,8 +3,8 @@ import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import {
   hasGodotPckHeader,
   readGodotPckHeaderFacts,
-  readGodotPckTrailerFacts,
 } from "../domain/godotPckFormat.js";
+import { observeEmbeddedGodotPck } from "./GodotPckLocation.js";
 import type { FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { setImmediate } from "node:timers/promises";
@@ -351,22 +351,20 @@ const inspectPckTrailer = async (
   read: DesktopByteRead,
   fact: RecordDesktopFact,
 ): Promise<void> => {
-  const trailer = await read(size - 12, 12);
-  const declaration = readGodotPckTrailerFacts(trailer, size);
-  if (declaration.state === "declared") {
-    const { start: offset, packBytes } = declaration;
-    if (offset === null || packBytes < 20n)
-      throw new ArtifactReaderFailure(
-        "format",
-        "Embedded PCK trailer declares an invalid pack extent",
-      );
-    const bytes = await read(offset, 20);
-    if (!hasGodotPckHeader(bytes))
-      throw new ArtifactReaderFailure(
-        "format",
-        "Embedded PCK trailer does not locate a pack header",
-      );
-    const header = readGodotPckHeaderFacts(bytes);
+  const observation = await observeEmbeddedGodotPck(size, 20, read);
+  if (observation.state === "invalid-extent")
+    throw new ArtifactReaderFailure(
+      "format",
+      "Embedded PCK trailer declares an invalid pack extent",
+    );
+  if (observation.state === "header-mismatch")
+    throw new ArtifactReaderFailure(
+      "format",
+      "Embedded PCK trailer does not locate a pack header",
+    );
+  if (observation.state === "located") {
+    const offset = observation.start;
+    const header = readGodotPckHeaderFacts(observation.header);
     fact({
       kind: "godot-pck-header",
       offset,

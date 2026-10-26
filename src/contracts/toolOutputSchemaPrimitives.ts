@@ -19,7 +19,6 @@ import {
   PROVIDER_RETRY_ACTIONS,
 } from "../domain/providerOperationHealth.js";
 import { analysisErrorProjectionSchema } from "./errorSchemas.js";
-import { ZIP_PACKAGE_FORMATS } from "../domain/zipPackageFormat.js";
 import { objcClassImportIdentitySchema } from "../domain/native/objcSwiftMetadata.js";
 import { BINARY_SESSION_SUMMARY_OMITTED_FIELDS } from "./sessionStatusContract.js";
 
@@ -46,34 +45,6 @@ export const requireOutputSchema = <
     throw new Error(`Missing output schema for ${name}`);
   return schema;
 };
-
-export const targetFormatSchema = z.enum([
-  "hopper",
-  "analysis-database",
-  "mach-o",
-  "mach-o-universal",
-  "elf",
-  "pe",
-  "dos-mz",
-  "dos-com",
-  "raw-binary",
-  "gamecube-dol",
-  ...ZIP_PACKAGE_FORMATS,
-  "asar",
-  "godot-pck",
-  "dmg",
-  "pkg",
-  "plist",
-  "javascript",
-  "source-map",
-]);
-
-export const targetKindSchema = z.enum([
-  "executable",
-  "database",
-  "archive",
-  "artifact",
-]);
 
 const providerCapabilityFacts = {
   operation: z.string(),

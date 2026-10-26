@@ -38,14 +38,7 @@ import { z } from "zod";
 import { jsonRecordSchema } from "../domain/jsonRecord.js";
 import { byteSearchResultSchema } from "../domain/native/bytePattern.js";
 import { evidenceBundleSummarySchema } from "../domain/evidenceRecordSummary.js";
-import {
-  BINARY_ARCHITECTURES,
-  RAW_ONLY_ARCHITECTURES,
-} from "../domain/binaryTargetTypes.js";
-import {
-  binaryArchitectureSchema,
-  rawBinaryEntryPointSchema,
-} from "../domain/rawBinary.js";
+import { liveBinaryTargetSummaryVariants } from "../domain/liveBinaryTargetSummary.js";
 import { nativeFunctionAnnotationsSchema } from "../domain/native/nativeFunctionAnnotations.js";
 import { nativeLoadImageSchema } from "../domain/native/nativeLoadImage.js";
 import { nativeUiResultSchema } from "../domain/native/nativeUiObservation.js";
@@ -109,8 +102,6 @@ import {
   sessionProviderFacts,
   sessionStatusDetailShapes,
   symbolDiscoveryOutput,
-  targetFormatSchema,
-  targetKindSchema,
 } from "./toolOutputSchemaPrimitives.js";
 
 import { processCaptureSchema } from "../domain/process/processCapture.js";
@@ -512,52 +503,10 @@ export const managedWorkflowOutputSchemas = {
   ),
 } as const satisfies Readonly<Record<string, z.ZodObject>>;
 
-const lifecycleTargetFields = {
-  path: z.string(),
-  kind: targetKindSchema,
-  sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-};
-const detectedLifecycleTargetSchema = z.object({
-  ...lifecycleTargetFields,
-  format: targetFormatSchema.exclude(["raw-binary", "gamecube-dol"]),
-  architecture: z
-    .enum(BINARY_ARCHITECTURES)
-    .exclude([...RAW_ONLY_ARCHITECTURES])
-    .nullable(),
-});
-const rawLifecycleTargetSchema = z.object({
-  ...lifecycleTargetFields,
-  format: z.literal("raw-binary"),
-  kind: z.literal("executable"),
-  architecture: binaryArchitectureSchema,
-  entry_point: rawBinaryEntryPointSchema.describe(
-    "Canonical caller-selected address where raw file offset 0 is mapped and execution is seeded.",
-  ),
-});
-const dolLifecycleTargetSchema = z.object({
-  ...lifecycleTargetFields,
-  format: z.literal("gamecube-dol"),
-  kind: z.literal("executable"),
-  architecture: z.literal("powerpc"),
-  entry_point: rawBinaryEntryPointSchema.describe(
-    "Canonical entry address taken from the caller-selected DOL header.",
-  ),
-});
-
-/**
- * Every open-target variant. open_binary and binary_session share this list so
- * a target that open_binary returns is always valid in binary_session status.
- */
-const openLifecycleTargetVariants = [
-  detectedLifecycleTargetSchema,
-  rawLifecycleTargetSchema,
-  dolLifecycleTargetSchema,
-] as const;
-
 /** Exact structured-content schemas for target lifecycle operations. */
 export const sessionOutputSchemas = {
   open_binary: lifecycleResultOf(
-    z.discriminatedUnion("format", [...openLifecycleTargetVariants]),
+    z.discriminatedUnion("format", [...liveBinaryTargetSummaryVariants]),
   ),
   open_bundle_resources: lifecycleResultOf(bundleResourceRootSchema),
   close_binary: lifecycleResultOf(
@@ -595,7 +544,7 @@ export const sessionOutputSchemas = {
           resource_root: bundleResourceRootSchema,
           ...detail,
         }),
-        ...openLifecycleTargetVariants.map((variant) =>
+        ...liveBinaryTargetSummaryVariants.map((variant) =>
           sessionProviderFacts.extend({
             open: z.literal(true),
             ...variant.shape,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { safeParseUtf8Json } from "../../domain/safeJson.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 import {
@@ -57,8 +58,10 @@ export const readHistoricalCaptureReply = async (
       finalization = cause;
       file = completed;
     }
+    const decoded = safeParseUtf8Json(file.bytes);
+    if (!decoded.ok) throw decoded.cause;
     return {
-      value: replySchema.parse(JSON.parse(file.bytes.toString("utf8"))),
+      value: replySchema.parse(decoded.value),
       bytes: file.bytes.length,
       finalization,
     };
@@ -87,6 +90,12 @@ const replyFailureReason = (cause: unknown): string => {
   if (cause instanceof z.ZodError)
     return `Reply violates its schema at ${cause.issues[0]?.path.map(String).join(".") ?? "root"}.`;
   if (cause instanceof SyntaxError) return "Reply is malformed JSON.";
+  if (
+    cause instanceof Error &&
+    "code" in cause &&
+    cause.code === "ERR_ENCODING_INVALID_ENCODED_DATA"
+  )
+    return "Reply is not valid UTF-8.";
   if (cause instanceof Error && "code" in cause)
     return `Reply file could not be read (${String(cause.code)}).`;
   return "Reply could not be validated.";

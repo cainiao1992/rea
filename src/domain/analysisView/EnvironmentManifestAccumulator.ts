@@ -231,7 +231,6 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
   #scenarioTransactions = 0;
   #scenarioWithoutBody = 0;
   #scenarioRedactedBodies = 0;
-  #unrepresentableBodyKey = false;
 
   constructor(
     maximumBytes = WEB_NETWORK_CAPTURE_LIMITS.outputBytes,
@@ -335,11 +334,8 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
     const root = parseJsonObject(body.text);
     if (root === null) return ok(null);
     const entries: [string, JsonTypeName][] = [];
-    for (const [name, value] of Object.entries(root)) {
-      // JSON parsers and schema clones drop a __proto__ own property; omit it explicitly.
-      if (name === "__proto__") this.#unrepresentableBodyKey = true;
-      else entries.push([name, jsonValueType(value)]);
-    }
+    for (const [name, value] of Object.entries(root))
+      entries.push([name, jsonValueType(value)]);
     return ok({ type: "object", properties: Object.fromEntries(entries) });
   }
 
@@ -545,11 +541,6 @@ export class EnvironmentManifestAccumulator extends WebNetworkProjectionAccumula
       tools.some((tool) => tool.body_shape !== null)
         ? [
             "Body shapes list top-level JSON key types from one recorded request each; they do not establish required fields or a complete schema.",
-          ]
-        : []),
-      ...(this.#unrepresentableBodyKey
-        ? [
-            "A top-level __proto__ key in a recorded JSON body is omitted from body_shape; it cannot be an own property of the published object.",
           ]
         : []),
       ...this.#segmentLimitLimitations(toolGroups),

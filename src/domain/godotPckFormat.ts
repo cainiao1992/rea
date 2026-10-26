@@ -1,6 +1,3 @@
-/** "GDPC" read as a little-endian uint32: the Godot Engine pack magic. */
-export const GODOT_PCK_MAGIC = 0x43504447;
-
 /** Whether bytes start with a standalone Godot PCK header. */
 export const hasGodotPckHeader = (bytes: Uint8Array): boolean =>
   bytes.length >= 4 &&

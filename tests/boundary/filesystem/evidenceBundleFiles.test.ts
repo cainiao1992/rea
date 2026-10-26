@@ -729,6 +729,31 @@ it("reuses authenticated file snapshots while isolating mutable public reads", a
   ledger.clear();
 });
 
+it.skipIf(process.platform === "win32")(
+  "rejects a regular-file parent traversal without writing to its lexical sibling",
+  async () => {
+    const directory = await createTestTempDirectory("rea-evidence-parent-");
+    const blocker = join(directory, "file");
+    await writeFile(blocker, "unchanged");
+    const selected = `${blocker}/../bundle.json`;
+    expect(await writeBundle(bundle(), selected, false)).toMatchObject({
+      ok: false,
+      error: { _tag: "EvidenceFileError", path: selected },
+    });
+    expect(await readdir(directory)).toEqual(["file"]);
+    expect(await readFile(blocker, "utf8")).toBe("unchanged");
+    const corrected = join(directory, "bundle.json");
+    expect(await writeBundle(bundle(), corrected, false)).toMatchObject({
+      ok: true,
+      value: { path: corrected },
+    });
+    expect(await readEvidenceBundle(corrected)).toEqual({
+      ok: true,
+      value: bundle(),
+    });
+  },
+);
+
 describe("evidence bundle filesystem adapter", () => {
   it.skipIf(process.platform === "win32").each(["/", "/."])(
     "preserves the directory requirement of a missing output ending in %s",

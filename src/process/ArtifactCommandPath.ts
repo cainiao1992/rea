@@ -1,8 +1,15 @@
+import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { realpath } from "node:fs/promises";
 
-import { assertArtifactReadActive } from "../artifacts/ArtifactFileOperation.js";
+import {
+  artifactSelectedPathErrno,
+  assertArtifactReadActive,
+} from "../artifacts/ArtifactFileOperation.js";
 import type { AnalysisCapturedOutput } from "../domain/analysisErrorBase.js";
-import { AnalysisArtifactChangedError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisAccessDeniedError,
+  AnalysisArtifactChangedError,
+} from "../domain/analysisErrorCore.js";
 
 /** The selected launch spelling and the physical file whose bytes are fingerprinted. */
 export interface ArtifactCommandPath {
@@ -47,13 +54,27 @@ export const assertArtifactCommandPath = async (
   try {
     current = await realpath(selected.invocationPath);
   } catch (cause: unknown) {
-    if (
-      cause instanceof Error &&
-      "code" in cause &&
-      (cause.code === "ENOENT" || cause.code === "ENOTDIR")
-    )
-      throw changed(cause);
-    throw cause;
+    if (artifactSelectedPathErrno(cause) !== undefined) throw changed(cause);
+    const systemCode =
+      cause instanceof Error && "code" in cause
+        ? String(cause.code)
+        : undefined;
+    const failureOptions = { cause, capturedOutput: options.capturedOutput };
+    if (systemCode === "EACCES" || systemCode === "EPERM")
+      throw new AnalysisAccessDeniedError(
+        operation,
+        selected.invocationPath,
+        systemCode,
+        failureOptions,
+      );
+    throw new ProviderAdapterError("rea", operation, {
+      ...failureOptions,
+      diagnostics: {
+        path: selected.invocationPath,
+        reason: cause instanceof Error ? cause.message : String(cause),
+        system_code: systemCode ?? null,
+      },
+    });
   }
   if (current !== selected.resolvedPath) throw changed();
   assertArtifactReadActive(options.signal);

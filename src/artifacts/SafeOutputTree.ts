@@ -8,6 +8,7 @@ import {
   open,
   readdir,
   realpath,
+  stat,
   type FileHandle,
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
@@ -194,24 +195,33 @@ export class SafeOutputTree {
       throw new SafeOutputTreeDestinationRefusal(
         "Invalid extraction output root",
       );
-    const parent = await realpath(dirname(requested)).catch(
-      (cause: unknown) => {
-        if (
-          cause instanceof Error &&
-          "code" in cause &&
-          ["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(String(cause.code))
-        )
-          throw new SafeOutputTreeDestinationRefusal(
-            "Extraction output parent is unavailable",
-            { cause },
-          );
-        throw new ArtifactReaderFailure(
-          "unavailable",
+    let parent: string;
+    try {
+      const selectedParent = dirname(requested);
+      // Darwin realpath can collapse file/.. despite stat rejecting that
+      // traversal. Admit the selected directory before canonicalizing it.
+      if (!(await stat(selectedParent)).isDirectory())
+        throw new SafeOutputTreeDestinationRefusal(
+          "Extraction output parent must be a directory",
+        );
+      parent = await realpath(selectedParent);
+    } catch (cause: unknown) {
+      if (cause instanceof SafeOutputTreeDestinationRefusal) throw cause;
+      if (
+        cause instanceof Error &&
+        "code" in cause &&
+        ["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(String(cause.code))
+      )
+        throw new SafeOutputTreeDestinationRefusal(
           "Extraction output parent is unavailable",
           { cause },
         );
-      },
-    );
+      throw new ArtifactReaderFailure(
+        "unavailable",
+        "Extraction output parent is unavailable",
+        { cause },
+      );
+    }
     const canonicalOutput = join(parent, name);
     return { requested, canonicalOutput };
   }

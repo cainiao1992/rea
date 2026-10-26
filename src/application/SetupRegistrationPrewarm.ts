@@ -10,7 +10,6 @@ import {
   spawnOwnedProviderProcess,
 } from "../process/ProviderProcess.js";
 import { cleanupOwnedProcessGroup } from "../process/ProcessOwnership.js";
-import { waitForAbortableDelay } from "../process/ProviderDeadline.js";
 import { ownedCommandResources } from "../process/OwnedCommand.js";
 import { tmpdir } from "node:os";
 import { BoundedOutputExcerpt } from "../process/BoundedOutputExcerpt.js";
@@ -193,8 +192,7 @@ export const launchRegistrationRunnerCommand: RegistrationRunnerLauncher = (
       launched.process.stderr?.on("data", (chunk: Buffer) =>
         stderr.append(chunk),
       );
-      while (!supervisor.observedOutputClose() && !controller.signal.aborted)
-        await waitForAbortableDelay(25, controller.signal);
+      await supervisor.waitForOutputClose(undefined, controller.signal);
     } catch (cause: unknown) {
       if (!controller.signal.aborted)
         spawnError = cause instanceof Error ? cause.message : String(cause);

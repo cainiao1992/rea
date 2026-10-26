@@ -1,3 +1,4 @@
+import { readTypeDefinitionRowFacts } from "./ManagedTypeDefinitionRows.js";
 import { managedDecodeBudget } from "./ManagedDecodeBudget.js";
 import { managedTypeReferences } from "./ManagedTypeReferences.js";
 import { MAX_TYPE_NESTING_DEPTH } from "./ManagedTypeNameDigests.js";
@@ -315,18 +316,18 @@ export const managedMetadataTypeNames = (
         namespace = parsed.namespace;
         flags = parsed.flags;
       } else {
-        const cursor = metadataRowCursor(bytes, layout, table, row);
-        flags = cursor.readUInt32();
+        const source = readTypeDefinitionRowFacts(bytes, layout, row);
+        flags = source.flags;
         name = readMetadataString(
           bytes,
           layout,
-          cursor.readIndex(layout.stringIndexSize),
+          source.nameIndex,
           layout.strings.size,
         );
         namespace = readMetadataString(
           bytes,
           layout,
-          cursor.readIndex(layout.stringIndexSize),
+          source.namespaceIndex,
           layout.strings.size,
         );
       }

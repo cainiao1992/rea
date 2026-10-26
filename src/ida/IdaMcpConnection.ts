@@ -1,3 +1,8 @@
+import {
+  mcpToolResultSchema,
+  mcpTextBlocks,
+  parseMcpJsonOrText,
+} from "../providers/McpToolResult.js";
 import { StructuredContentMcpClient } from "../providers/StructuredContentMcpClient.js";
 import {
   createIdaDiagnosticRedactor,
@@ -71,12 +76,7 @@ export type IdaMcpConnectionDependencies = Readonly<{
   createDiagnosticRedactor?: typeof createIdaDiagnosticRedactor;
 }>;
 
-const toolResultSchema = z.object({
-  isError: z.boolean().optional(),
-  structuredContent: z.record(z.string(), z.unknown()).optional(),
-  content: z.array(
-    z.object({ type: z.string(), text: z.string().optional() }).passthrough(),
-  ),
+const toolResultSchema = mcpToolResultSchema.extend({
   _meta: z
     .object({
       ida_mcp: z
@@ -110,11 +110,7 @@ export const decodeIdaToolResult = (
   diagnostic: IdaDiagnosticRedactor = createIdaDiagnosticRedactor(),
 ): JsonValue => {
   const result = toolResultSchema.parse(input);
-  // Shape validation's record copy can omit own __proto__ members; JSON owns the original dictionary.
-  const source = input as z.input<typeof toolResultSchema>;
-  const blocks = result.content.flatMap((block) =>
-    block.type === "text" && block.text !== undefined ? [block.text] : [],
-  );
+  const blocks = mcpTextBlocks(result.content);
   if (result.isError === true) {
     const reason = diagnostic.blocks(blocks);
     throw new AnalysisProtocolError(
@@ -144,8 +140,8 @@ export const decodeIdaToolResult = (
       );
     return parseIdaJsonText(text);
   }
-  if (source.structuredContent !== undefined) {
-    const value = jsonObjectSchema.parse(source.structuredContent);
+  if (result.structuredContent !== undefined) {
+    const value = jsonObjectSchema.parse(result.structuredContent);
     return Object.keys(value).length === 1 && Object.hasOwn(value, "result")
       ? value.result!
       : value;
@@ -154,11 +150,7 @@ export const decodeIdaToolResult = (
     throw new AnalysisProtocolError(
       "IDA MCP omitted a single structured or text result; unsupported content cannot establish an empty observation.",
     );
-  try {
-    return jsonValueSchema.parse(JSON.parse(text));
-  } catch {
-    return text;
-  }
+  return parseMcpJsonOrText(text);
 };
 
 // Retain only producer-sanitized JSON diagnostics, never a native parser cause.

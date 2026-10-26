@@ -2,12 +2,12 @@ import {
   type Client,
   DEFAULT_REQUEST_TIMEOUT_MSEC,
 } from "@modelcontextprotocol/client";
-import { z } from "zod";
 import {
-  jsonObjectSchema,
-  jsonValueSchema,
-  type JsonValue,
-} from "../domain/jsonValue.js";
+  mcpToolResultSchema,
+  mcpTextBlocks,
+  parseMcpJsonOrText,
+} from "../providers/McpToolResult.js";
+import { jsonObjectSchema, type JsonValue } from "../domain/jsonValue.js";
 import {
   AnalysisCancelledError,
   AnalysisProtocolError,
@@ -48,38 +48,23 @@ export interface JebMcpConnection {
   close(): Promise<void>;
 }
 
-const toolResultSchema = z.object({
-  isError: z.boolean().optional(),
-  structuredContent: z.record(z.string(), z.unknown()).optional(),
-  content: z
-    .array(
-      z.object({ type: z.string(), text: z.string().optional() }).passthrough(),
-    )
-    .default([]),
+const toolResultSchema = mcpToolResultSchema.extend({
+  content: mcpToolResultSchema.shape.content.default([]),
 });
 
 /** Decode a JEB MCP tool result without inventing an empty observation. */
 export const decodeJebToolResult = (input: unknown): JsonValue => {
   const result = toolResultSchema.parse(input);
-  // Shape validation's record copy can omit own __proto__ members; JSON owns the original dictionary.
-  const source = input as z.input<typeof toolResultSchema>;
-  const blocks = result.content.flatMap((block) =>
-    block.type === "text" && block.text !== undefined ? [block.text] : [],
-  );
+  const blocks = mcpTextBlocks(result.content);
   let decoded: JsonValue;
-  if (source.structuredContent !== undefined) {
-    decoded = jsonObjectSchema.parse(source.structuredContent);
+  if (result.structuredContent !== undefined) {
+    decoded = jsonObjectSchema.parse(result.structuredContent);
   } else {
     if (blocks.length !== 1)
       throw new AnalysisProtocolError(
         "JEB MCP omitted a single structured or text result; unsupported content cannot establish an empty observation.",
       );
-    const text = blocks[0] ?? "null";
-    try {
-      decoded = jsonValueSchema.parse(JSON.parse(text));
-    } catch {
-      decoded = text;
-    }
+    decoded = parseMcpJsonOrText(blocks[0]!);
   }
   if (result.isError === true && !isJebFailureEnvelope(decoded))
     throw new AnalysisProtocolError(

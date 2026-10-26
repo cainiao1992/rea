@@ -660,6 +660,10 @@ an existing Hopper launcher is selected through `HOPPER_LAUNCHER_PATH`. Ghidra
 and IDA have their own provider-specific host requirements; Windows Ghidra uses
 the [experimental P0 boundary](windows-ghidra-p0.md).
 
+If the Linux package download receives an HTTP failure, setup includes the
+observed HTTP status in its `download_failed` diagnostic. The status does not
+establish the underlying cause or guarantee that retrying will succeed.
+
 Hopper metadata and package downloads require HTTPS throughout the redirect
 chain; a redirect to HTTP is refused before that destination is requested.
 

@@ -131,11 +131,23 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     this.initialUrl = opened.page.url();
     this.cleanupLease = new AnalysisCleanupLease(
       async () => {
-        await this.#closeResources();
+        try {
+          await this.#closeResources();
+        } catch (cause: unknown) {
+          throw new BrowserObservationError(OPERATION, "cleanup_failed", {
+            cause,
+            cleanup: {
+              reason: this.redactError(cause),
+              resources: this.cleanupLease.cleanupResources ?? [],
+            },
+          });
+        }
       },
       {
         get cleanupResources() {
-          return opened.cleanup.cleanupResources;
+          return opened.cleanup.cleanupResources?.map((resource) =>
+            session.secrets.redact(resource),
+          );
         },
       },
     );
@@ -514,13 +526,17 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
         PLAYWRIGHT_CLEANUP_CONFIRMATION_TIMEOUT_MS,
       );
     } catch (cause: unknown) {
-      const error = new BrowserObservationError(OPERATION, "cleanup_failed", {
-        cause,
-        cleanup: {
-          reason: cause instanceof Error ? cause.message : String(cause),
-          resources: this.cleanupLease.cleanupResources ?? [],
-        },
-      });
+      const error =
+        cause instanceof BrowserObservationError &&
+        cause.reason === "cleanup_failed"
+          ? cause
+          : new BrowserObservationError(OPERATION, "cleanup_failed", {
+              cause,
+              cleanup: {
+                reason: this.redactError(cause),
+                resources: this.cleanupLease.cleanupResources ?? [],
+              },
+            });
       new AnalysisCleanupLeaseGroup(error, [this.cleanupLease]);
       throw error;
     }

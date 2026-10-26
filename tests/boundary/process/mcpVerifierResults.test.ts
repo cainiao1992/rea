@@ -1,6 +1,12 @@
 import { toolContract } from "../../../src/contracts/toolContracts.js";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
+import { parse } from "@babel/parser";
 import type { ToolContract } from "../../../src/contracts/toolContractTypes.js";
-import { createEvidence } from "../../../src/domain/evidence.js";
+import { createAnalysisProfile } from "../../../src/domain/analysisProfile.js";
+import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
+import { SUPPORTED_GHIDRA_VERSION } from "../../../src/ghidra/GhidraReleasePolicy.js";
 import {
   createEvidenceBundle,
   type EvidenceBundle,
@@ -8,6 +14,10 @@ import {
 import { expect, it } from "vitest";
 
 interface VerifierResults {
+  readonly requireMcpOperationResult: (
+    result: unknown,
+    operation: string,
+  ) => unknown;
   readonly requireMcpOutput: (
     result: unknown,
     operation: string,
@@ -207,6 +217,37 @@ const namedEvidence = () =>
       rawResult: { engine_name: "entry", source: "symbol table" },
     },
   );
+const ghidraEvidence = () => {
+  const provider = {
+    id: "ghidra",
+    name: "Ghidra",
+    version: SUPPORTED_GHIDRA_VERSION,
+  };
+  return createEvidence(
+    {
+      path: "/fixture/ghidra-image.elf",
+      sha256: "b".repeat(64),
+      format: "elf",
+      architecture: "x86_64",
+    },
+    provider,
+    {
+      operation: "address_name",
+      parameters: { address: "0x401000" },
+      result: "entry",
+      rawResult: {
+        address: "00401000",
+        symbol: "entry",
+        source: "Ghidra symbol table",
+      },
+      analysisProfile: createAnalysisProfile(provider, {
+        loader: "ElfLoader",
+        language_id: "x86:LE:64:default",
+        compiler_spec_id: "gcc",
+      }),
+    },
+  );
+};
 const textReply = (value: unknown) => ({
   content: [{ type: "text", text: JSON.stringify(value) }],
 });
@@ -241,6 +282,66 @@ it("admits matching complete text and structured Evidence and rejects either mal
     ).toThrow();
 });
 
+it.each([false, true])(
+  "keeps Ghidra contract admission separate from Evidence authentication (structured=%s)",
+  async (structured) => {
+    const { requireMcpOutput } = await verifierResults();
+    const evidence = ghidraEvidence();
+    const reply = (value: unknown) => ({
+      ...textReply(value),
+      ...(structured ? { structuredContent: value } : {}),
+    });
+    const admitted = requireMcpOutput(reply(evidence), "address_name");
+    expect(admitted).toEqual(evidence);
+    const authenticated = parseEvidence(admitted);
+    expect(authenticated).toEqual(evidence);
+    expect(authenticated.analysis_profile?.provider).toEqual(evidence.provider);
+    expect(authenticated.subject).toEqual(evidence.subject);
+    const tampered = { ...evidence, normalized_result: "different_entry" };
+    const shapeValid = requireMcpOutput(reply(tampered), "address_name");
+    expect(shapeValid).toEqual(tampered);
+    expect(() => parseEvidence(shapeValid)).toThrow(/semantic identifier/u);
+  },
+);
+
+it("rejects malformed and disagreeing replies at the Ghidra address-context verifier call boundary", async () => {
+  const source = await readFile(
+    new URL(
+      "../../../scripts/verify-real-ghidra-address-context.mjs",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const declaration = parse(source, { sourceType: "module" }).program.body.find(
+    (node) => node.type === "FunctionDeclaration" && node.id?.name === "call",
+  );
+  if (declaration?.start == null || declaration.end == null)
+    throw new Error("Ghidra verifier call boundary missing");
+  const evidence = ghidraEvidence();
+  let response: unknown;
+  // Execute the script's actual call boundary without launching its compiler or provider.
+  const call = runInNewContext(
+    `(${source.slice(declaration.start, declaration.end)})`,
+    {
+      assert,
+      client: { callTool: async () => response },
+      ...(await verifierResults()),
+    },
+  ) as (name: string) => Promise<unknown>;
+  response = { ...textReply(evidence), structuredContent: evidence };
+  await expect(call("address_name")).resolves.toEqual(evidence);
+  const malformed = { ...evidence, normalized_result: { name: "entry" } };
+  response = { ...textReply(malformed), structuredContent: malformed };
+  await expect(call("address_name")).rejects.toThrow();
+  response = {
+    ...textReply(evidence),
+    structuredContent: { ...evidence, normalized_result: "different_entry" },
+  };
+  await expect(call("address_name")).rejects.toThrow(
+    "text and structured results disagree",
+  );
+});
+
 it("rejects disagreement in lifecycle envelope fields that the named schema would otherwise discard", async () => {
   const { requireMcpOutput } = await verifierResults();
   const result = retainedBundle();
@@ -260,7 +361,7 @@ it("rejects disagreement in lifecycle envelope fields that the named schema woul
 
 it("rejects disagreement in complete Evidence provenance before downstream extraction", async () => {
   const { requireMcpOutput } = await verifierResults();
-  const evidence = namedEvidence();
+  const evidence = ghidraEvidence();
   expect(() =>
     requireMcpOutput(
       {

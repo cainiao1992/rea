@@ -7,6 +7,7 @@ import {
   resolveHermesClientHome,
 } from "./HermesClientHome.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
+import { appendCallerPath } from "../filesystem/callerPath.js";
 import { resolveWindowsClaudeDesktopLocation } from "./ClaudeDesktopConfigLocation.js";
 import {
   type MsixPackageView,
@@ -524,7 +525,7 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     name: "codex",
     displayName: "Codex",
     configPath: (context: ClientPathContext) =>
-      join(codexDirectory(context), "config.toml"),
+      appendCallerPath(codexDirectory(context), "config.toml"),
     markerPath: codexDirectory,
     format: "toml",
   },

@@ -14,10 +14,8 @@ import {
 } from "../../domain/native/peCertificates.js";
 import { peSubjectArchitecture } from "../../domain/peMachine.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "inspect_pe_certificates";
 
@@ -33,7 +31,7 @@ export class PeCertificatesService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectPeCertificatesInputSchema,

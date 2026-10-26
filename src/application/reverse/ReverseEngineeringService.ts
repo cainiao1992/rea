@@ -47,7 +47,7 @@ import {
 } from "../../process/OwnedCommand.js";
 import type { ProviderProcessSupervisor } from "../../process/ProviderProcess.js";
 import { absoluteCallerPath } from "../../filesystem/callerPath.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 export type ReverseEngineeringOperation =
   | "inspect_with_objdump"
@@ -215,7 +215,7 @@ export class ReverseEngineeringService {
       recordEvidence: undefined,
     },
   ): Promise<Result<Evidence, AnalysisError>> {
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       "inspect_with_objdump",
       rawInput,
       objdumpInputSchema,

@@ -11,10 +11,8 @@ import {
 } from "../../domain/rust/rustBinary.js";
 import { inspectRustBinaryRequestSchema } from "../../domain/rust/rustBinaryQuery.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import {
   requireAnalysisViewRetention,
   projectRetainedAnalysis,
@@ -40,7 +38,7 @@ export class RustBinaryService {
       evidenceById: undefined,
     },
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectRustBinaryRequestSchema,

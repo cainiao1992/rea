@@ -9,10 +9,8 @@ import {
 import type { Evidence } from "../../domain/evidence.js";
 import { createElectronFuseEvidence } from "../../domain/electron/electronFuseEvidence.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "inspect_electron_fuses";
 
@@ -30,7 +28,7 @@ export class ElectronFuseService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectElectronFusesInputSchema,

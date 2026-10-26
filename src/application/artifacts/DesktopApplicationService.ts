@@ -1,10 +1,8 @@
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import type { DesktopApplicationPort } from "./DesktopApplicationPort.js";
 import { ARTIFACT_GRAPH_PROVIDER } from "../../domain/investigationProviders.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import type { Evidence } from "../../domain/evidence.js";
 import { createDesktopApplicationEvidence } from "../../domain/desktopApplicationEvidence.js";
@@ -27,7 +25,7 @@ export class DesktopApplicationService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_desktop_application";
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       operation,
       rawInput,
       inspectDesktopApplicationInputSchema,

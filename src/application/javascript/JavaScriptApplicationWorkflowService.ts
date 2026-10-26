@@ -3,7 +3,7 @@ import {
   type EvidenceLookup,
 } from "../EvidenceInputResolver.js";
 import { retainedEvidenceReferenceSchema } from "../../domain/evidenceReference.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import type { ResolvedSourceToBundleReference } from "./SourceToBundleReference.js";
 import { z } from "zod";
 
@@ -122,7 +122,7 @@ export const traceApplicationFeatureEvidence = (
   AnalysisError
 > => {
   const operation = "trace_application_feature";
-  const request = parseProviderOperationInput(
+  const request = parseAnalysisInput(
     operation,
     rawInput,
     featureTraceFrameSchema,
@@ -187,7 +187,7 @@ export const compareApplicationVersionsEvidence = (
   AnalysisError
 > => {
   const operation = "compare_application_versions";
-  const request = parseProviderOperationInput(
+  const request = parseAnalysisInput(
     operation,
     rawInput,
     versionComparisonFrameSchema,
@@ -305,7 +305,7 @@ export const compareJavaScriptExportShapesEvidence = (
   AnalysisError
 > => {
   const operation = "compare_javascript_export_shapes";
-  const request = parseProviderOperationInput(
+  const request = parseAnalysisInput(
     operation,
     rawInput,
     exportShapeFrameSchema,

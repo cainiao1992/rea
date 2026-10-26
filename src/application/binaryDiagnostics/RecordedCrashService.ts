@@ -9,10 +9,8 @@ import {
   recordedCrashSchema,
 } from "../../domain/native/recordedCrash.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "inspect_recorded_crash";
 
@@ -51,7 +49,7 @@ export class RecordedCrashService {
       input: Parameters<RecordedCrashPort["inspect"]>[0],
     ) => ReturnType<RecordedCrashPort["inspect"]>,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectRecordedCrashInputSchema,

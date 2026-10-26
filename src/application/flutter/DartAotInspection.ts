@@ -9,7 +9,7 @@ import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { dartAotInspectionInputSchema } from "../../domain/flutter/flutterBuildAnalysis.js";
 import type { Evidence } from "../../domain/evidence.js";
 import type { Result } from "../../domain/result.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 /** Keep the caller's ABI choice and complete analysis; select only its delivery. */
 export const inspectDartAot = async (
@@ -19,7 +19,7 @@ export const inspectDartAot = async (
   options?: ExecutionOptions,
 ): Promise<Result<Evidence, AnalysisError>> => {
   const operation = "inspect_dart_aot";
-  const parsed = parseProviderOperationInput(
+  const parsed = parseAnalysisInput(
     operation,
     rawInput,
     dartAotInspectionInputSchema,

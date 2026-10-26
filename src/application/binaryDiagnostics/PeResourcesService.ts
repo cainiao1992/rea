@@ -11,10 +11,8 @@ import {
 } from "../../domain/native/peResources.js";
 import { peSubjectArchitecture } from "../../domain/peMachine.js";
 import { err, ok, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 /** Shared caller validation, output parsing and Evidence provenance for CLI/MCP. */
 export class PeResourcesService {
@@ -29,7 +27,7 @@ export class PeResourcesService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_pe_resources";
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       operation,
       rawInput,
       inspectPeResourcesInputSchema,

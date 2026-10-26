@@ -1,4 +1,4 @@
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import type { SqliteDatabasePort } from "./SqliteDatabasePort.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
@@ -79,7 +79,7 @@ export class SqliteDatabaseService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectSqliteDatabaseInputSchema,

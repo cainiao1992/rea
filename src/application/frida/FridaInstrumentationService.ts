@@ -16,7 +16,7 @@ import {
 } from "../../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import { fridaSessionStatusInputSchema } from "../../domain/fridaSessionStatus.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import {
   requireAnalysisViewRetention,
   summarizeRetainedAnalysis,
@@ -252,7 +252,7 @@ export class FridaInstrumentationService {
       evidenceById: undefined,
     },
   ): Result<Evidence, AnalysisError> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       "frida_session_status",
       rawInput,
       fridaSessionStatusInputSchema,

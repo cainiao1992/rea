@@ -36,10 +36,8 @@ import {
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { sameRegularFileState } from "../../filesystem/RegularFile.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 /** Bound retained result rows before constructing the Evidence representation. */
 export const MAX_BYTE_ENTROPY_BLOCKS = 32_768;
@@ -99,7 +97,7 @@ export class ByteEntropyService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectByteEntropyInputSchema,

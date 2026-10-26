@@ -36,10 +36,8 @@ import type {
   WebModuleResolutionPort,
 } from "./WebModulePorts.js";
 
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "./ProviderOperationExecution.js";
+import { completeProviderEvidence } from "./ProviderOperationExecution.js";
+import { parseAnalysisInput } from "./AnalysisInput.js";
 
 const OPERATION = "trace_web_module_imports";
 const artifactsSchema = selectedWebScriptArtifactsSchema.extend({
@@ -83,7 +81,7 @@ export class WebModuleTraceService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       OPERATION,
       rawInput,
       webModuleTraceInputSchema,

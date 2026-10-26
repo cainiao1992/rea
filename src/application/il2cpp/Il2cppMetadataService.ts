@@ -1,4 +1,4 @@
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import type {
@@ -99,7 +99,7 @@ export class Il2cppMetadataService {
     retention: AnalysisViewRetention,
     output?: Il2cppSeedOutput,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectIl2cppMetadataInputSchema,

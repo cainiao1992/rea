@@ -10,10 +10,8 @@ import {
   inspectGoBinaryInputSchema,
 } from "../../domain/go/goBinary.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import {
   requireAnalysisViewRetention,
   summarizeRetainedAnalysis,
@@ -40,7 +38,7 @@ export class GoBinaryService {
     options?: ExecutionOptions,
     retention: AnalysisViewRetention = NO_RETENTION,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectGoBinaryInputSchema,

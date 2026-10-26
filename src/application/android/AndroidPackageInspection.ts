@@ -9,7 +9,7 @@ import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { androidPackageInspectionInputSchema } from "../../domain/android/androidAnalysis.js";
 import type { Evidence } from "../../domain/evidence.js";
 import type { Result } from "../../domain/result.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 /** Preserve the complete provider request; select retained delivery explicitly. */
 export const inspectAndroidPackage = async (
@@ -19,7 +19,7 @@ export const inspectAndroidPackage = async (
   options?: ExecutionOptions,
 ): Promise<Result<Evidence, AnalysisError>> => {
   const operation = "inspect_android_package";
-  const parsed = parseProviderOperationInput(
+  const parsed = parseAnalysisInput(
     operation,
     rawInput,
     androidPackageInspectionInputSchema,

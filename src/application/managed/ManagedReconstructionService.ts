@@ -10,7 +10,7 @@ import {
 } from "../../domain/managed/managedReconstruction.js";
 import { ok, type Result } from "../../domain/result.js";
 import { MANAGED_WORKFLOW_PROVIDER } from "../../domain/investigationProviders.js";
-import { parseProviderOperationInput } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "import_managed_reconstruction" as const;
 
@@ -18,7 +18,7 @@ const OPERATION = "import_managed_reconstruction" as const;
 export const resolveManagedReconstructionEvidenceInput = (
   rawInput: unknown,
 ): Result<ResolvedManagedReconstructionImport, AnalysisError> => {
-  const parsed = parseProviderOperationInput(
+  const parsed = parseAnalysisInput(
     OPERATION,
     rawInput,
     managedReconstructionImportRequestSchema,

@@ -15,10 +15,8 @@ import {
 import { BINARY_ARCHITECTURES } from "../../domain/binaryTargetTypes.js";
 import { elfArchitecture } from "../../domain/elfFixedHeader.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "inspect_elf_notes";
 
@@ -34,7 +32,7 @@ export class ElfNotesService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectElfNotesInputSchema,

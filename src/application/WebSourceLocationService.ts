@@ -32,10 +32,8 @@ import type {
   WebSourceLocationArtifactPort,
   WebSourceMapPort,
 } from "./WebSourceLocationPorts.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "./ProviderOperationExecution.js";
+import { completeProviderEvidence } from "./ProviderOperationExecution.js";
+import { parseAnalysisInput } from "./AnalysisInput.js";
 
 const OPERATION = "trace_web_source_location";
 const artifactsSchema = selectedWebScriptArtifactsSchema.extend({
@@ -90,7 +88,7 @@ export class WebSourceLocationService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       OPERATION,
       rawInput,
       webSourceLocationInputSchema,

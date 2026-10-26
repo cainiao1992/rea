@@ -1,3 +1,4 @@
+import { parseAnalysisInput } from "./AnalysisInput.js";
 import type {
   AnalysisOperationPort,
   ExecutionOptions,
@@ -7,9 +8,6 @@ import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { createEvidence } from "../domain/evidence.js";
 import { parseFunctionDossier } from "../domain/hopperValues.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import { err } from "../domain/result.js";
-import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
-import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { completeProviderEvidence } from "./ProviderOperationExecution.js";
 
 /**
@@ -23,23 +21,14 @@ export const executeFunctionAnalysisEvidence = async (
   target: BinaryTarget | undefined,
   options?: ExecutionOptions,
 ) => {
-  if (options?.signal?.aborted)
-    return err(
-      new AnalysisCancelledError("analyze_function", {
-        cause: options.signal.reason,
-      }),
-    );
-  const input = nativeProcedureInputSchema.safeParse(parameters);
-  if (!input.success)
-    return err(
-      analysisInputErrorFromIssues(
-        "analyze_function",
-        input.error.issues,
-        parameters,
-        { cause: input.error },
-      ),
-    );
-  const arguments_ = input.data;
+  const input = parseAnalysisInput(
+    "analyze_function",
+    parameters,
+    nativeProcedureInputSchema,
+    options?.signal,
+  );
+  if (!input.ok) return input;
+  const arguments_ = input.value;
   const execution = await analysis.execute(
     "analyze_function",
     arguments_,

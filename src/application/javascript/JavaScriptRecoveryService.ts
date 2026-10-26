@@ -1,7 +1,7 @@
+import { parseAnalysisInput } from "../AnalysisInput.js";
 import { isAbsolute, resolve } from "node:path";
 
 import {
-  AnalysisCancelledError,
   AnalysisInputError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
@@ -11,7 +11,6 @@ import {
   javascriptRecoveryInputSchema,
   javascriptRecoveryResultSchema,
 } from "../../domain/javascript/javascriptRecovery.js";
-import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.js";
 import { err, type Result } from "../../domain/result.js";
 import type { ExecutionOptions } from "../AnalysisProvider.js";
 import { completeProviderEvidence } from "../ProviderOperationExecution.js";
@@ -32,21 +31,17 @@ export class JavaScriptRecoveryService {
     input: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    if (options?.signal?.aborted === true)
-      return err(
-        new AnalysisCancelledError(OPERATION, { cause: options.signal.reason }),
-      );
-    const parsed = javascriptRecoveryInputSchema.safeParse(input);
-    if (!parsed.success)
-      return err(
-        analysisInputErrorFromIssues(OPERATION, parsed.error.issues, input, {
-          cause: parsed.error,
-        }),
-      );
-    const invalidPaths = (["path", "output_directory"] as const).filter(
-      (field) => !isAbsolute(parsed.data[field]),
+    const parsed = parseAnalysisInput(
+      OPERATION,
+      input,
+      javascriptRecoveryInputSchema,
+      options?.signal,
     );
-    const invalidAdditional = (parsed.data.additional_paths ?? []).filter(
+    if (!parsed.ok) return parsed;
+    const invalidPaths = (["path", "output_directory"] as const).filter(
+      (field) => !isAbsolute(parsed.value[field]),
+    );
+    const invalidAdditional = (parsed.value.additional_paths ?? []).filter(
       (additional) => !isAbsolute(additional),
     );
     if (invalidPaths.length > 0 || invalidAdditional.length > 0)
@@ -65,11 +60,14 @@ export class JavaScriptRecoveryService {
         ]),
       );
     const selectedInputs = new Set(
-      [parsed.data.path, ...(parsed.data.additional_paths ?? [])].map((path) =>
-        resolve(path),
+      [parsed.value.path, ...(parsed.value.additional_paths ?? [])].map(
+        (path) => resolve(path),
       ),
     );
-    if (selectedInputs.size !== 1 + (parsed.data.additional_paths ?? []).length)
+    if (
+      selectedInputs.size !==
+      1 + (parsed.value.additional_paths ?? []).length
+    )
       return err(
         new AnalysisInputError(OPERATION, undefined, [
           {
@@ -79,7 +77,7 @@ export class JavaScriptRecoveryService {
           },
         ]),
       );
-    const execution = await this.provider.recover(parsed.data, options);
+    const execution = await this.provider.recover(parsed.value, options);
     if (!execution.ok) return execution;
     const result = javascriptRecoveryResultSchema.safeParse(
       execution.value.result,
@@ -92,10 +90,10 @@ export class JavaScriptRecoveryService {
         ),
       );
     if (
-      result.data.source.path !== parsed.data.path ||
+      result.data.source.path !== parsed.value.path ||
       (result.data.additional_sources ?? []).length !==
-        (parsed.data.additional_paths ?? []).length ||
-      (parsed.data.additional_paths ?? []).some(
+        (parsed.value.additional_paths ?? []).length ||
+      (parsed.value.additional_paths ?? []).some(
         (path, index) => result.data.additional_sources?.[index]?.path !== path,
       ) ||
       execution.value.subject.path !== result.data.source.path ||
@@ -114,7 +112,7 @@ export class JavaScriptRecoveryService {
       execution.value.provider,
       {
         operation: OPERATION,
-        parameters: parsed.data,
+        parameters: parsed.value,
         result: result.data,
         rawResult: execution.value.rawResult,
         locations: execution.value.locations,

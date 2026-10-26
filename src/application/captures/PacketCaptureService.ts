@@ -17,10 +17,8 @@ import {
   type InspectPacketCaptureInput,
 } from "../../domain/captures/packetCapture.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 export interface PacketCapturePort {
   /** Release per-call resources before returning, or retain failed cleanup for close/retry. */
@@ -46,7 +44,7 @@ export class PacketCaptureService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_packet_capture";
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       operation,
       raw,
       inspectPacketCaptureInputSchema,
@@ -85,7 +83,7 @@ export class PacketCaptureService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_packet_fields";
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       operation,
       raw,
       inspectPacketFieldsInputSchema,

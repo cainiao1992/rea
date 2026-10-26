@@ -17,10 +17,8 @@ import {
   type DecodeSignalRecordingInput,
 } from "../../domain/signals/signalRecording.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 export interface SignalRecordingPort {
   /** Release per-call resources before returning, or retain failed cleanup for close/retry. */
@@ -46,7 +44,7 @@ export class SignalRecordingService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "decode_signal_recording";
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       operation,
       raw,
       decodeSignalRecordingInputSchema,
@@ -85,7 +83,7 @@ export class SignalRecordingService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_signal_decoders";
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       operation,
       raw,
       inspectSignalDecodersInputSchema,

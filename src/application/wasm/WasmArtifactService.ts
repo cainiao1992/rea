@@ -12,10 +12,8 @@ import {
   DEFAULT_WASM_COMMAND_TIMEOUT_MS,
 } from "../../domain/wasm/wasmArtifact.js";
 import { err, type Result } from "../../domain/result.js";
-import {
-  completeProviderEvidence,
-  parseProviderOperationInput,
-} from "../ProviderOperationExecution.js";
+import { completeProviderEvidence } from "../ProviderOperationExecution.js";
+import { parseAnalysisInput } from "../AnalysisInput.js";
 
 const OPERATION = "inspect_wasm_artifact";
 
@@ -36,7 +34,7 @@ export class WasmArtifactService {
     rawInput: unknown,
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
-    const input = parseProviderOperationInput(
+    const input = parseAnalysisInput(
       OPERATION,
       rawInput,
       inspectWasmArtifactInputSchema,

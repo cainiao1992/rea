@@ -14,10 +14,7 @@ import {
   isImmutableJsonSnapshot,
 } from "../domain/immutableJson.js";
 import { jsonValueSchema } from "../domain/jsonValue.js";
-import {
-  analysisInputErrorFromIssues,
-  analysisOperationInputErrorFromIssues,
-} from "../domain/inputIssueProjection.js";
+import { analysisOperationInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type {
   AnalysisExecution,
@@ -79,25 +76,6 @@ export const executeProviderOperation = async <
     confidence,
   );
   return completeProviderEvidence(evidence, options?.signal);
-};
-
-/** Admit a direct provider input before acquiring any provider resources. */
-export const parseProviderOperationInput = <T>(
-  operation: string,
-  rawInput: unknown,
-  schema: z.ZodType<T>,
-  signal?: AbortSignal,
-): Result<T, AnalysisError> => {
-  if (signal?.aborted)
-    return err(new AnalysisCancelledError(operation, { cause: signal.reason }));
-  const input = schema.safeParse(rawInput);
-  if (!input.success)
-    return err(
-      analysisInputErrorFromIssues(operation, input.error.issues, rawInput, {
-        cause: input.error,
-      }),
-    );
-  return ok(input.data);
 };
 
 /** Classify completion after Evidence assembly, preserving facts on late abort. */

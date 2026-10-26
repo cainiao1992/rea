@@ -18,8 +18,8 @@ import {
 import {
   completeProviderEvidence,
   keepIncompleteObservation,
-  parseProviderOperationInput,
 } from "./ProviderOperationExecution.js";
+import { parseAnalysisInput } from "./AnalysisInput.js";
 
 /** Shared public workflows keep instrumentation and listener inspection independently selectable. */
 export class WebRuntimeService {
@@ -31,7 +31,7 @@ export class WebRuntimeService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "observe_web_execution";
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       operation,
       rawInput,
       observeWebExecutionInputSchema,
@@ -64,7 +64,7 @@ export class WebRuntimeService {
     options?: ExecutionOptions,
   ): Promise<Result<Evidence, AnalysisError>> {
     const operation = "inspect_web_event_listeners";
-    const parsed = parseProviderOperationInput(
+    const parsed = parseAnalysisInput(
       operation,
       rawInput,
       inspectWebEventListenersInputSchema,

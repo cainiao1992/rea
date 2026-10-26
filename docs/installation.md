@@ -982,7 +982,7 @@ copying license secrets into logs, or killing unrelated Hopper processes.
 
 REA connects to an existing Ghidra installation on Linux x64/arm64, macOS x64/arm64,
 or experimental Windows x64 P0.
-It accepts Ghidra 12.1.x and the 64-bit full JDK declared by that installation's
+It accepts Ghidra 12.x (>=12.1) and the 64-bit full JDK declared by that installation's
 `application.java.min` and `application.java.max`. The JDK's reported platform must also
 map to the same native decompiler directory as the host: a JDK running under
 emulation (for example x86_64 under Rosetta on Apple silicon) or reporting a
@@ -990,7 +990,8 @@ non-host `os.name` fails the doctor
 even when it is an otherwise accepted 64-bit full JDK. Select a matching JDK
 through `JAVA_HOME`; adding another decompiler in the JVM-selected directory
 does not satisfy this host-validated admission rule. Current 12.1 releases require
-JDK 21 or newer and set no maximum. The bridge is verified with Ghidra 12.1.4
+JDK 21 or newer; Ghidra 12.2 declares JDK 25 or newer. Neither sets a maximum.
+The bridge is verified with Ghidra 12.1.4
 and JDK 21. Each installation must include the native decompiler for the host
 architecture in `Ghidra/Features/Decompiler/os/<platform>/` or the corresponding
 `build/os/<platform>/` directory. Linux ARM64 uses `linux_arm_64`; official
@@ -1105,7 +1106,7 @@ the application metadata and headless launcher. An explicitly supplied
 REA reports that error instead of silently selecting another installation.
 This discovery is read-only and does not execute the Ghidra launcher.
 
-Doctor validates the platform, architecture, Ghidra 12.1.x application version,
+Doctor validates the platform, architecture, Ghidra 12.x (>=12.1) application version,
 `support/analyzeHeadless` or `support/analyzeHeadless.bat`, the installation's
 Java major range, 64-bit JDK bitness, and the presence of `javac`/`javac.exe`.
 It also checks that the reported JVM `os.arch` and `os.name` map to the same native decompiler

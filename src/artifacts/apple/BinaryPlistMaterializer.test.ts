@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
 import { binaryPlistObjectTable } from "../../../tests/fixtures/binaryPlistObjectTable.js";
+import { createPlistNumberProjection } from "../../domain/apple/plistNumbers.js";
+import { projectPlistValue } from "../../domain/apple/plistValue.js";
+import { scanBinaryPlistScalars } from "./PlistScalars.js";
 import { plistUidValue } from "../../domain/apple/plistUid.js";
 import { decodeBinaryPlistValue } from "./BinaryPlistMaterializer.js";
 import { estimateBinaryPlistExpansion } from "./PropertyListDecodeBudget.js";
@@ -79,4 +82,68 @@ it("keeps a source UID distinct from an ordinary UID-shaped dictionary", () => {
   expect(value[1]).toEqual({ UID: 7 });
   expect(plistUidValue(value[0])).toBe(7);
   expect(plistUidValue(value[1])).toBeUndefined();
+});
+
+it("materializes normalized three-byte tables from a nonzero root without losing source numbers", () => {
+  const tableOffset = 36;
+  const bytes = Buffer.alloc(tableOffset + 9 + 32);
+  bytes.write("bplist00");
+  bytes[8] = 0x14;
+  bytes.writeBigUInt64BE(1n, 9);
+  bytes.writeBigUInt64BE(2n, 17);
+  bytes[25] = 0xa2;
+  bytes.writeUIntBE(0, 26, 3);
+  bytes.writeUIntBE(2, 29, 3);
+  bytes[32] = 0x82;
+  bytes.writeUIntBE(0xabcdef, 33, 3);
+  for (const [object, offset] of [8, 25, 32].entries())
+    bytes.writeUIntBE(offset, tableOffset + object * 3, 3);
+  const trailer = bytes.length - 32;
+  bytes[trailer + 6] = 3;
+  bytes[trailer + 7] = 3;
+  bytes.writeBigUInt64BE(3n, trailer + 8);
+  bytes.writeBigUInt64BE(1n, trailer + 16);
+  bytes.writeBigUInt64BE(BigInt(tableOffset), trailer + 24);
+  const original = Buffer.from(bytes);
+  const plan = estimateBinaryPlistExpansion(bytes, 1024 * 1024, {
+    numberProjection: true,
+    uidProjection: true,
+  });
+  const metadata = scanBinaryPlistScalars(bytes, plan);
+  expect(metadata.wideIntegers).toEqual([
+    { offset: 8, value: 18446744073709551618n },
+  ]);
+  expect(metadata.literals.incomplete).toBe(false);
+  const decoded = decodeBinaryPlistValue(bytes, plan, metadata) as unknown[];
+  expect(
+    createPlistNumberProjection(metadata.literals).project(
+      projectPlistValue(decoded[0]).value,
+    ),
+  ).toEqual({
+    $plist_type: "integer",
+    decimal: "18446744073709551618",
+  });
+  expect(plistUidValue(decoded[1])).toBe(0xabcdef);
+  expect(decoded).toHaveLength(2);
+  expect(bytes.equals(original)).toBe(true);
+});
+
+it("keeps uint64 wrapping for nine-byte offset and reference declarations", () => {
+  const bytes = Buffer.alloc(70);
+  bytes.write("bplist00");
+  bytes.set([0x10, 7, 0xa1], 8);
+  bytes[11] = 0xff;
+  bytes[20] = 0xff;
+  bytes.writeBigUInt64BE(8n, 21);
+  bytes[29] = 0xff;
+  bytes.writeBigUInt64BE(10n, 30);
+  const trailer = 38;
+  bytes[trailer + 6] = 9;
+  bytes[trailer + 7] = 9;
+  bytes.writeBigUInt64BE(2n, trailer + 8);
+  bytes.writeBigUInt64BE(1n, trailer + 16);
+  bytes.writeBigUInt64BE(20n, trailer + 24);
+  const original = Buffer.from(bytes);
+  expect(decode(bytes)).toEqual([7]);
+  expect(bytes.equals(original)).toBe(true);
 });

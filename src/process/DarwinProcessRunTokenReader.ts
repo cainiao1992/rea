@@ -7,9 +7,9 @@ import { z } from "zod";
 
 import {
   DEFAULT_SWIFTC_COMPILE_TIMEOUT_MS,
-  MAX_PROVIDER_STARTUP_TIMEOUT_MS,
   providerStartupTimeoutSchema,
 } from "../config/providerStartupTimeout.js";
+import { MAX_PROVIDER_STARTUP_TIMEOUT_MS } from "../domain/analysisResourceLimits.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import type {

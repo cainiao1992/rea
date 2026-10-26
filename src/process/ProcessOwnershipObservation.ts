@@ -981,12 +981,13 @@ export const createSystemProcessOwnershipHost = (
   const darwinTokens =
     platform === "darwin"
       ? createDarwinProcessRunTokenReader({
+          environment: hostEnvironment,
           ...(darwinCompiler === undefined ? {} : { compiler: darwinCompiler }),
           ...(darwinModuleCachePath === undefined
             ? {}
             : { moduleCachePath: darwinModuleCachePath }),
           ...(options.compileTimeoutMs === undefined
-            ? { environment: hostEnvironment }
+            ? {}
             : { compileTimeoutMs: options.compileTimeoutMs }),
         })
       : undefined;

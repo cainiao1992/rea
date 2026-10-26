@@ -435,9 +435,10 @@ const parseHtmlScripts = (
   const { scripts, inlineScripts, inlineScriptCount, baseHref } =
     htmlArtifactReferences(text);
   return {
-    scripts: scripts.map(({ scriptPath, location }) => ({
+    scripts: scripts.map(({ scriptPath, scriptType, location }) => ({
       html_path: path,
       script_path: scriptPath,
+      script_type: scriptType,
       base_href: baseHref,
       location,
     })),

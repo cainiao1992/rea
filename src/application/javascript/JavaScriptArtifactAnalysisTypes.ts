@@ -53,6 +53,8 @@ export type JavaScriptPackageObservation = JavaScriptStructuredObservation &
 export interface JavaScriptHtmlScriptObservation {
   readonly html_path: string;
   readonly script_path: string;
+  /** Parsed JavaScript type; null for data blocks or other non-JavaScript types. */
+  readonly script_type: "classic" | "module" | null;
   readonly base_href: string | null;
   readonly location: JavaScriptSourceRange;
 }

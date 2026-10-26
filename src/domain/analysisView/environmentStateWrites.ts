@@ -1,6 +1,7 @@
 import type { ExtractedState } from "./environmentStateRules.js";
 import { EnvironmentStateWriteSimulation } from "./EnvironmentStateWriteSimulation.js";
 import type { WriteSimulationInput } from "./environmentStateWriteEffects.js";
+import { usesWriteClock } from "./environmentStateWriteRules.js";
 
 /** The latest end a record can have and still round up to a whole second a date can hold. */
 const LATEST_END_MS = 8_640_000_000_000_000 - 1000;
@@ -46,7 +47,17 @@ export const extractWrites = (
     entities: state.entities,
     documents: state.documents,
   });
-  const writes = simulation.run();
+  const writeClock =
+    input.chronology.timeline === "recorded-start-time"
+      ? clockStart(input.records)
+      : null;
+  const writes = simulation
+    .run()
+    .map((plan) =>
+      plan.served && writeClock === null && usesWriteClock(plan)
+        ? { ...plan, served: false, reason: "unknown-clock" as const }
+        : plan,
+    );
   const views = simulation.views(state.views);
   const backed = new Set<string>();
   const backedTypes = new Set<string>();
@@ -57,10 +68,7 @@ export const extractWrites = (
     }
   return {
     writes,
-    write_clock:
-      input.chronology.timeline === "recorded-start-time"
-        ? clockStart(input.records)
-        : null,
+    write_clock: writeClock,
     views,
     types: state.types.filter((type) =>
       backedTypes.has(type.collection_template),

@@ -47,7 +47,9 @@ import {
   analysisViewNativeEvidence,
   environmentManifestCaptureFixture,
   environmentStateCaptureFixture,
+  timedCaptureEvidence,
 } from "../../fixtures/analysisView.js";
+import { BOOK_ROWS } from "../../fixtures/environmentStateWrites.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createLinkedIl2cppMetadataFixture } from "../../fixtures/il2cpp/metadata.js";
 import {
@@ -1476,6 +1478,69 @@ it.each([false, true])(
     expect(session.evidenceById(parent.evidence_id)).toEqual(before);
   },
 );
+
+it("advertises unserved learned clock rules when a retained capture has no global clock", async () => {
+  const { client, session } = await connect();
+  const { ajv, outputSchema } = await advertisedMcpToolSchemas(
+    client,
+    "inspect_analysis_view",
+    schemaValidation.assertions,
+  );
+  const parents = [
+    timedCaptureEvidence(BOOK_ROWS),
+    timedCaptureEvidence([
+      ...BOOK_ROWS,
+      ["GET", "/api/health", { ready: true }, 200, undefined, -1],
+    ]),
+  ];
+  const states = [];
+  for (const parent of parents) {
+    const original = structuredClone(parent);
+    expect(session.recordEvidence(parent).ok).toBe(true);
+    const response = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+        view: { kind: "environment-state" },
+      },
+    });
+    expect(response.isError, JSON.stringify(response.content)).not.toBe(true);
+    expect(
+      ajv.validate(outputSchema, response.structuredContent),
+      JSON.stringify(ajv.errors),
+    ).toBe(true);
+    const state = analysisViewResultSchema.parse(
+      parseEvidence(response.structuredContent).normalized_result,
+    );
+    if (state.kind !== "environment-state")
+      throw new Error("Expected environment-state result");
+    states.push(state);
+    expect(parent).toEqual(original);
+    expect(session.evidenceById(parent.evidence_id)).toEqual(original);
+  }
+  const [baseline, unknown] = states;
+  if (baseline === undefined || unknown === undefined)
+    throw new Error("Expected both clock controls");
+  expect(baseline.write_clock).not.toBeNull();
+  expect(unknown.write_clock).toBeNull();
+  const clockPlans = baseline.writes.filter(
+    (plan) =>
+      plan.served &&
+      plan.rules.some((rule) =>
+        ["clock", "held-clock", "nested-clock"].includes(rule.rule),
+      ),
+  );
+  expect(clockPlans.length).toBeGreaterThan(0);
+  for (const plan of clockPlans)
+    expect(
+      unknown.writes.find((candidate) => candidate.tool === plan.tool),
+    ).toEqual({ ...plan, served: false, reason: "unknown-clock" });
+  const independent = baseline.writes.find(
+    (plan) => plan.tool === "delete_books_by_id",
+  );
+  expect(independent).toMatchObject({ served: true });
+  expect(unknown.writes).toContainEqual(independent);
+});
 
 it("extracts an environment state identically from retained, portable and file MCP Evidence", async () => {
   const { client, session } = await connect();

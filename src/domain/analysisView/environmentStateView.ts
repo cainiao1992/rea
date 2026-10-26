@@ -340,6 +340,7 @@ const writePlanSchema = z.strictObject({
       "side-effect",
       "unconfirmed",
       "incomplete-entities",
+      "unknown-clock",
     ])
     .nullable(),
   exemplar_ordinal: ordinalSchema

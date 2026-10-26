@@ -472,8 +472,9 @@ the browser's wall-clock start, and `elapsed_ms`, its time from that start to
 the end of the response, when the browser reports them. The environment views
 time scenario records from these, as HAR entries are timed: the browser's start
 where it reported one, else `observed_at`, which trails it by up to tens of
-milliseconds while REA reads other responses, and a duration of 0 where the
-browser reported none. Captures made before these fields existed lack them and
+milliseconds while REA reads other responses. A duration is retained only from a
+unique terminal event that reports it; missing or ambiguous durations stay
+omitted, while an explicitly reported zero remains zero. Captures made before these fields existed lack them and
 are read in record order. REA versions before them refuse captures that carry
 them. Scenario comparisons ignore all three (`ignore_network_request_timing`).
 Requests sharing a URL remain distinct. Redirects link to the preceding

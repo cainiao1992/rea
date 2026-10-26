@@ -67,6 +67,7 @@ export const SCOPES = {
   ],
   // Apple artifact CLI/MCP lane on macOS, including its focused regressions.
   apple: [
+    "src/artifacts/NativeDmg*.ts",
     "src/native/Apple*",
     "src/native/NativeMacOS*",
     "src/native/NativeUi*",
@@ -74,6 +75,9 @@ export const SCOPES = {
     "bridge/native/**",
     "bridge/process/**",
     "scripts/verify/apple/**",
+    "tests/acceptance/artifactDmgAttachmentRecoveryCli.test.ts",
+    "tests/boundary/providers/native/nativeDmgArtifactReader.test.ts",
+    "tests/process-global/dmgCancellationReason.test.ts",
     "tests/boundary/filesystem/installScript.test.ts",
     "tests/boundary/filesystem/nibNativeHierarchy.test.ts",
     "tests/boundary/filesystem/interfaceBuilderBundle.test.ts",

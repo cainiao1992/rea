@@ -202,6 +202,7 @@ const scanCanonical = async (
                   ),
             cleanup: cause.cleanup,
             cleanupLeases: cause.cleanupLeases,
+            userMessage: cause.userMessage,
             ...(retained === undefined
               ? {}
               : {

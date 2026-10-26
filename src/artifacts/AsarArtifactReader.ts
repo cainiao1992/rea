@@ -17,8 +17,6 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import { getRawHeader, uncache } from "@electron/asar";
-
 import {
   ArtifactReaderFailure,
   copyArtifactEntry,
@@ -27,7 +25,7 @@ import {
   type ArtifactReader,
 } from "./ArtifactReader.js";
 import { closeAsarHandle, readValidatedAsarEntry } from "./AsarEntryStream.js";
-import { admitAsarHeader } from "./AsarHeader.js";
+import { admitAsarHeader, readAsarHeader } from "./AsarHeader.js";
 import { OwnedFileHandle } from "../filesystem/OwnedFileHandle.js";
 import type { FileHandleChunkStream } from "../filesystem/readFileHandleChunks.js";
 import { readArtifactFileChunks } from "./readArtifactFileChunks.js";
@@ -39,7 +37,7 @@ import {
 import { readAsarListing, type AsarListedEntry } from "./AsarListing.js";
 
 /**
- * Official Electron ASAR adapter with range-streamed member reads.
+ * Electron ASAR reader with strict header decoding and range-streamed member reads.
  *
  * An entry marked `unpacked` is metadata, not an integrity exemption: Electron
  * stores its bytes beside the archive in `<archive>.unpacked`, and callers must
@@ -73,10 +71,7 @@ export class AsarArtifactReader implements ArtifactReader {
         this.#archiveSize = admitted.archiveBytes;
         this.#headerSize = admitted.headerBytes;
         assertAsarReadActive(signal);
-        const ordered = await readAsarListing(
-          getRawHeader(snapshotPath).header,
-          signal,
-        );
+        const ordered = await readAsarListing(admitted.header, signal);
         const archiveMetadata = await lstat(snapshotPath);
         if (!archiveMetadata.isFile() || archiveMetadata.isSymbolicLink())
           throw new ArtifactReaderFailure(
@@ -128,17 +123,23 @@ export class AsarArtifactReader implements ArtifactReader {
     let admission:
       | {
           readonly ok: true;
-          readonly value: Awaited<ReturnType<typeof admitAsarHeader>>;
+          readonly value: Awaited<ReturnType<typeof admitAsarHeader>> & {
+            readonly header: unknown;
+          };
         }
       | { readonly ok: false; readonly cause: unknown };
     try {
+      const extents = await admitAsarHeader(
+        headerHandle,
+        signal,
+        this.options.headerAdmission,
+      );
       admission = {
         ok: true,
-        value: await admitAsarHeader(
-          headerHandle,
-          signal,
-          this.options.headerAdmission,
-        ),
+        value: {
+          ...extents,
+          header: await readAsarHeader(headerHandle, extents, signal),
+        },
       };
     } catch (cause: unknown) {
       admission = { ok: false, cause };
@@ -388,7 +389,6 @@ export class AsarArtifactReader implements ArtifactReader {
       }
     }
     if (root === undefined || this.#snapshotRoot === undefined) {
-      if (this.#snapshot !== undefined) uncache(this.#snapshot.path);
       this.#snapshot = undefined;
       this.#resetArchiveState();
       this.#entries.clear();

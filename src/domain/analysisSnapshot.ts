@@ -358,25 +358,26 @@ type SnapshotExecutionProjection = Pick<
   | "subject"
 >;
 
-/** Project one authenticated execution into the shared persisted snapshot shape. */
+/** Own one execution's snapshot data independently of its caller-visible result. */
 const snapshotExecutionProjection = (
   execution: SnapshotExecution,
   provider: AnalysisSnapshotEntry["execution"]["provider"],
-): SnapshotExecutionProjection => ({
-  result: execution.result,
-  raw_result: execution.rawResult,
-  provider,
-  limitations: [...execution.limitations],
-  relationship_coverage: execution.relationshipCoverage ?? null,
-  locations: [...execution.locations],
-  subject:
-    execution.subject === null
-      ? null
-      : subjectSchema.parse({
-          ...execution.subject,
-          architecture: execution.subject.architecture ?? null,
-        }),
-});
+): SnapshotExecutionProjection =>
+  entrySchema.shape.execution.parse({
+    result: execution.result,
+    raw_result: execution.rawResult,
+    provider,
+    limitations: execution.limitations,
+    relationship_coverage: execution.relationshipCoverage ?? null,
+    locations: execution.locations,
+    subject:
+      execution.subject === null
+        ? null
+        : {
+            ...execution.subject,
+            architecture: execution.subject.architecture ?? null,
+          },
+  });
 
 const canonicalJson = (value: unknown): string => {
   const json = jsonValueSchema.parse(value);
@@ -549,7 +550,7 @@ export const createAnalysisSnapshotWorkflowEntry = (input: {
         execution,
         execution.analysisProfile.provider,
       ),
-      analysis_profile: execution.analysisProfile,
+      analysis_profile: analysisProfileSchema.parse(execution.analysisProfile),
     },
   };
 };

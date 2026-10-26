@@ -33,6 +33,66 @@ import {
 import { EvidenceLedger } from "../investigation/EvidenceLedger.js";
 import { enhancedOutputSchemas } from "../../contracts/toolOutputSchemaGroups.js";
 
+it.each(["provider", "workflow"] as const)(
+  "owns nested %s execution data before returning control to callers",
+  (kind) => {
+    const cache = new AnalysisSnapshotCache();
+    const target = structuredClone(ANALYSIS_SNAPSHOT_TARGET);
+    const profile = structuredClone(ANALYSIS_SNAPSHOT_PROFILE);
+    const analysisProfile =
+      kind === "provider" ? profile : workflowAnalysisProfile(profile);
+    const execution = createAnalysisExecution(
+      { nested: { value: "original" } },
+      structuredClone(
+        kind === "provider"
+          ? ANALYSIS_SNAPSHOT_PROVIDER
+          : REA_WORKFLOW_PROVIDER,
+      ),
+      {
+        rawResult: { nested: { value: "raw" } },
+        subject: target,
+        analysisProfile,
+        locations: [{ kind: "address", address: "0x1000" }],
+        relationshipCoverage: {
+          status: "partial",
+          limitations: ["original coverage"],
+        },
+      },
+    );
+    const input = {
+      target,
+      profile,
+      operation: "procedure_info" as const,
+      parameters: { address: "0x1000", document: "fixture" },
+      execution: { ...execution, analysisProfile },
+    };
+    if (kind === "provider") cache.record(input);
+    else cache.recordWorkflow(input);
+    const entries = () =>
+      kind === "provider" ? cache.entries() : cache.workflowEntries();
+    const expected = entries();
+    for (const payload of [execution.result, execution.rawResult]) {
+      if (payload === null || typeof payload !== "object")
+        throw new Error("Expected structured observation payload");
+      Reflect.set(payload, "nested", { value: "caller edit" });
+    }
+    const location = execution.locations[0];
+    if (location !== undefined) Reflect.set(location, "address", "0x2000");
+    if (execution.relationshipCoverage?.status === "partial")
+      execution.relationshipCoverage.limitations.push("caller edit");
+    Reflect.set(execution.limitations, 0, "caller limitation");
+    Reflect.set(execution.provider, "name", "caller provider");
+    Reflect.set(execution.subject, "path", "/tmp/caller-edited-subject");
+    if (kind === "workflow") {
+      const upstream = analysisProfile.parameters.upstream_analysis_profile;
+      if (upstream === null || typeof upstream !== "object")
+        throw new Error("Expected nested workflow profile");
+      Reflect.set(upstream, "parameters", { loader: "caller profile" });
+    }
+    expect(entries()).toEqual(expected);
+  },
+);
+
 it("exports independent nested query, workflow and Evidence payloads", () => {
   const cache = new AnalysisSnapshotCache();
   const target = ANALYSIS_SNAPSHOT_TARGET;

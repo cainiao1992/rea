@@ -14,6 +14,7 @@ import { abortIfNeeded } from "../ArtifactHash.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
 import { readFatContainerHeader } from "../../domain/apple/machoContainer.js";
 import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
+import { readMachoLoadCommandTableHeader } from "../../domain/apple/machoLoadCommands.js";
 import {
   elfNoteAlignment,
   elfNoteLayout,
@@ -236,21 +237,16 @@ const locateThinMachO = async (
   )
     return [];
   const header = await readExact(carrier, base, 32);
-  if (header === undefined || header.length < 28) return [];
-  const magic = header.readUInt32BE(0);
-  if (!THIN_MAGICS.has(magic)) return [];
-  const little = magic === 0xcefaedfe || magic === 0xcffaedfe;
-  const wide = magic === 0xfeedfacf || magic === 0xcffaedfe;
-  const headerSize = wide ? 32 : 28;
-  if (header.length < headerSize) return [];
-  const ncmds = readU32(header, 16, little);
-  const sizeofcmds = readU32(header, 20, little);
-  if (
-    sizeofcmds > MAX_COMMAND_BYTES ||
-    headerSize > sliceSize ||
-    sizeofcmds > sliceSize - headerSize
-  )
-    return [];
+  if (header === undefined) return [];
+  const framing = readMachoLoadCommandTableHeader(header, sliceSize);
+  if (!framing.ok || framing.value === null) return [];
+  const {
+    headerSize,
+    littleEndian: little,
+    commandCount: ncmds,
+    commandBytes: sizeofcmds,
+  } = framing.value;
+  if (sizeofcmds > MAX_COMMAND_BYTES) return [];
   const commands = await readExact(carrier, base + headerSize, sizeofcmds);
   if (commands === undefined) return [];
   const found: BlobRange[] = [];

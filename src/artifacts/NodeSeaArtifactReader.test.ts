@@ -544,6 +544,23 @@ it("retains source asset spelling separately from normalized graph paths", async
   ).toMatchObject({ role: "asset", source_path: "data/cafe\u0301.txt" });
 });
 
+it("leaves Mach-O carriers with unreadable command framing unrecognized", async () => {
+  for (const littleEndian of [true, false]) {
+    const bytes = nodeSeaMachO({ littleEndian });
+    if (littleEndian) bytes.writeUInt32LE(bytes.length, 20);
+    else bytes.writeUInt32BE(bytes.length, 20);
+    const handle = await open(
+      await writeCarrier("command-framing", bytes),
+      "r",
+    );
+    try {
+      expect(await locateNodeSea(handle, bytes.length)).toBeUndefined();
+    } finally {
+      await handle.close();
+    }
+  }
+});
+
 it("rejects missing Mach-O load commands after a confirmed SEA section", async () => {
   const bytes = nodeSeaMachO();
   bytes.writeUInt32LE(2, 16);

@@ -3,10 +3,6 @@ import {
   MINIMUM_REGEX_WORKER_HEAP_REQUEST_MIB,
   MAXIMUM_REGEX_WORKER_HEAP_REQUEST_MIB,
 } from "../domain/analysisResourceLimits.js";
-export {
-  MINIMUM_REGEX_WORKER_HEAP_REQUEST_MIB,
-  MAXIMUM_REGEX_WORKER_HEAP_REQUEST_MIB,
-} from "../domain/analysisResourceLimits.js";
 import { z } from "zod";
 
 import { ConfigurationError } from "../domain/configurationErrors.js";

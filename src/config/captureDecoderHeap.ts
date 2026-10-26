@@ -3,11 +3,6 @@ import {
   CAPTURE_DECODER_SEMI_SPACE_MIB,
   MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB,
 } from "../domain/analysisResourceLimits.js";
-export {
-  DEFAULT_CAPTURE_DECODER_OLD_GENERATION_MIB,
-  CAPTURE_DECODER_SEMI_SPACE_MIB,
-  MAXIMUM_CAPTURE_DECODER_OLD_GENERATION_MIB,
-} from "../domain/analysisResourceLimits.js";
 import { z } from "zod";
 
 import { ConfigurationError } from "../domain/configurationErrors.js";

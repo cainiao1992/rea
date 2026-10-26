@@ -2,10 +2,6 @@ import {
   DEFAULT_REGEX_MATCHING_DEADLINE_MS,
   MAXIMUM_REGEX_MATCHING_DEADLINE_MS,
 } from "../domain/analysisResourceLimits.js";
-export {
-  DEFAULT_REGEX_MATCHING_DEADLINE_MS,
-  MAXIMUM_REGEX_MATCHING_DEADLINE_MS,
-} from "../domain/analysisResourceLimits.js";
 import { z } from "zod";
 
 import { ConfigurationError } from "../domain/configurationErrors.js";

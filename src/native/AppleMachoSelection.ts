@@ -1,3 +1,7 @@
+import {
+  machoDependencyCommand,
+  readMachoDylibCommandFacts,
+} from "../domain/apple/machoDylibCommand.js";
 import { readMachoSectionHeader } from "../domain/apple/machoSectionHeader.js";
 import { readMachoSegmentHeader } from "../domain/apple/machoSegmentHeader.js";
 import {
@@ -328,9 +332,6 @@ const collectSegment = (
 const LC_DYLD_INFO = 0x22;
 const LC_DYLD_INFO_ONLY = 0x80000022;
 const LC_DYLD_CHAINED_FIXUPS = 0x80000034;
-const DYLIB_COMMANDS: readonly number[] = [
-  0xc, 0x80000018, 0x8000001f, 0x20, 0x80000023,
-];
 
 /** Record fixup data ranges and dylib install names from one load command. */
 const collectFixupCommand = (
@@ -360,16 +361,27 @@ const collectFixupCommand = (
       const bound = range(at);
       if (bound.size > 0) state.binds.push({ ...bound, stream });
     }
-  } else if (DYLIB_COMMANDS.includes(kind)) {
-    if (size < 24) throw new RangeError("Truncated dylib command");
-    const nameOffset = bytes.readUInt32LE(cursor + 8);
-    if (nameOffset < 24 || nameOffset >= size)
+  } else if (machoDependencyCommand(kind) !== null) {
+    const parsed = readMachoDylibCommandFacts(
+      bytes.subarray(cursor, cursor + size),
+      true,
+    );
+    if (!parsed.ok) {
+      if (parsed.error._tag === "InvalidMachoDylibCommand")
+        throw new RangeError("Truncated dylib command");
+      if (parsed.error.reason === "unterminated")
+        throw new RangeError("Unterminated dylib install name");
       throw new RangeError("Dylib install name is outside its load command");
-    const end = bytes.indexOf(0, cursor + nameOffset);
-    if (end < 0 || end >= cursor + size)
-      throw new RangeError("Unterminated dylib install name");
+    }
+    const { nameBytes } = parsed.value;
     state.dylibs.push(
-      decodeMachoName(bytes.subarray(cursor + nameOffset, end)),
+      decodeMachoName(
+        Buffer.from(
+          nameBytes.buffer,
+          nameBytes.byteOffset,
+          nameBytes.byteLength,
+        ),
+      ),
     );
   }
 };

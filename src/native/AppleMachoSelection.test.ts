@@ -5,10 +5,12 @@ import {
   CPU,
   LC,
   dylibCommand,
+  dylibUseCommand,
   fatImage,
   machoImage,
   machoImageWithUnknownCommand,
 } from "../artifacts/apple/MachoImage.fixture.js";
+import { readMachoImage } from "../artifacts/apple/MachoLoadCommandReader.js";
 import {
   parseMachoLayout,
   selectMachoSlice,
@@ -340,6 +342,39 @@ describe("native Mach-O fixup load command boundaries", () => {
       "\ufeff/libé",
     ]);
   });
+
+  it.each<[string, Uint8Array]>([
+    ["load", dylibCommand(LC.LOAD_DYLIB, "/lib?")],
+    ["weak", dylibCommand(LC.LOAD_WEAK_DYLIB, "/lib?")],
+    ["reexport", dylibCommand(LC.REEXPORT_DYLIB, "/lib?")],
+    ["lazy", dylibCommand(LC.LAZY_LOAD_DYLIB, "/lib?")],
+    ["upward", dylibCommand(LC.LOAD_UPWARD_DYLIB, "/lib?")],
+    ["modern use", dylibUseCommand(LC.LOAD_DYLIB, "/lib?", 0x8)],
+  ])(
+    "retains opaque %s install-name identity while refusing text resolution",
+    async (_kind, original) => {
+      const command = Buffer.from(original);
+      const nameOffset = command.readUInt32LE(8);
+      command[nameOffset + 4] = 0x80;
+      const bytes = Buffer.from(machoImage({ commands: [command] }));
+      expect(parseMachoLayout(bytes, "arm64").fixups.dylibs).toEqual([
+        {
+          bytes_base64: Buffer.from([0x2f, 0x6c, 0x69, 0x62, 0x80]).toString(
+            "base64",
+          ),
+        },
+      ]);
+      expect(
+        await readMachoImage(
+          async (offset, length) => bytes.subarray(offset, offset + length),
+          bytes.length,
+        ),
+      ).toMatchObject({
+        status: "malformed",
+        reason: expect.stringContaining("not UTF-8"),
+      });
+    },
+  );
 });
 
 it.each([0, 129])(

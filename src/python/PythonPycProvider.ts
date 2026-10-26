@@ -6,13 +6,10 @@ import {
   bindArtifactFileCleanup,
 } from "../artifacts/ArtifactFileOperation.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
-import {
-  completedStableArtifact,
-  readStableArtifact,
-} from "../artifacts/readStableArtifact.js";
+import { readStableArtifact } from "../artifacts/readStableArtifact.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
-import { fileSnapshotPartialObservationSchema } from "../domain/fileSnapshotObservation.js";
+import { completedStableArtifactObservation } from "../artifacts/StableArtifactObservation.js";
 import type { PythonPycPort } from "../application/python/PythonPycPort.js";
 import type { ExecutionOptions } from "../application/AnalysisProvider.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -168,16 +165,8 @@ const failureForPrimary = (
 
 const failureFor = (cause: unknown, input: InspectPythonPycInput) => {
   const primary = failureForPrimary(artifactFilePrimaryFacts(cause), input);
-  const snapshot = completedStableArtifact(cause);
-  if (snapshot !== undefined)
-    primary.retainPartialObservation(
-      fileSnapshotPartialObservationSchema.parse({
-        kind: "file-snapshot-hash",
-        path: input.path,
-        sha256: snapshot.sha256,
-        bytes: snapshot.bytes.length,
-      }),
-    );
+  const observation = completedStableArtifactObservation(cause, input.path);
+  if (observation !== undefined) primary.retainPartialObservation(observation);
   if (!(cause instanceof ArtifactReaderFailure) || cause.cleanup === undefined)
     return primary;
   const cleanup = new ProviderCleanupError(

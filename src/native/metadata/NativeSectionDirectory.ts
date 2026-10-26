@@ -1,3 +1,7 @@
+import {
+  observeElfSectionName,
+  elfSectionNameText,
+} from "../../domain/elfSectionName.js";
 import { observeMzWindowsHeader } from "../../domain/dosMz.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
@@ -215,36 +219,36 @@ export function* readElfSectionDirectory(
       let name: string | null = null;
       let name_state: NativeSection["name_state"] = "unavailable";
       if (names !== null) {
-        if (nameOffset >= names.length) {
-          section_names_limitation ??=
-            "ELF section names are incomplete because a name offset is outside its string table";
-        } else {
-          let decoded = decodedNames.get(nameOffset);
-          if (decoded === undefined) {
-            const window = names.subarray(
-              nameOffset,
-              Math.min(nameOffset + 65536, names.length),
+        let decoded = decodedNames.get(nameOffset);
+        if (decoded === undefined) {
+          const observed = observeElfSectionName(names, nameOffset, 65536);
+          nameBytes += observed.examinedBytes;
+          if (nameBytes > STRUCTURE_BYTES)
+            throw new BinaryResourceFailure(
+              "structure",
+              STRUCTURE_BYTES,
+              "Decoded ELF section names exceed the 16 MiB structural budget",
             );
-            const end = window.indexOf(0);
-            nameBytes += end < 0 ? window.length : end + 1;
-            if (nameBytes > STRUCTURE_BYTES)
-              throw new BinaryResourceFailure(
-                "structure",
-                STRUCTURE_BYTES,
-                "Decoded ELF section names exceed the 16 MiB structural budget",
-              );
-            decoded = {
-              name: end < 0 ? null : window.toString("latin1", 0, end),
-              state: end < 0 ? "truncated" : "known",
-            };
-            if (end < 0)
-              section_names_limitation ??=
-                "ELF section names are unavailable because a name is not NUL-terminated";
+          decoded = {
+            name: elfSectionNameText(observed),
+            state:
+              observed.state === "terminated"
+                ? "known"
+                : observed.state === "outside"
+                  ? "unavailable"
+                  : "truncated",
+          };
+          if (observed.state === "outside")
+            section_names_limitation ??=
+              "ELF section names are incomplete because a name offset is outside its string table";
+          else if (observed.state === "truncated")
+            section_names_limitation ??=
+              "ELF section names are unavailable because a name is not NUL-terminated";
+          if (observed.state !== "outside")
             decodedNames.set(nameOffset, decoded);
-          }
-          name_state = decoded.state;
-          name = decoded.name;
         }
+        name_state = decoded.state;
+        name = decoded.name;
       }
       const { type, offset, size } = section;
       sections.push({

@@ -1,3 +1,7 @@
+import {
+  observeElfSectionName,
+  elfSectionNameText,
+} from "../../domain/elfSectionName.js";
 import { readElfSectionHeader } from "../../domain/elfSectionHeader.js";
 import { readElfProgramHeader } from "../../domain/elfProgramHeader.js";
 import { readElfRawTableDeclarations } from "../../domain/elfRawTableDeclarations.js";
@@ -124,28 +128,24 @@ class ElfReader {
     offset: number,
     text: TextBudget,
   ): { name: string | null; limitation: string | null } {
-    if (offset < 0 || offset >= table.length)
+    const observed = observeElfSectionName(
+      table,
+      offset,
+      text.limit - text.used + 1,
+    );
+    if (observed.state === "outside")
       return {
         name: null,
         limitation:
           "ELF section names are incomplete because a name offset is outside its string table.",
       };
-    const affordable = text.limit - text.used;
-    const available = table.length - offset;
-    const scanned = Math.min(available, affordable + 1);
-    const end = table.subarray(offset, offset + scanned).indexOf(0);
-    if (end < 0) {
-      chargeText(text, scanned);
-      return {
-        name: null,
-        limitation:
-          "ELF section names are incomplete because a name is not NUL-terminated.",
-      };
-    }
-    chargeText(text, end);
+    chargeText(text, observed.contentBytes);
     return {
-      name: table.subarray(offset, offset + end).toString("latin1"),
-      limitation: null,
+      name: elfSectionNameText(observed),
+      limitation:
+        observed.state === "truncated"
+          ? "ELF section names are incomplete because a name is not NUL-terminated."
+          : null,
     };
   }
 }

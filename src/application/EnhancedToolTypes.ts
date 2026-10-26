@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import type { ContainingProcedureResolution } from "../domain/hopperValues.js";
+import type { ContainingProcedureResolution } from "../domain/native/nativeObservation.js";
 import { err, type Result } from "../domain/result.js";
 import {
   enhancedInputSchemas,

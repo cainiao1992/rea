@@ -9,7 +9,7 @@ import {
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
-import { parseDocuments } from "../domain/hopperValues.js";
+import { parseDocuments } from "../domain/native/nativeDocument.js";
 import { err, ok, type Result } from "../domain/result.js";
 
 const executionOptions = (signal: AbortSignal | undefined) =>

@@ -1,6 +1,6 @@
 import { objcClassSymbol } from "./objcClassSymbol.js";
 import type { JsonValue } from "./jsonValue.js";
-import type { AddressedName } from "./hopperValues.js";
+import type { AddressedName } from "./native/nativeInventory.js";
 import type {
   MachoImportBinding,
   ObjcClassImportBindingCoverage,

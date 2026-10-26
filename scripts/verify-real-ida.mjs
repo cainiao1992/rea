@@ -60,7 +60,7 @@ const [
 ] = await Promise.all([
   importBuilt("contracts/toolContracts.js"),
   importBuilt("domain/evidence.js"),
-  importBuilt("domain/hopperValues.js"),
+  importBuilt("domain/native/functionDossier.js"),
   importBuilt("ida/IdaConfiguration.js"),
   importBuilt("ida/IdaMcpConnection.js"),
   importBuilt("ida/IdaProtocolValues.js"),

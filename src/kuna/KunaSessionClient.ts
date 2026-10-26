@@ -34,7 +34,7 @@ import {
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import type { EvidenceLocation } from "../domain/evidence.js";
 import { combineFunctionRelationshipCoverage } from "../domain/functionCallCoverage.js";
-import { functionDossierSchema } from "../domain/hopperValues.js";
+import { functionDossierSchema } from "../domain/native/functionDossier.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";

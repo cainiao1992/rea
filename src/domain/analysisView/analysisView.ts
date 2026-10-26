@@ -195,7 +195,7 @@ import { bundleResourceRootSchema } from "../apple/bundleResourceRoot.js";
 import {
   functionDossierSchema,
   functionFacetAvailabilitySchema,
-} from "../hopperValues.js";
+} from "../native/functionDossier.js";
 import {
   artifactGraphManifestSchema,
   artifactInventoryCoverageSchema,

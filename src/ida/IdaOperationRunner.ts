@@ -25,7 +25,7 @@ import {
 import {
   functionDossierSchema,
   functionInstructionWindowSchema,
-} from "../domain/hopperValues.js";
+} from "../domain/native/functionDossier.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import type { RelationshipCoverage } from "../domain/relationshipCoverage.js";
 import { combineFunctionRelationshipCoverage } from "../domain/functionCallCoverage.js";

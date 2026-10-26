@@ -6,7 +6,7 @@ import {
   AnalysisCancelledError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
-import { analysisStringSchema } from "../domain/hopperValues.js";
+import { analysisStringSchema } from "../domain/native/nativeString.js";
 import { HopperRemoteError } from "../domain/hopperErrors.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";

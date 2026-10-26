@@ -21,13 +21,16 @@ import {
 } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { parseFunctionDossier } from "../domain/native/functionDossier.js";
 import {
-  parseFunctionDossier,
   parseListCount,
-  parseRelatedAddresses,
+  addressedValueSchema,
+} from "../domain/native/nativeInventory.js";
+import { parseRelatedAddresses } from "../domain/native/nativeObservation.js";
+import {
   parseSegments,
   projectBinaryOverview,
-} from "../domain/hopperValues.js";
+} from "../domain/native/nativeSegments.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   categorizeSwiftTypes,
@@ -40,7 +43,6 @@ import { traceNativeValues } from "./native/NativeValueTrace.js";
 import { traceNativeUiAction } from "./native/NativeUiActionTrace.js";
 import { decompileAll } from "./decompileDirectory/decompileAll.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
-import { addressedValueSchema } from "../domain/native/nativeInventory.js";
 import {
   nativeDispatchMetadataResultSchema,
   MAX_DISPATCH_METADATA_RECORDS,

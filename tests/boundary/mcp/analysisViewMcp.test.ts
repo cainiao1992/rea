@@ -26,7 +26,7 @@ import {
   jsonObjectSchema,
   type JsonValue,
 } from "../../../src/domain/jsonValue.js";
-import { functionDossierSchema } from "../../../src/domain/hopperValues.js";
+import { functionDossierSchema } from "../../../src/domain/native/functionDossier.js";
 import { inspectMachoSchema } from "../../../src/domain/native/nativeInspection.js";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
 import { ok } from "../../../src/domain/result.js";

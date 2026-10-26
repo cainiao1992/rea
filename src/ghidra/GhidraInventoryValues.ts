@@ -19,12 +19,12 @@ import {
   type AnalysisInputError,
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
+import { projectBinaryOverview } from "../domain/native/nativeSegments.js";
 import {
   availableFunctionBodySchema,
-  procedureIdentitySchema,
   functionBodyEntryAgrees,
-  projectBinaryOverview,
-} from "../domain/hopperValues.js";
+} from "../domain/native/functionBody.js";
+import { procedureIdentitySchema } from "../domain/native/procedureInfo.js";
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";

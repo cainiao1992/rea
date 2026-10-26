@@ -4,10 +4,8 @@ import type {
   ExecutionOptions,
   ProviderIdentity,
 } from "../AnalysisProvider.js";
-import {
-  parseRelatedAddresses,
-  referenceKindSchema,
-} from "../../domain/hopperValues.js";
+import { parseRelatedAddresses } from "../../domain/native/nativeObservation.js";
+import { referenceKindSchema } from "../../domain/native/nativeReference.js";
 import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../../domain/analysisErrorBase.js";
 import { err, ok, type Result } from "../../domain/result.js";

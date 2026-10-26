@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { analysisStringSchema } from "../hopperValues.js";
+import { analysisStringSchema } from "../native/nativeString.js";
 import { jsonValueSchema } from "../jsonValue.js";
 import {
   addressedValueSchema,

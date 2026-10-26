@@ -6,7 +6,7 @@ import type {
 import { nativeProcedureInputSchema } from "../domain/native/nativeProcedureInput.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { createAnalysisExecutionEvidence } from "../domain/analysisObservation.js";
-import { parseFunctionDossier } from "../domain/hopperValues.js";
+import { parseFunctionDossier } from "../domain/native/functionDossier.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { completeProviderEvidence } from "./ProviderOperationExecution.js";
 import type { Evidence } from "../domain/evidence.js";

@@ -2,7 +2,7 @@ import { procedureInfoSchema } from "../domain/native/procedureInfo.js";
 import { z } from "zod";
 import { utcDateTimeSchema } from "../domain/offsetDateTime.js";
 
-import { functionDossierSchema } from "../domain/hopperValues.js";
+import { functionDossierSchema } from "../domain/native/functionDossier.js";
 import { analysisProfileSchema } from "../domain/analysisProfile.js";
 import {
   evidenceSchema,

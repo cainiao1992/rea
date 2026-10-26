@@ -19,7 +19,7 @@ import {
 } from "../../../../src/domain/managed/managedNativeVerificationSchemas.js";
 import { managedNativeBoundaryInspectionSchema } from "../../../../src/domain/managed/managedArtifact.js";
 import { inspectMachoSchema } from "../../../../src/domain/native/nativeInspection.js";
-import { functionDossierSchema } from "../../../../src/domain/hopperValues.js";
+import { functionDossierSchema } from "../../../../src/domain/native/functionDossier.js";
 
 import { verifyManagedNativeVerificationSource } from "../../../../src/domain/managed/managedNativeVerification.js";
 import { readManagedNativeVerificationSource } from "../../../../src/domain/managed/managedNativeVerificationSource.js";

@@ -10,7 +10,7 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import {
   parseContainingProcedureResolution,
   type ContainingProcedureResolution,
-} from "../domain/hopperValues.js";
+} from "../domain/native/nativeObservation.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { EnhancedResult, TraceReference } from "./EnhancedToolTypes.js";
 

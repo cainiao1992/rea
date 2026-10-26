@@ -55,6 +55,7 @@ import {
 } from "../process/OwnedCommand.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import { WindowsBatchCommandError } from "../process/WindowsBatchCommand.js";
+import { ownedProcessPrerequisiteAvailability } from "../application/ownedProcessAvailability.js";
 import {
   ApktoolConfigurationFailure,
   apktoolConfigurationAvailability,
@@ -350,6 +351,8 @@ export class ApktoolProvider {
       if (cause instanceof ApktoolConfigurationFailure) {
         return apktoolConfigurationAvailability(cause);
       }
+      const prerequisite = ownedProcessPrerequisiteAvailability(cause);
+      if (prerequisite !== undefined) return prerequisite;
       throw cause;
     }
   }

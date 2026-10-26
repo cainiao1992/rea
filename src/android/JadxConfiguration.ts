@@ -27,6 +27,7 @@ import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
 import type { JsonValue } from "../domain/jsonValue.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { ProviderAvailability } from "../application/AnalysisProvider.js";
+import { ownedProcessPrerequisiteAvailability } from "../application/ownedProcessAvailability.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
@@ -228,6 +229,8 @@ export const inspectJadxAvailability = async (
         reason: cause.message,
         diagnostics: { ...cause.diagnostics, failure_kind: cause.kind },
       };
+    const prerequisite = ownedProcessPrerequisiteAvailability(cause);
+    if (prerequisite !== undefined) return prerequisite;
     throw cause;
   }
 };

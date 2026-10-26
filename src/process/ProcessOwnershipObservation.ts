@@ -1254,13 +1254,7 @@ export const createSystemProcessOwnershipHost = (
             throw new Error("ps did not report REA's current process");
         } catch (cause: unknown) {
           if (isExpectedAbort(cause, signal)) throw cause;
-          const reason = `Linux process ownership inspection requires a procps-compatible ps on REA's PATH before launching a child: ${errorMessage(cause)}`;
-          throw new AnalysisCapabilityUnavailableError(
-            "process-ownership",
-            "prepare_owned_process",
-            reason,
-            { cause, userMessage: reason },
-          );
+          throw new LinuxOwnedProcessPrerequisiteError(cause);
         }
       }
     },
@@ -1439,6 +1433,17 @@ export const signalProcessWithStartIdentity = async (
     return "unverified";
   }
 };
+
+/** Refusal before an owned launch when Linux `ps` is missing or incompatible. */
+export class LinuxOwnedProcessPrerequisiteError extends AnalysisCapabilityUnavailableError {
+  constructor(cause: unknown) {
+    const reason = `Linux process ownership inspection requires a procps-compatible ps on REA's PATH before launching a child: ${errorMessage(cause)}`;
+    super("process-ownership", "prepare_owned_process", reason, {
+      cause,
+      userMessage: reason,
+    });
+  }
+}
 
 /** Prepare native token inspection before REA launches a captured child. */
 export const prepareProcessOwnershipInspection = async (

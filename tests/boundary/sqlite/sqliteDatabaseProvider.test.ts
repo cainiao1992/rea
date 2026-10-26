@@ -4,7 +4,8 @@ import { access, lstat, readFile, symlink, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { expect, it as nativeTest, onTestFinished } from "vitest";
+import { expect, it as nativeTest, onTestFinished, vi } from "vitest";
+import { ZodError } from "zod";
 import { projectAnalysisError } from "../../../src/domain/analysisErrorProjection.js";
 import { ProviderCleanupError } from "../../../src/domain/providerCleanupError.js";
 import { SQLITE_DATABASE_LIMITS } from "../../../src/sqlite/SqliteDatabaseLimits.js";
@@ -53,6 +54,32 @@ const createFixture = async (wal = false) => {
 
 const expectPrivateRootRemoved = (path: string) =>
   expect(access(path)).rejects.toMatchObject({ code: "ENOENT" });
+
+nativeTest.each([
+  { input: { path: "relative.db" }, field: "path" },
+  {
+    input: { path: "/selected.db", table: "records", row_limit: 0 },
+    field: "row_limit",
+  },
+  { input: { path: "/selected.db", columns: ["id"] }, field: "columns" },
+])(
+  "attributes invalid provider input to its argument before allocating resources: %j",
+  async ({ input, field }) => {
+    const createRuntime = vi.fn(async () => {
+      throw new Error("Invalid input must not allocate a SQLite runtime");
+    });
+    const provider = new SqliteDatabaseProvider({}, undefined, createRuntime);
+    onTestFinished(() => provider.close());
+    const result = await provider.inspect({ ...input });
+    if (result.ok) throw new Error("Expected an input rejection");
+    expect(result.error.cause).toBeInstanceOf(ZodError);
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "invalid_request",
+      details: { issues: [{ path: [field] }] },
+    });
+    expect(createRuntime).not.toHaveBeenCalled();
+  },
+);
 
 it("enforces a selected worker budget and completes the corrected same-database retry", async () => {
   const { database } = await createFixture();

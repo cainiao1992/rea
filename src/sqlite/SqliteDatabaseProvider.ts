@@ -13,7 +13,6 @@ import type {
 } from "../domain/analysisErrorBase.js";
 import {
   AnalysisCancelledError,
-  AnalysisInputError,
   AnalysisOutputError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
@@ -30,7 +29,7 @@ import {
   DEFAULT_SQLITE_WORKER_TIMEOUT_MS,
   sqliteInspectionParameters,
 } from "../domain/sqlite/sqliteDatabase.js";
-import { isAbsolute } from "node:path";
+import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import { PrivateRuntimeRoot } from "../process/PrivateRuntimeRoot.js";
 import {
   OwnedCommandFailure,
@@ -533,14 +532,8 @@ const completedSqliteEvidence = (
 
 const validateSqliteInput = (input: InspectSqliteDatabaseInput): void => {
   const parsed = inspectSqliteDatabaseInputSchema.safeParse(input);
-  if (!parsed.success || !isAbsolute(input.path))
-    throw new AnalysisInputError(operation, undefined, [
-      {
-        path: ["path"],
-        reason: "invalid_format",
-        message: parsed.success
-          ? "path must be an absolute local filesystem path"
-          : parsed.error.message,
-      },
-    ]);
+  if (!parsed.success)
+    throw analysisInputErrorFromIssues(operation, parsed.error.issues, input, {
+      cause: parsed.error,
+    });
 };

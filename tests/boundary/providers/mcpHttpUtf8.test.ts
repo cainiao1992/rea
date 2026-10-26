@@ -21,6 +21,8 @@ const payload = {
 /** Actual HTTP framing and SDK parsing; this server is not an installed IDA/JEB engine. */
 const startFixture = async (format: "json" | "sse") => {
   let fault: "valid" | "invalid" | "truncated" | "stalled" = "valid";
+  let faultMethod = "tools/call";
+  const methods: string[] = [];
   let announceStalled!: () => void;
   let stalled = Promise.resolve();
   let release!: () => void;
@@ -40,6 +42,7 @@ const startFixture = async (format: "json" | "sse") => {
       const message = requestSchema.parse(
         JSON.parse(Buffer.concat(chunks).toString("utf8")),
       );
+      methods.push(message.method);
       if (message.id === undefined) {
         response.writeHead(202).end();
         return;
@@ -49,12 +52,13 @@ const startFixture = async (format: "json" | "sse") => {
           ? {
               protocolVersion: "2025-11-25",
               capabilities: { tools: {} },
-              serverInfo: { name: "utf8-http-boundary", version: "1" },
+              serverInfo: { name: `utf8-${MARKER}`, version: "1" },
             }
           : message.method === "tools/list"
             ? {
                 tools: ["get_client_information"].map((name) => ({
                   name,
+                  description: `caf${MARKER}`,
                   inputSchema: { type: "object" },
                 })),
               }
@@ -63,9 +67,9 @@ const startFixture = async (format: "json" | "sse") => {
                 structuredContent: payload,
               };
       const json = JSON.stringify({ jsonrpc: "2.0", id: message.id, result });
-      if (message.method !== "tools/call") {
+      if (message.method !== faultMethod) {
         response.writeHead(200, { "Content-Type": "application/json" });
-        response.end(json);
+        response.end(json.replaceAll(MARKER, "é"));
         return;
       }
       const selectedFault = fault;
@@ -108,8 +112,10 @@ const startFixture = async (format: "json" | "sse") => {
     throw new Error("Missing HTTP listener");
   return {
     endpoint: `http://127.0.0.1:${address.port}/mcp`,
-    setFault: (value: typeof fault) => {
+    methods,
+    setFault: (value: typeof fault, method = "tools/call") => {
       fault = value;
+      faultMethod = method;
       if (value === "stalled")
         stalled = new Promise<void>((resolve) => {
           announceStalled = resolve;
@@ -126,6 +132,37 @@ const startFixture = async (format: "json" | "sse") => {
   };
 };
 
+const createConnection = (provider: "ida" | "jeb", endpoint: string) => {
+  if (provider === "ida") {
+    const connection = createIdaMcpConnection(
+      {
+        url: endpoint,
+        headers: {},
+        mode: "attached",
+        protocol: "native",
+        timeoutMs: 1_000,
+      },
+      {},
+    );
+    return {
+      connect: () => connection.connect(),
+      close: () => connection.close(),
+      call: (signal?: AbortSignal) =>
+        connection.call("get_client_information", {}, { signal }),
+    };
+  }
+  const connection = createStreamableHttpJebMcpConnection(new URL(endpoint), {
+    discoveryTimeoutMs: 1_000,
+    requestTimeoutMs: 1_000,
+  });
+  return {
+    connect: () => connection.connect(),
+    close: () => connection.close(),
+    call: (signal?: AbortSignal) =>
+      connection.call("get_client_information", {}, signal),
+  };
+};
+
 it.each(
   (["ida", "jeb"] as const).flatMap((provider) =>
     (["json", "sse"] as const).map((format) => ({ provider, format })),
@@ -134,40 +171,7 @@ it.each(
   "rejects malformed UTF-8 over real $provider $format HTTP without altering valid source or cancellation",
   async ({ provider, format }) => {
     const fixture = await startFixture(format);
-    const createConnection = () => {
-      if (provider === "ida") {
-        const connection = createIdaMcpConnection(
-          {
-            url: fixture.endpoint,
-            headers: {},
-            mode: "attached",
-            protocol: "native",
-            timeoutMs: 1_000,
-          },
-          {},
-        );
-        return {
-          connect: () => connection.connect(),
-          close: () => connection.close(),
-          call: (signal?: AbortSignal) =>
-            connection.call("get_client_information", {}, { signal }),
-        };
-      }
-      const connection = createStreamableHttpJebMcpConnection(
-        new URL(fixture.endpoint),
-        {
-          discoveryTimeoutMs: 1_000,
-          requestTimeoutMs: 1_000,
-        },
-      );
-      return {
-        connect: () => connection.connect(),
-        close: () => connection.close(),
-        call: (signal?: AbortSignal) =>
-          connection.call("get_client_information", {}, signal),
-      };
-    };
-    let connection = createConnection();
+    let connection = createConnection(provider, fixture.endpoint);
     const call = (signal?: AbortSignal) => connection.call(signal);
     try {
       await connection.connect();
@@ -179,7 +183,7 @@ it.each(
         if (provider === "ida") {
           // IDA's session owner retires failed connections rather than restarting SDK transports.
           await connection.close();
-          connection = createConnection();
+          connection = createConnection(provider, fixture.endpoint);
           await connection.connect();
         }
       }
@@ -195,7 +199,7 @@ it.each(
       expect(await sibling).toMatchObject({ _tag: "AnalysisProtocolError" });
       if (provider === "ida") {
         await connection.close();
-        connection = createConnection();
+        connection = createConnection(provider, fixture.endpoint);
         await connection.connect();
       }
       fixture.setFault("stalled");
@@ -209,6 +213,76 @@ it.each(
       const failure = await pending;
       expect(failure).toBeInstanceOf(AnalysisCancelledError);
       expect(failure).toMatchObject({ cause: reason });
+    } finally {
+      await connection.close();
+      await fixture.close();
+    }
+  },
+);
+
+it.each(
+  (["ida", "jeb"] as const).flatMap((provider) =>
+    (["json", "sse"] as const).flatMap((format) =>
+      ["initialize", "tools/list"].map((method) => ({
+        provider,
+        format,
+        method,
+      })),
+    ),
+  ),
+)(
+  "rejects malformed $provider $format $method acquisition and performs a later handshake",
+  async ({ provider, format, method }) => {
+    const fixture = await startFixture(format);
+    let connection = createConnection(provider, fixture.endpoint);
+    try {
+      fixture.setFault("invalid", method);
+      await expect(connection.connect()).rejects.toMatchObject({
+        _tag: "AnalysisProtocolError",
+      });
+      fixture.setFault("valid", method);
+      if (provider === "ida") {
+        await connection.close();
+        connection = createConnection(provider, fixture.endpoint);
+      }
+      expect(await connection.connect()).toEqual(["get_client_information"]);
+      expect(
+        fixture.methods.filter((name) => name === "initialize"),
+      ).toHaveLength(2);
+      expect(await connection.call()).toEqual({ ...payload, text: "café" });
+    } finally {
+      await connection.close();
+      await fixture.close();
+    }
+  },
+);
+
+it.each(["json", "sse"] as const)(
+  "retains a completed JEB observation after a malformed %s catalog refresh and reconnects",
+  async (format) => {
+    const fixture = await startFixture(format);
+    const connection = createStreamableHttpJebMcpConnection(
+      new URL(fixture.endpoint),
+      {
+        discoveryTimeoutMs: 1_000,
+        requestTimeoutMs: 1_000,
+      },
+    );
+    try {
+      const observed = await connection.call("get_client_information", {});
+      fixture.setFault("invalid", "tools/list");
+      await expect(connection.listTools()).rejects.toMatchObject({
+        _tag: "AnalysisProtocolError",
+      });
+      expect(observed).toEqual({ ...payload, text: "café" });
+      fixture.setFault("valid", "tools/list");
+      expect(await connection.listTools()).toEqual(["get_client_information"]);
+      expect(
+        fixture.methods.filter((name) => name === "initialize"),
+      ).toHaveLength(2);
+      expect(await connection.call("get_client_information", {})).toEqual(
+        observed,
+      );
     } finally {
       await connection.close();
       await fixture.close();

@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  realpath,
   readFile,
   rename,
   rm,
@@ -264,7 +265,8 @@ const manifestBytes = (manifest: KunaProjectManifest): number =>
  * used entries above the size cap, never an entry pinned by this process.
  */
 export class KunaProjectCache {
-  readonly #root: string;
+  readonly #selectedRoot: string;
+  #canonicalRoot: string | undefined;
   readonly #maxBytes: number;
   readonly #launcher: KunaProcessLauncher | undefined;
   /** Builds new requests may join, at most one per key. */
@@ -306,9 +308,14 @@ export class KunaProjectCache {
       readonly launcher?: KunaProcessLauncher;
     },
   ) {
-    this.#root = root;
+    this.#selectedRoot = root;
     this.#maxBytes = options.maxBytes;
     this.#launcher = options.launcher;
+  }
+
+  /** Resolve native traversal once; all cache consumers use this filesystem identity. */
+  async #resolveRoot(): Promise<string> {
+    return (this.#canonicalRoot ??= await realpath(this.#selectedRoot));
   }
 
   /** Report cleanup owners retained after failed process or file cleanup. */
@@ -346,6 +353,13 @@ export class KunaProjectCache {
     await this.#retryHashFiles(key);
     const cleanup = this.#cleanupResult(this.#hashCleanupFailures(key));
     if (!cleanup.ok) throw cleanup.error;
+    let root: string;
+    try {
+      root = await this.#resolveRoot();
+    } catch (cause: unknown) {
+      if (isMissing(cause)) return undefined;
+      throw cause;
+    }
     const verified = this.#verified.get(key);
     if (verified !== undefined) {
       // Another process may have evicted it since this one verified it.
@@ -353,7 +367,7 @@ export class KunaProjectCache {
       this.#verified.delete(key);
       return undefined;
     }
-    const entry = join(this.#root, "projects", key);
+    const entry = join(root, "projects", key);
     let text: string;
     try {
       text = await this.#readBounded(join(entry, "manifest.json"));
@@ -691,7 +705,11 @@ export class KunaProjectCache {
     let cleanupPath = staging;
     const stagingOwner = this.#stagingCleanupOwners.get(staging);
     try {
-      const retired = join(this.#root, "trash", `build-${randomUUID()}`);
+      const retired = join(
+        await this.#resolveRoot(),
+        "trash",
+        `build-${randomUUID()}`,
+      );
       await rename(staging, retired);
       cleanupPath = retired;
       await this.#removeRetired(retired, key);
@@ -762,13 +780,18 @@ export class KunaProjectCache {
     try {
       const existing = await this.lookup(key, signal);
       if (existing !== undefined) return ok(existing);
+      await mkdir(this.#canonicalRoot ?? this.#selectedRoot, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const root = await this.#resolveRoot();
       await Promise.all(
         ["projects", "staging", "trash", "home"].map((name) =>
-          mkdir(join(this.#root, name), { recursive: true, mode: 0o700 }),
+          mkdir(join(root, name), { recursive: true, mode: 0o700 }),
         ),
       );
       await this.#sweep(signal);
-      staging = await mkdtemp(join(this.#root, "staging", "build-"));
+      staging = await mkdtemp(join(root, "staging", "build-"));
     } catch (cause: unknown) {
       return err(kunaExportFailure(cause, signal));
     }
@@ -912,7 +935,7 @@ export class KunaProjectCache {
       `${JSON.stringify(manifest, null, 2)}\n`,
       { mode: 0o600 },
     );
-    const destination = join(this.#root, "projects", key);
+    const destination = join(await this.#resolveRoot(), "projects", key);
     try {
       await rename(join(staging, "entry"), destination);
     } catch (cause: unknown) {
@@ -937,9 +960,10 @@ export class KunaProjectCache {
    * that a process stopped, so unresolved staging is never swept.
    */
   async #sweep(signal: AbortSignal): Promise<void> {
-    for (const name of await readdir(join(this.#root, "trash"))) {
+    const root = await this.#resolveRoot();
+    for (const name of await readdir(join(root, "trash"))) {
       signal.throwIfAborted();
-      await this.#removeRetired(join(this.#root, "trash", name)).catch(
+      await this.#removeRetired(join(root, "trash", name)).catch(
         () => undefined,
       );
     }
@@ -971,13 +995,14 @@ export class KunaProjectCache {
   }
 
   async #evictUnpinned(keep: string | null): Promise<void> {
+    const root = await this.#resolveRoot();
     // A successful build must reach its callers before they can pin its entry.
     // Protect every unfinished build while reading this eviction snapshot.
     const building = new Set([...this.#unfinished].map(({ key }) => key));
     const entries: { key: string; bytes: number; mtimeMs: number }[] = [];
-    for (const name of await readdir(join(this.#root, "projects"))) {
+    for (const name of await readdir(join(root, "projects"))) {
       if (!KEY_PATTERN.test(name)) continue;
-      const path = join(this.#root, "projects", name);
+      const path = join(root, "projects", name);
       const status = await stat(path).catch(() => undefined);
       if (status === undefined) continue;
       const manifest = await this.#readBounded(join(path, "manifest.json"))
@@ -1017,10 +1042,11 @@ export class KunaProjectCache {
   /** Atomically retire one owned entry, then remove it. */
   async #discard(key: string): Promise<void> {
     this.#verified.delete(key);
-    const trash = join(this.#root, "trash", `${key}-${randomUUID()}`);
+    const root = await this.#resolveRoot();
+    const trash = join(root, "trash", `${key}-${randomUUID()}`);
     try {
-      await mkdir(join(this.#root, "trash"), { recursive: true, mode: 0o700 });
-      await rename(join(this.#root, "projects", key), trash);
+      await mkdir(join(root, "trash"), { recursive: true, mode: 0o700 });
+      await rename(join(root, "projects", key), trash);
     } catch (cause: unknown) {
       if (isMissing(cause)) return;
       throw cause;
@@ -1045,7 +1071,7 @@ export class KunaProjectCache {
   async #touch(key: string): Promise<boolean> {
     const now = new Date();
     try {
-      await utimes(join(this.#root, "projects", key), now, now);
+      await utimes(join(await this.#resolveRoot(), "projects", key), now, now);
       return true;
     } catch (cause: unknown) {
       // Recency is advisory; only a missing entry changes the answer.

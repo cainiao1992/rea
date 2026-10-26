@@ -4,6 +4,8 @@ import {
   chmod,
   mkdir,
   readdir,
+  realpath,
+  symlink,
   readFile,
   rename,
   rm,
@@ -1085,3 +1087,61 @@ it("removes its staging when publication itself fails", async () => {
   expect(await entries(cacheRoot, "staging")).toEqual([]);
   expect(await entries(cacheRoot, "projects")).toEqual([]);
 });
+
+it.each(["missing", "corrupt"])(
+  "keeps a %s cache beneath the natively resolved selected root through publication, reads and cleanup",
+  async (state) => {
+    const root = await createTestTempDirectory("rea-kuna-native-cache-");
+    const intended = join(root, "intended");
+    await mkdir(join(intended, "nested"), { recursive: true });
+    await symlink(join(intended, "nested"), join(root, "alias"));
+    const selected = `${root}/alias/../cache`;
+    const { kuna, installation, cache, target } = await fixture(
+      "rea-kuna-cache-input-",
+      {},
+      {
+        environment: { REA_KUNA_CACHE_DIR: selected },
+      },
+    );
+    const input = await target("program");
+    const key = keyOf(installation, input);
+    const intendedEntry = join(intended, "cache", "projects", key);
+    const decoyEntry = join(root, "cache", "projects", key);
+    for (const entry of state === "corrupt"
+      ? [intendedEntry, decoyEntry]
+      : [decoyEntry]) {
+      await mkdir(entry, { recursive: true });
+      await writeFile(join(entry, "manifest.json"), "{}");
+    }
+    const reopened = newCache(installation);
+    try {
+      expect(await cache.lookup(key)).toBeUndefined();
+      await expect(
+        readFile(join(intendedEntry, "manifest.json")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      expect(await readFile(join(decoyEntry, "manifest.json"), "utf8")).toBe(
+        "{}",
+      );
+      const built = await cache.build({ installation, ...input });
+      if (!built.ok) throw built.error;
+      expect(built.value.directory).toBe(join(intendedEntry, "project"));
+      expect(await reopened.lookup(key)).toEqual(built.value);
+      expect(
+        await readFile(
+          join(built.value.directory, built.value.manifest.files.c.path),
+          "utf8",
+        ),
+      ).toContain("main");
+      for (const call of await fakeKunaCalls(kuna)) {
+        expect(await realpath(call.home)).toBe(join(intended, "cache", "home"));
+      }
+      expect(await readdir(join(intended, "cache", "staging"))).toEqual([]);
+      expect(await readFile(join(decoyEntry, "manifest.json"), "utf8")).toBe(
+        "{}",
+      );
+    } finally {
+      expect(await cache.close()).toEqual({ ok: true, value: null });
+      expect(await reopened.close()).toEqual({ ok: true, value: null });
+    }
+  },
+);

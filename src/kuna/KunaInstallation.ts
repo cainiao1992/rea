@@ -5,7 +5,7 @@ import {
 import { constants } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { access, realpath, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { appendCallerPath } from "../filesystem/callerPath.js";
 
 import { jsonValueSchema, type JsonValue } from "../domain/jsonValue.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -263,10 +263,10 @@ export const createKunaResourceScope = (
 export const kunaChildEnvironment = (
   configuration: KunaConfiguration,
 ): NodeJS.ProcessEnv => {
-  const home = join(configuration.cacheRoot, "home");
+  const home = appendCallerPath(configuration.cacheRoot, "home");
   return {
     HOME: home,
-    XDG_CACHE_HOME: join(home, ".cache"),
+    XDG_CACHE_HOME: appendCallerPath(home, ".cache"),
     NO_COLOR: "1",
   };
 };

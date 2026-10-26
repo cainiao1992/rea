@@ -133,6 +133,8 @@ export const SCOPES = {
     "src/domain/result.ts",
     "scripts/lib/verifier-source-loader.mjs",
     "tests/boundary/process/windowsNativeArtifactVerifier.test.ts",
+    "scripts/lib/windows-native-inspection-workspace.*",
+    "tests/boundary/process/windowsNativeInspectionWorkspace.test.ts",
     "scripts/lib/windows-owned-command.mjs",
     "scripts/run-exclusive-command.mjs",
     "tests/process-global/runnerCancellation.test.ts",

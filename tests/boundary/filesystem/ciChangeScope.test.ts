@@ -753,6 +753,14 @@ it.each([
     { code: true, package: true },
   ],
   [
+    "scripts/lib/windows-native-inspection-workspace.mjs",
+    { code: true, package: true },
+  ],
+  [
+    "tests/boundary/process/windowsNativeInspectionWorkspace.test.ts",
+    { code: true, package: true },
+  ],
+  [
     "src/domain/javascript/javascriptRuntimeStaticCandidates.ts",
     { code: true, runtime: true, package: true, javascript_recovery: true },
   ],

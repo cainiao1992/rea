@@ -6,11 +6,11 @@ import { join } from "node:path";
 import {
   windowsNativeCapabilities,
   type WindowsNativeCapabilitySet,
-} from "../process/WindowsAuthority.js";
+} from "../../src/process/WindowsAuthority.js";
 import {
   probeProcessCaptureCapability,
   type ProcessCaptureCapability,
-} from "../process/capture/ProcessCaptureCapability.js";
+} from "../../src/process/capture/ProcessCaptureCapability.js";
 
 /** One named Windows host observation without inferred authority. */
 export type WindowsCapabilityOutcome =

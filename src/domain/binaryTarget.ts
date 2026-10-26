@@ -9,6 +9,11 @@ import type {
   UniversalMachOSlice,
 } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
+import {
+  readPeOptionalHeaderFixedFields,
+  readPeOptionalHeaderDirectory,
+} from "./peOptionalHeader.js";
+import type { PeOptionalHeaderFacts } from "./peMachine.js";
 import { readPeCoffHeader } from "./peCoffHeader.js";
 import { readPeSectionHeader } from "./peSectionHeader.js";
 import { readElfFixedHeader } from "./elfFixedHeader.js";
@@ -468,7 +473,8 @@ const parseMz = (
     if (windowsHeader.signature !== "PE")
       return err("invalid or truncated Windows executable header in MZ image");
     const codeView = parsePeCodeViewFromBuffer(bytes, offset);
-    return parsePeRecord(bytes.subarray(offset), codeView);
+    const parsed = parsePeRecordFacts(bytes.subarray(offset), codeView);
+    return parsed.ok ? ok(parsed.value.metadata) : parsed;
   }
   const parsed = evidence.dos;
   return parsed.ok
@@ -481,10 +487,16 @@ const parseMz = (
 };
 
 /** Parse a bounded PE signature, COFF record, and optional header without I/O. */
-export const parsePeRecord = (
+export const parsePeRecordFacts = (
   record: Buffer,
   codeView: PeCodeViewRecord | undefined,
-): Result<ExecutableMetadata, string> => {
+): Result<
+  {
+    readonly metadata: ExecutableMetadata;
+    readonly optionalHeader: PeOptionalHeaderFacts;
+  },
+  string
+> => {
   if (
     record.length < 24 ||
     record.toString("binary", 0, 4) !== "PE\u0000\u0000"
@@ -510,18 +522,21 @@ export const parsePeRecord = (
   if (facts.value.machine === null) return err("unsupported PE architecture");
   const { architecture } = facts.value.machine;
   return ok({
-    format: "pe",
-    peMachine: machineType,
-    architecture,
-    availableArchitectures: [architecture],
-    executableRole:
-      (characteristics & 0x0002) === 0
-        ? "non-executable"
-        : (characteristics & 0x2000) === 0
-          ? "application"
-          : "shared-library",
-    managed: facts.value.managed,
-    ...(codeView !== undefined ? { codeView } : {}),
+    optionalHeader: facts.value,
+    metadata: {
+      format: "pe",
+      peMachine: machineType,
+      architecture,
+      availableArchitectures: [architecture],
+      executableRole:
+        (characteristics & 0x0002) === 0
+          ? "non-executable"
+          : (characteristics & 0x2000) === 0
+            ? "application"
+            : "shared-library",
+      managed: facts.value.managed,
+      ...(codeView !== undefined ? { codeView } : {}),
+    },
   });
 };
 
@@ -570,24 +585,17 @@ export const peDebugDirectoryEntry = (
       readonly sizeOfHeaders: number;
     }
   | undefined => {
-  if (optionalHeader.length < 2) return undefined;
-  const magic = optionalHeader.readUInt16LE(0);
-  if (magic !== 0x10b && magic !== 0x20b) return undefined;
-  const directoryOffset = magic === 0x20b ? 112 : 96;
-  const directoryCountOffset = directoryOffset - 4;
-  if (optionalHeader.length < directoryCountOffset + 4) return undefined;
-  const directoryCount = optionalHeader.readUInt32LE(directoryCountOffset);
-  if (directoryCount <= 6) return undefined;
-  const debugEntryOffset = directoryOffset + 6 * 8;
-  if (optionalHeader.length < debugEntryOffset + 8) return undefined;
-  const debugRva = optionalHeader.readUInt32LE(debugEntryOffset);
-  const debugSize = optionalHeader.readUInt32LE(debugEntryOffset + 4);
+  const fixed = readPeOptionalHeaderFixedFields(optionalHeader);
+  if (!fixed.ok) return undefined;
+  const observed = readPeOptionalHeaderDirectory(
+    optionalHeader,
+    fixed.value,
+    6,
+  );
+  if (observed.state !== "present") return undefined;
+  const { address: debugRva, size: debugSize } = observed.directory;
   if (debugRva === 0 || debugSize < 28) return undefined;
-  return {
-    debugRva,
-    debugSize,
-    sizeOfHeaders: optionalHeader.readUInt32LE(60),
-  };
+  return { debugRva, debugSize, sizeOfHeaders: fixed.value.sizeOfHeaders };
 };
 
 /** Translate an RVA to an absolute file offset using the PE section table. */

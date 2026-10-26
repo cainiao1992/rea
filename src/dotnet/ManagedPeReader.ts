@@ -1,3 +1,9 @@
+import {
+  readPeOptionalHeaderFixedFields,
+  readPeOptionalHeaderDirectory,
+  type PeOptionalHeaderFixedFields,
+} from "../domain/peOptionalHeader.js";
+import { readPeSectionHeader } from "../domain/peSectionHeader.js";
 import type { ManagedParseIssue } from "../domain/managed/managedArtifact.js";
 import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import { decodePeMachine } from "../domain/peMachine.js";
@@ -86,8 +92,7 @@ interface CoffHeader {
 interface OptionalHeader {
   readonly optionalOffset: number;
   readonly optionalHeader: "pe32" | "pe32-plus";
-  readonly directoryCountOffset: number;
-  readonly directoryOffset: number;
+  readonly fixed: PeOptionalHeaderFixedFields;
 }
 
 type CliDirectoryRead =
@@ -337,10 +342,10 @@ const readOptionalHeader = (
       "PE optional header is too short",
       optionalOffset,
     );
-  const magic = bytes.readUInt16LE(optionalOffset);
-  const optionalHeader =
-    magic === 0x010b ? "pe32" : magic === 0x020b ? "pe32-plus" : undefined;
-  if (optionalHeader === undefined)
+  const parsed = readPeOptionalHeaderFixedFields(
+    bytes.subarray(optionalOffset, optionalOffset + coff.optionalSize),
+  );
+  if (!parsed.ok)
     throw managedFailure(
       "invalid-directory",
       "pe.optional-header",
@@ -349,10 +354,8 @@ const readOptionalHeader = (
     );
   return {
     optionalOffset,
-    optionalHeader,
-    directoryCountOffset:
-      optionalOffset + (optionalHeader === "pe32" ? 92 : 108),
-    directoryOffset: optionalOffset + (optionalHeader === "pe32" ? 96 : 112),
+    optionalHeader: parsed.value.format,
+    fixed: parsed.value,
   };
 };
 
@@ -370,11 +373,19 @@ const readSections = (
   const sections: PeSection[] = [];
   for (let index = 0; index < coff.sectionCount; index += 1) {
     const offset = sectionOffset + index * 40;
+    const parsed = readPeSectionHeader(bytes.subarray(offset, offset + 40));
+    if (!parsed.ok)
+      throw managedFailure(
+        "invalid-directory",
+        "pe.sections",
+        parsed.error.message,
+        offset,
+      );
     const section = {
-      virtualSize: bytes.readUInt32LE(offset + 8),
-      virtualAddress: bytes.readUInt32LE(offset + 12),
-      rawSize: bytes.readUInt32LE(offset + 16),
-      rawOffset: bytes.readUInt32LE(offset + 20),
+      virtualSize: parsed.value.virtual_size,
+      virtualAddress: parsed.value.virtual_address,
+      rawSize: parsed.value.raw_size,
+      rawOffset: parsed.value.offset,
     };
     if (section.rawSize > 0)
       requireRange(
@@ -393,34 +404,41 @@ const readCliDirectory = (
   coff: CoffHeader,
   optional: OptionalHeader,
 ): CliDirectoryRead => {
-  const countOffset = optional.directoryCountOffset - optional.optionalOffset;
-  if (countOffset + 4 > coff.optionalSize)
+  const observed = readPeOptionalHeaderDirectory(
+    bytes.subarray(
+      optional.optionalOffset,
+      optional.optionalOffset + coff.optionalSize,
+    ),
+    optional.fixed,
+    14,
+  );
+  const countOffset =
+    optional.optionalOffset + optional.fixed.directoryCountOffset;
+  if (observed.state === "count-unavailable")
     return {
       kind: "unreadable",
       issue: {
         code: "invalid-directory",
         scope: "pe.optional-header",
         detail: "PE optional header does not contain its directory count",
-        offset: optional.directoryCountOffset,
+        offset: countOffset,
       },
     };
-  const directoryCount = bytes.readUInt32LE(optional.directoryCountOffset);
-  if (directoryCount <= 14) return { kind: "absent" };
-  const availableDirectoryCount = Math.floor(
-    (coff.optionalSize - (optional.directoryOffset - optional.optionalOffset)) /
-      8,
-  );
-  if (availableDirectoryCount < 15)
+  if (observed.state === "absent") return { kind: "absent" };
+  if (observed.state === "truncated")
     return {
       kind: "unreadable",
       issue: {
         code: "invalid-directory",
         scope: "pe.data-directories",
         detail: "PE data-directory count exceeds the optional-header extent",
-        offset: optional.directoryCountOffset,
+        offset: countOffset,
       },
     };
-  const directory = readDirectory(bytes, optional.directoryOffset + 14 * 8);
+  const directory = {
+    rva: observed.directory.address,
+    size: observed.directory.size,
+  };
   return directory.rva !== 0 || directory.size !== 0
     ? { kind: "present", directory }
     : { kind: "absent" };

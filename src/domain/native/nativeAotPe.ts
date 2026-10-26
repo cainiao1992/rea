@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readPeOptionalHeaderFixedFields } from "../peOptionalHeader.js";
 import { readPeCoffHeader } from "../peCoffHeader.js";
 import { readPeSectionHeader } from "../peSectionHeader.js";
 import type { NativeMetadataRecovery } from "./nativeMetadataRecovery.js";
@@ -511,12 +512,14 @@ class PeImage {
       throw new Error(
         "PE optional header is too short for image mapping fields",
       );
-    const magic = this.#u16(optional);
-    if (magic !== 0x20b || this.#machine !== 0x8664)
+    const fixed = readPeOptionalHeaderFixedFields(
+      bytes.subarray(optional, optional + optionalSize),
+    );
+    if (!fixed.ok || fixed.value.magic !== 0x20b || this.#machine !== 0x8664)
       throw new Error("Only x64 PE32+ is supported");
-    this.imageBase = this.#u64(optional + 24);
-    this.sizeOfImage = this.#u32(optional + 56);
-    this.#sizeOfHeaders = this.#u32(optional + 60);
+    this.imageBase = fixed.value.imageBase;
+    this.sizeOfImage = fixed.value.sizeOfImage;
+    this.#sizeOfHeaders = fixed.value.sizeOfHeaders;
     if (count < 1 || this.sizeOfImage === 0)
       throw new Error("Unsupported PE image extent");
     if (this.imageBase + BigInt(this.sizeOfImage) > 1n << 64n)
@@ -658,17 +661,9 @@ class PeImage {
     )
       throw new Error("PE field leaves the captured file");
   }
-  #u16(offset: number): number {
-    this.#range(offset, 2);
-    return this.#bytes.readUInt16LE(offset);
-  }
   #u32(offset: number): number {
     this.#range(offset, 4);
     return this.#bytes.readUInt32LE(offset);
-  }
-  #u64(offset: number): bigint {
-    this.#range(offset, 8);
-    return this.#bytes.readBigUInt64LE(offset);
   }
 }
 

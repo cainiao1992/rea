@@ -80,7 +80,7 @@ import {
   parseCodeViewData,
   claimsExecutableHeader,
   parseExecutableHeader,
-  parsePeRecord,
+  parsePeRecordFacts,
   peDebugDirectoryEntry,
   peRvaToFileOffset,
   type ExecutableMetadata,
@@ -1304,7 +1304,8 @@ const readPeMetadata = async (
     optionalHeaderSize,
     signal,
   );
-  return parsePeRecord(record, codeView);
+  const parsed = parsePeRecordFacts(record, codeView);
+  return parsed.ok ? ok(parsed.value.metadata) : parsed;
 };
 
 const readPeCodeView = async (

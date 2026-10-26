@@ -93,6 +93,22 @@ describe("managed PE optional-header directory count", () => {
 });
 
 describe("managed CLI directory availability", () => {
+  it("keeps a readable CLI directory when later declared entries are truncated", () => {
+    const bytes = buildManagedPeFixture();
+    const optional = bytes.readUInt32LE(0x3c) + 24;
+    bytes.writeUInt32LE(0xffffffff, optional + 92);
+    expect(readManagedPeLayout(bytes)).toMatchObject({
+      cliDirectoryState: "present",
+      cliIssue: null,
+      cli: expect.objectContaining({ headerSize: 72 }),
+    });
+    const result = inspectManagedArtifactBytes(
+      bytes,
+      managedPeFixtureTarget(bytes),
+    );
+    expect(result.metadata.status).toBe("complete");
+  });
+
   it("keeps a declared but truncated CLI directory malformed", () => {
     const bytes = buildManagedPeFixture();
     const peOffset = bytes.readUInt32LE(0x3c);

@@ -630,6 +630,35 @@ export const peRvaToFileOffset = (
   return undefined;
 };
 
+/** CodeView RVA admission uses the same bounded prefix as target file reads. */
+const PE_CODEVIEW_MAPPING_BYTES = 4096;
+
+/** Interpret complete debug entries once; callers own directory and payload read bounds. */
+export function* peCodeViewDataRanges(
+  directory: Buffer,
+  sectionTable: Buffer,
+  numberOfSections: number,
+  sizeOfHeaders: number,
+): Generator<{ readonly fileOffset: number; readonly declaredSize: number }> {
+  for (let offset = 0; offset + 28 <= directory.length; offset += 28) {
+    if (directory.readUInt32LE(offset + 12) !== 2) continue;
+    const declaredSize = directory.readUInt32LE(offset + 16);
+    if (declaredSize < 16) continue;
+    const rawPointer = directory.readUInt32LE(offset + 24);
+    const fileOffset =
+      rawPointer !== 0
+        ? rawPointer
+        : peRvaToFileOffset(
+            directory.readUInt32LE(offset + 20),
+            sectionTable,
+            numberOfSections,
+            sizeOfHeaders,
+            Math.min(declaredSize, PE_CODEVIEW_MAPPING_BYTES),
+          );
+    if (fileOffset !== undefined) yield { fileOffset, declaredSize };
+  }
+}
+
 /** Parse CodeView metadata from a bounded in-memory PE image buffer. */
 export const parsePeCodeViewFromBuffer = (
   fileBytes: Buffer,
@@ -673,29 +702,16 @@ export const parsePeCodeViewFromBuffer = (
     debugDir.debugSize,
     fileBytes.length - debugFileOffset,
   );
-  const numEntries = Math.floor(maxDebugBytes / 28);
-  for (let j = 0; j < numEntries; j++) {
-    const entryOffset = debugFileOffset + j * 28;
-    const type = fileBytes.readUInt32LE(entryOffset + 12);
-    if (type !== 2) continue; // IMAGE_DEBUG_TYPE_CODEVIEW
-    const sizeOfData = fileBytes.readUInt32LE(entryOffset + 16);
-    let pointerToRawData = fileBytes.readUInt32LE(entryOffset + 24);
-    if (pointerToRawData === 0) {
-      const addressOfRawData = fileBytes.readUInt32LE(entryOffset + 20);
-      const mapped = peRvaToFileOffset(
-        addressOfRawData,
-        sectionTable,
-        numberOfSections,
-        debugDir.sizeOfHeaders,
-        Math.min(sizeOfData, 4096),
-      );
-      if (mapped === undefined) continue;
-      pointerToRawData = mapped;
-    }
-    if (
-      sizeOfData < 16 ||
-      fileBytes.length < pointerToRawData + Math.min(sizeOfData, 24)
-    )
+  for (const {
+    fileOffset: pointerToRawData,
+    declaredSize: sizeOfData,
+  } of peCodeViewDataRanges(
+    fileBytes.subarray(debugFileOffset, debugFileOffset + maxDebugBytes),
+    sectionTable,
+    numberOfSections,
+    debugDir.sizeOfHeaders,
+  )) {
+    if (fileBytes.length < pointerToRawData + Math.min(sizeOfData, 24))
       continue;
     const codeViewData = fileBytes.subarray(
       pointerToRawData,

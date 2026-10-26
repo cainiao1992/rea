@@ -82,6 +82,7 @@ import {
   parseExecutableHeader,
   parsePeRecordFacts,
   peDebugDirectoryEntry,
+  peCodeViewDataRanges,
   peRvaToFileOffset,
   type ExecutableMetadata,
 } from "../domain/binaryTarget.js";
@@ -1347,28 +1348,15 @@ const readPeCodeView = async (
     debugFileOffset,
   );
   throwIfTargetResolutionCancelled(signal);
-  const numEntries = Math.floor(debugDirRead.bytesRead / 28);
-  for (let j = 0; j < numEntries; j++) {
-    const entryOffset = j * 28;
-    const type = debugDirectoryBuffer.readUInt32LE(entryOffset + 12);
-    if (type !== 2) continue; // IMAGE_DEBUG_TYPE_CODEVIEW
-    const sizeOfData = debugDirectoryBuffer.readUInt32LE(entryOffset + 16);
-    let pointerToRawData = debugDirectoryBuffer.readUInt32LE(entryOffset + 24);
-    if (pointerToRawData === 0) {
-      const addressOfRawData = debugDirectoryBuffer.readUInt32LE(
-        entryOffset + 20,
-      );
-      const mapped = peRvaToFileOffset(
-        addressOfRawData,
-        sectionTable,
-        numberOfSections,
-        debugDir.sizeOfHeaders,
-        Math.min(sizeOfData, 4096),
-      );
-      if (mapped === undefined) continue;
-      pointerToRawData = mapped;
-    }
-    if (sizeOfData < 16) continue;
+  for (const {
+    fileOffset: pointerToRawData,
+    declaredSize: sizeOfData,
+  } of peCodeViewDataRanges(
+    debugDirectoryBuffer.subarray(0, debugDirRead.bytesRead),
+    sectionTable,
+    numberOfSections,
+    debugDir.sizeOfHeaders,
+  )) {
     const maxCodeViewRead = Math.min(sizeOfData, 4096);
     const codeViewBuffer = Buffer.alloc(maxCodeViewRead);
     const codeViewRead = await handle.read(

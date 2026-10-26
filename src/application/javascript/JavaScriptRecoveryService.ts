@@ -1,5 +1,5 @@
 import { parseAnalysisInput } from "../AnalysisInput.js";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute } from "node:path";
 
 import {
   AnalysisInputError,
@@ -57,24 +57,6 @@ export class JavaScriptRecoveryService {
             reason: "invalid_format" as const,
             message: `additional_paths entries must be absolute filesystem paths on this host: ${additional}`,
           })),
-        ]),
-      );
-    const selectedInputs = new Set(
-      [parsed.value.path, ...(parsed.value.additional_paths ?? [])].map(
-        (path) => resolve(path),
-      ),
-    );
-    if (
-      selectedInputs.size !==
-      1 + (parsed.value.additional_paths ?? []).length
-    )
-      return err(
-        new AnalysisInputError(OPERATION, undefined, [
-          {
-            path: ["additional_paths"],
-            reason: "invalid_format",
-            message: "additional_paths must not repeat path or each other.",
-          },
         ]),
       );
     const execution = await this.provider.recover(parsed.value, options);

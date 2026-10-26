@@ -173,6 +173,12 @@ distinction: it closes and deletes provider-owned profiles, but only disconnects
 from an external CDP browser. Real-browser verification checks both outcomes and
 confirms that an attached external browser remains alive.
 
+CDP connections leave Playwright's default-context overrides disabled. The
+selected page receives the declared scenario environment and temporary focus
+emulation, so actions can complete while that page is in the background.
+Its environment owner clears these overrides before disconnecting; other pages
+keep their media settings. Connecting does not create a bootstrap page.
+
 That cleanup requires REA to remain running. Abrupt termination, including
 Windows process-tree termination or POSIX `SIGKILL`, can leave the launch
 profile and Playwright artifacts behind. A profile can retain cookies, history,

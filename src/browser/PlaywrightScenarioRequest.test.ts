@@ -341,6 +341,10 @@ describe("request dispatch boundary", () => {
     let gate: ((route: Route) => Promise<void>) | undefined;
     vi.spyOn(page, "route").mockImplementation(async (_match, handler) => {
       gate = handler as typeof gate;
+      return {
+        dispose: async () => undefined,
+        [Symbol.asyncDispose]: async () => undefined,
+      };
     });
     const unroute = vi.spyOn(page, "unroute");
     const sent = vi.fn();

@@ -939,14 +939,20 @@ export class BinarySession
       );
       if (!closed.ok) {
         retained.push(session);
+        const previous = failure;
         failure =
-          failure === undefined
+          previous === undefined
             ? closed.error
             : analysisErrorWithCleanupFailure(
-                failure,
+                previous,
                 closed.error,
                 "close_binary",
               );
+        if (
+          previous?.cleanupIncomplete === true &&
+          closed.error.cleanupIncomplete
+        )
+          failure.bindCleanupDependencies([previous, closed.error]);
       }
     }
     this.#pendingBundleResourceCleanup = retained;

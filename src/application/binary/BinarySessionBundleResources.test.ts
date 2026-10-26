@@ -16,12 +16,12 @@ import { SessionProviderRouter } from "./SessionProviderRouter.js";
 import { bundleResourceRootSchema } from "../../domain/apple/bundleResourceRoot.js";
 import { AnalysisSnapshotMismatchError } from "../../domain/evidenceErrors.js";
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
+import { ProviderCleanupError } from "../../domain/providerCleanupError.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
-import { err } from "../../domain/result.js";
+import { err, ok } from "../../domain/result.js";
 import { AnalysisCancelledError } from "../../domain/analysisErrorCore.js";
 import { createEvidence } from "../../domain/evidence.js";
 import { createAnalysisProfile } from "../../domain/analysisProfile.js";
-import { ok } from "../../domain/result.js";
 import { createTestProviderRouter } from "../../../tests/fixtures/binarySession.js";
 
 const identity: ProviderIdentity = {
@@ -796,4 +796,64 @@ it("cancels a binary switch during resource retirement and retains null-subject 
   expect(await session.status()).toMatchObject({ cleanup_pending: true });
   expect(await session.close()).toMatchObject({ ok: true });
   expect(resourceCloseAttempts).toBe(2);
+});
+
+it("tracks independent pending resource owners after a failed session replacement", async () => {
+  const rootPath = await mkdtemp(
+    join(tmpdir(), "rea-resource-pending-owners-"),
+  );
+  temporaryDirectories.push(rootPath);
+  await writeFile(join(rootPath, "Info.plist"), "<plist><dict/></plist>");
+  const failures = [
+    new ProviderCleanupError(identity.id, ["previous-reader"], {}),
+    new ProviderCleanupError(identity.id, ["candidate-reader"], {}),
+  ];
+  const released = [false, false];
+  let created = 0;
+  const session = new BinarySession(
+    SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
+    new InvestigationRecords(),
+    {
+      createClient: () => {
+        const index = created++;
+        const failure = failures[index];
+        if (failure === undefined)
+          throw new Error("Unexpected resource client");
+        return {
+          capabilities: [],
+          client: {
+            execute: async () => ok(createAnalysisExecution(null, identity)),
+            close: async () => {
+              if (!released[index]) return err(failure);
+              failure.resolveCleanup();
+              return ok(null);
+            },
+          },
+        };
+      },
+    },
+  );
+  expect(await session.openBundleResources(rootPath)).toMatchObject({
+    ok: true,
+  });
+  expect(await session.openBundleResources(rootPath)).toMatchObject({
+    ok: false,
+  });
+  const first = await session.close();
+  if (first.ok)
+    throw new Error("Expected both resource owners to remain pending");
+  expect(new Set(first.error.cleanupResources)).toEqual(
+    new Set(["previous-reader", "candidate-reader"]),
+  );
+
+  released[0] = true;
+  expect(await session.close()).toMatchObject({ ok: false });
+  expect(first.error.cleanupIncomplete).toBe(true);
+  expect(first.error.cleanupResources).toEqual(["candidate-reader"]);
+
+  released[1] = true;
+  expect(await session.close()).toMatchObject({ ok: true });
+  expect(first.error.cleanupIncomplete).toBe(false);
+  expect(first.error.cleanupResources).toEqual([]);
+  expect(await session.status()).toMatchObject({ cleanup_pending: false });
 });

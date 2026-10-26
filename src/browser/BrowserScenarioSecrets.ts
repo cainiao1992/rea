@@ -1,3 +1,5 @@
+import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { redactSensitiveFailure } from "../domain/explicitSensitiveFailure.js";
 import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { createHash } from "node:crypto";
@@ -339,6 +341,11 @@ export class BrowserScenarioSecrets {
    */
   redactionAllocationCost(length: number): number {
     return Math.ceil(length * this.redactionCostPerCharacter);
+  }
+
+  redactFailure(error: AnalysisError): AnalysisError {
+    if (this.textPatterns.length === 0) return error;
+    return redactSensitiveFailure(error, (value) => this.redact(value));
   }
 
   redact(value: string): string {

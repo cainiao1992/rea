@@ -11,7 +11,10 @@ import { PLAYWRIGHT_BROWSER_SCENARIO_PROVIDER_IDENTITY } from "./providerIdentit
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { BrowserObservationError } from "../domain/browserObservationError.js";
-import type { BrowserScenarioSessionPort } from "./BrowserScenarioSessionPort.js";
+import type {
+  RetainBrowserScenarioCleanup,
+  BrowserScenarioSessionPort,
+} from "./BrowserScenarioSessionPort.js";
 import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 import {
   failBrowserScenarioOperation,
@@ -158,13 +161,41 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     environment: Readonly<Record<string, string | undefined>>,
     options: {
       readonly signal?: AbortSignal;
-      readonly retainCleanup?: (lease: AnalysisCleanupLease) => void;
+      readonly retainCleanup?: RetainBrowserScenarioCleanup;
     },
   ): Promise<PlaywrightScenarioSession> {
     throwIfScenarioCancelled(options.signal);
     const resolved = BrowserScenarioSecrets.resolve(scenario, environment);
     if (!resolved.ok) throw resolved.error;
     const secrets = resolved.value;
+    const projectedOptions = {
+      ...options,
+      retainCleanup: (lease: AnalysisCleanupLease) =>
+        options.retainCleanup?.(lease, (value) => secrets.redact(value)),
+    };
+    try {
+      return await this.openResolved(
+        scenario,
+        environment,
+        secrets,
+        projectedOptions,
+      );
+    } catch (cause: unknown) {
+      throw cause instanceof AnalysisError
+        ? secrets.redactFailure(cause)
+        : cause;
+    }
+  }
+
+  private static async openResolved(
+    scenario: BrowserScenario,
+    environment: Readonly<Record<string, string | undefined>>,
+    secrets: BrowserScenarioSecrets,
+    options: {
+      readonly signal?: AbortSignal;
+      readonly retainCleanup?: RetainBrowserScenarioCleanup;
+    },
+  ): Promise<PlaywrightScenarioSession> {
     const startedAt = performance.now();
     const openingCleanup = new Set<AnalysisCleanupLease>();
     const opening = openPlaywrightScenarioBrowser(scenario, environment, {
@@ -292,7 +323,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
     secrets: BrowserScenarioSecrets,
     options: {
       readonly signal?: AbortSignal;
-      readonly retainCleanup?: (lease: AnalysisCleanupLease) => void;
+      readonly retainCleanup?: RetainBrowserScenarioCleanup;
     },
   ): Promise<PlaywrightScenarioSession> {
     let events: PlaywrightScenarioEvents | undefined;

@@ -2,11 +2,17 @@ import { z } from "zod";
 import { safeParseUtf8Json } from "../../domain/safeJson.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import type { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
+import { artifactFileCancellationCause } from "../../artifacts/ArtifactFileOperation.js";
 import {
   completedStableArtifact,
   readStableArtifact,
 } from "../../artifacts/readStableArtifact.js";
-import { AnalysisOutputError } from "../../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisOutputError,
+} from "../../domain/analysisErrorCore.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import { withCaptureReaderCleanup } from "./CaptureFailures.js";
 import {
   WEB_NETWORK_CAPTURE_LIMITS,
   webNetworkCapturePayloadSchema,
@@ -66,7 +72,6 @@ export const readHistoricalCaptureReply = async (
       finalization,
     };
   } catch (cause: unknown) {
-    if (finalization !== undefined) throw finalization;
     if (cause instanceof ArtifactReaderFailure) throw cause;
     if (
       signal?.aborted === true &&
@@ -77,11 +82,21 @@ export const readHistoricalCaptureReply = async (
           cause.code === "ABORT_ERR"))
     )
       throw cause;
-    throw new AnalysisOutputError(
+    const error = new AnalysisOutputError(
       "inspect_web_network_capture",
       `Owned capture decoder reply failed for ${capturePath}: ${replyFailureReason(cause)}`,
       { cause },
     );
+    if (finalization?.reason === "cancelled") {
+      const cancellation = new AnalysisCancelledError(
+        "inspect_web_network_capture",
+        { cause: artifactFileCancellationCause(finalization) },
+      );
+      error.retainSecondaryFailure(cancellation, {
+        reply_finalization_error: projectAnalysisError(cancellation),
+      });
+    }
+    throw withCaptureReaderCleanup(error, finalization);
   }
 };
 

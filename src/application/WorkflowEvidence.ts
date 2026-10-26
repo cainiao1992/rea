@@ -26,6 +26,7 @@ import { UnknownRegistryError } from "../domain/unknownRegistryError.js";
 import { workflowUnknownInput } from "./investigation/WorkflowUnknown.js";
 import {
   renderSourceLimitations,
+  sourceLimitationGroupKey,
   sourceLimitationKey,
   type SourceLimitation,
 } from "./SourceLimitations.js";
@@ -110,12 +111,7 @@ export const executeComposedWorkflow = async (
               omittedObservations += 1;
               continue;
             }
-            const group = JSON.stringify([
-              fact.provider.id,
-              fact.provider.name,
-              fact.provider.version,
-              limitation,
-            ]);
+            const group = sourceLimitationGroupKey(fact);
             if (!perItemGroups.has(group)) {
               if (
                 perItemGroups.size >= budget.maxDistinct ||

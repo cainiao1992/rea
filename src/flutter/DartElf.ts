@@ -93,7 +93,7 @@ export const readElfHeader = (
     return { failure: { reason: "unsupported ELF byte order" } };
   if (fixedHeader.value.headerSize !== headerBytes)
     return { failure: { reason: "unsupported ELF header size" } };
-  const e_type = reader.u16(0x10);
+  const e_type = fixedHeader.value.type;
   if (e_type !== 1 && e_type !== 2 && e_type !== ET_DYN)
     return { failure: { reason: "unsupported ELF type" } };
   const e_shoff = is64 ? reader.u64(0x28) : reader.u32(0x20);

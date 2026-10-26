@@ -11,6 +11,14 @@ it.each([
   "reads common fixed header commitments for %s",
   (_name, cls, data) => {
     const bytes = elf(cls, data, cls === 1 ? 3 : 62);
+    const flagsOffset = cls === 1 ? 36 : 48;
+    if (data === 1) {
+      bytes.writeUInt16LE(0xfe01, 16);
+      bytes.writeUInt32LE(0x89abcdef, flagsOffset);
+    } else {
+      bytes.writeUInt16BE(0xfe01, 16);
+      bytes.writeUInt32BE(0x89abcdef, flagsOffset);
+    }
     expect(readElfFixedHeader(bytes)).toEqual({
       ok: true,
       value: {
@@ -18,6 +26,8 @@ it.each([
         byteOrder: data === 1 ? "little" : "big",
         headerSize: cls === 1 ? 52 : 64,
         machine: cls === 1 ? 3 : 62,
+        type: 0xfe01,
+        flags: 0x89abcdef,
         osAbi: 0,
         architecture: cls === 1 ? "x86" : "x86_64",
       },

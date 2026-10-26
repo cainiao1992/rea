@@ -390,22 +390,18 @@ const parseElf = (
 ): Result<ExecutableMetadata, string> => {
   const fixedHeader = readElfFixedHeader(bytes, fileSize);
   if (!fixedHeader.ok) return fixedHeader;
-  const { elfClass, byteOrder, architecture } = fixedHeader.value;
-  const little = byteOrder === "little";
+  const { elfClass, byteOrder, architecture, type, flags } = fixedHeader.value;
   if (architecture === null) return err("unsupported ELF architecture");
   if (
     architecture === "mips" ||
     architecture === "riscv" ||
     architecture === "powerpc"
   ) {
-    const flagsOffset = elfClass === 32 ? 36 : 48;
     const metadata: ElfFamilyMetadata = {
       elfClass,
-      byteOrder: little ? "little" : "big",
-      type: little ? bytes.readUInt16LE(16) : bytes.readUInt16BE(16),
-      flags: little
-        ? bytes.readUInt32LE(flagsOffset)
-        : bytes.readUInt32BE(flagsOffset),
+      byteOrder,
+      type,
+      flags,
     };
     if (architecture === "powerpc")
       return ok({

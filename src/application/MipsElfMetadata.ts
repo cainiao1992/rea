@@ -84,8 +84,8 @@ export const readMipsElfMetadata = async (
     fixedHeader.value.elfClass !== 32 ||
     fixedHeader.value.byteOrder !== metadata.byteOrder ||
     fixedHeader.value.machine !== 8 ||
-    u16(bytes, 16) !== metadata.type ||
-    u32(bytes, 36) !== metadata.flags
+    fixedHeader.value.type !== metadata.type ||
+    fixedHeader.value.flags !== metadata.flags
   )
     return err("MIPS ELF header no longer matches the resolved identity");
   if (fixedHeader.value.headerSize !== 52)

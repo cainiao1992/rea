@@ -327,7 +327,7 @@ export const parseElfNotes = (
     header.elfClass,
   );
   const wide = header.elfClass === 64;
-  const type = reader.u16(16);
+  const type = header.type;
   const phoff = reader.word(wide ? 32 : 28);
   const shoff = reader.word(wide ? 40 : 32);
   const phentsize = reader.u16(wide ? 54 : 42);

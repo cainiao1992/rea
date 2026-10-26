@@ -2,6 +2,7 @@ import {
   artifactFileCancellationCause,
   bindArtifactFileCleanup,
 } from "../../artifacts/ArtifactFileOperation.js";
+import { completedStableArtifactObservation } from "../../artifacts/StableArtifactObservation.js";
 import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import {
   AnalysisError,
@@ -64,6 +65,29 @@ export const pwntoolsDecoderFailure = (
   executablePath = path,
   failureEvidence: PwntoolsFailureEvidence = {},
   context: PwntoolsFailureContext = DEFAULT_CONTEXT,
+): AnalysisError => {
+  const error = classifyPwntoolsDecoderFailure(
+    cause,
+    phase,
+    path,
+    executablePath,
+    failureEvidence,
+    context,
+  );
+  if (phase === "artifact-read") {
+    const observation = completedStableArtifactObservation(cause, path);
+    if (observation !== undefined) error.retainPartialObservation(observation);
+  }
+  return error;
+};
+
+const classifyPwntoolsDecoderFailure = (
+  cause: unknown,
+  phase: string,
+  path: string,
+  executablePath: string,
+  failureEvidence: PwntoolsFailureEvidence,
+  context: PwntoolsFailureContext,
 ): AnalysisError => {
   const limitReport = failureEvidence.limits;
   if (cause instanceof AnalysisError) return cause;

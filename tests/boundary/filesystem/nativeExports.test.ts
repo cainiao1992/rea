@@ -8,10 +8,42 @@ import { nativeExportsSchema } from "../../../src/domain/native/nativeExports.js
 import {
   elfExportImage,
   peExportImage,
+  peRepeatedExportNamesImage,
 } from "../../fixtures/binaryDiagnostics/nativeExports.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 describe("native export stable filesystem boundary", () => {
+  it("bounds retained PE aliases before interpreting their target", async () => {
+    const root = await createTestTempDirectory("rea-native-export-aliases-");
+    const service = createNativeExportsService();
+    try {
+      // A malformed forwarder suppresses all rows, but its names still occupy
+      // the intermediate inventory and must be bounded before EAT traversal.
+      for (const target of [0x3000, 0x1080, 0]) {
+        const path = join(root, `aliases-${String(target)}.dll`);
+        const bytes = peRepeatedExportNamesImage(target);
+        expect(bytes.length).toBeLessThan(32_000);
+        await writeFile(path, bytes);
+        const result = await service.inspect({ path });
+        if (target === 0) {
+          if (!result.ok) throw new Error(JSON.stringify(result.error));
+          expect(result.value.normalized_result).toMatchObject({
+            exports: [],
+            issues: [],
+            coverage: { status: "complete", examined_entries: 1, exports: 0 },
+          });
+        } else {
+          expect(result).toMatchObject({
+            ok: false,
+            error: { _tag: "AnalysisResourceConstraintError" },
+          });
+        }
+      }
+    } finally {
+      await service.close();
+    }
+  });
+
   it("binds PE and ELF export inventories to the selected file", async () => {
     const root = await createTestTempDirectory("rea-native-exports-");
     const service = createNativeExportsService();

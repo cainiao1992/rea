@@ -50,7 +50,7 @@ const peExportNameAcrossSections = (overlapAtRva?: number): Buffer => {
   return bytes;
 };
 
-describe("PE export name mapping coverage", () => {
+describe("PE export name coverage", () => {
   it("reads a bounded export name across adjacent section mappings", () => {
     const result = parse(peExportNameAcrossSections());
     expect(result).toMatchObject({
@@ -81,6 +81,30 @@ describe("PE export name mapping coverage", () => {
     expect(result.exports).toEqual([]);
     expect(result.issues).toMatchObject([{ code: "name_unreadable" }]);
     expect(result.coverage.status).toBe("partial");
+  });
+
+  it("validates unreadable names on unused slots without retaining exports", () => {
+    const result = parse(
+      peExportImage({
+        functions: [null, { rva: 0x3000 }],
+        names: [
+          { name: "Unreadable", index: 0 },
+          { name: "Unused", index: 0 },
+          { name: "Kept", index: 1 },
+        ],
+        nameRvaOverride: { position: 0, rva: 0x9000 },
+      }),
+    );
+
+    expect(result.exports.map(({ name }) => name)).toEqual(["Kept"]);
+    expect(result.issues).toMatchObject([
+      { code: "name_unreadable", location: "0x9000" },
+    ]);
+    expect(result.coverage).toMatchObject({
+      status: "partial",
+      examined_entries: 2,
+      exports: 1,
+    });
   });
 });
 

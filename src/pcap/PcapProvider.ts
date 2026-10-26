@@ -54,6 +54,7 @@ import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { artifactFileCancellationCause } from "../artifacts/ArtifactFileOperation.js";
 import { ArtifactAnalysisResources } from "../process/ArtifactAnalysisResources.js";
 import { readLinuxResourceLimits } from "../process/LinuxResourceLimits.js";
+import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import {
   assertArtifactCommandPath,
   selectArtifactCommandPath,
@@ -225,7 +226,7 @@ export class PcapProvider {
   >();
 
   constructor(options: PcapProviderOptions = {}) {
-    this.environment = options.environment ?? process.env;
+    this.environment = snapshotEnvironment(options.environment ?? process.env);
     this.launcher = options.launcher;
     this.#resources = new ArtifactAnalysisResources(
       "pcap",

@@ -24,6 +24,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { PcapProvider } from "../../../src/pcap/PcapProvider.js";
+import { PcapAnalysisService } from "../../../src/application/pcap/PcapAnalysisService.js";
 import {
   CAPINFOS_COMMAND_ENV,
   TSHARK_COMMAND_ENV,
@@ -57,6 +58,68 @@ const providerOver = (): PcapProvider => {
   onTestFinished(() => provider.close());
   return provider;
 };
+
+it.skipIf(isWindows).each(["path", "explicit"] as const)(
+  "retains the selected %s environment after a successful Wireshark probe",
+  async (selection) => {
+    const root = await createTestTempDirectory("rea-pcap-environment-");
+    for (const [name, banner] of [
+      ["tshark", "TShark"],
+      ["capinfos", "Capinfos"],
+    ] as const) {
+      await writeFile(
+        join(root, name),
+        `#!/bin/sh
+printf '${banner} (Wireshark) 4.6.6-%s\\n' "$PCAP_TEST_PROFILE"
+printf '%s|%s|%s\\n' "$PCAP_TEST_PROFILE" "$PCAP_TEST_EMPTY" "\${PCAP_TEST_ABSENT-unset}" >> "$0.calls"
+`,
+        { mode: 0o755 },
+      );
+    }
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: root,
+      PCAP_TEST_PROFILE: "selected",
+      PCAP_TEST_EMPTY: "",
+    };
+    delete environment.PCAP_TEST_ABSENT;
+    delete environment.REA_TSHARK_COMMAND;
+    delete environment.REA_CAPINFOS_COMMAND;
+    if (selection === "explicit") {
+      environment.REA_TSHARK_COMMAND = join(root, "tshark");
+      environment.REA_CAPINFOS_COMMAND = join(root, "capinfos");
+    }
+    const provider = new PcapProvider({ environment });
+    onTestFinished(() => provider.close());
+    const service = new PcapAnalysisService(provider);
+    const first = await service.execute("inspect_pcap_client", {});
+    if (!first.ok) throw first.error;
+    expect(first.value.normalized_result).toMatchObject({
+      client: {
+        tshark_version: "TShark (Wireshark) 4.6.6-selected",
+        capinfos_version: "Capinfos (Wireshark) 4.6.6-selected",
+      },
+    });
+    environment.PATH = join(root, "missing-bin");
+    environment.PCAP_TEST_PROFILE = "later";
+    environment.PCAP_TEST_EMPTY = "later";
+    environment.PCAP_TEST_ABSENT = "later";
+    if (selection === "explicit") {
+      environment.REA_TSHARK_COMMAND = join(root, "missing-tshark");
+      environment.REA_CAPINFOS_COMMAND = join(root, "missing-capinfos");
+    }
+    const repeated = await service.execute("inspect_pcap_client", {});
+    if (!repeated.ok) throw repeated.error;
+    expect(repeated.value.normalized_result).toEqual(
+      first.value.normalized_result,
+    );
+    expect(JSON.stringify(repeated.value)).not.toContain("PCAP_TEST_PROFILE");
+    for (const name of ["tshark", "capinfos"])
+      expect(await readFile(join(root, `${name}.calls`), "utf8")).toBe(
+        "selected||unset\nselected||unset\n",
+      );
+  },
+);
 
 it.skipIf(isWindows)(
   "preserves selected Wireshark wrappers and re-admits changed symlink targets after success",

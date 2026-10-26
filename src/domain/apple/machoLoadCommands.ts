@@ -24,19 +24,12 @@ export const readMachoHeaderDeclarations = (
   fileSize: number,
 ): Result<MachoHeaderDeclarations | null, string> => {
   const prefix = readMachoHeaderPrefixFacts(bytes);
-  const magic = prefix.magic;
-  if (
-    magic === null ||
-    ![0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic)
-  )
-    return ok(null);
-  const wide = magic === 0xfeedfacf || magic === 0xcffaedfe;
-  const headerSize = wide ? 32 : 28;
+  if (prefix.format === null) return ok(null);
+  const { wide, headerSize, littleEndian } = prefix.format;
   if (bytes.byteLength < 28 || prefix.identity === null)
     return err(
       `truncated Mach-O header: a ${wide ? 64 : 32}-bit header needs ${headerSize} bytes; the file has ${fileSize}`,
     );
-  const littleEndian = magic === 0xcefaedfe || magic === 0xcffaedfe;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const commandBytes = view.getUint32(20, littleEndian);
   return ok({

@@ -27,9 +27,9 @@ import {
   MAX_LAZY_INFO_DEPENDENCIES,
   MAX_LAZY_INFO_SYMBOL_REFERENCES,
   MAX_LOAD_COMMAND_BYTES,
-  hasMachoMagic,
   readMachoImage,
 } from "./MachoLoadCommandReader.js";
+import { hasMachoMagic } from "../../domain/apple/machoContainer.js";
 import { traceDylibResolution } from "./DylibResolutionReader.js";
 import { DirectoryArtifactReader } from "../DirectoryArtifactReader.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";

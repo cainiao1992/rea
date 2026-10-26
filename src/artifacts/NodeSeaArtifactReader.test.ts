@@ -728,3 +728,20 @@ it("retains SEA admission for a complete segment with a nonaligned command size"
     await handle.close();
   }
 });
+
+it.each([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe])(
+  "classifies four-byte thin magic %i without admitting a truncated SEA carrier",
+  async (magic) => {
+    const bytes = Buffer.alloc(4);
+    bytes.writeUInt32BE(magic);
+    const path = await writeCarrier("thin-prefix", bytes);
+    const inventory = await scanCanonicalArtifactInventory(path);
+    expect(inventory.manifest.root_format).toBe("mach-o");
+    const handle = await open(path, "r");
+    try {
+      expect(await locateNodeSea(handle, bytes.length)).toBeUndefined();
+    } finally {
+      await handle.close();
+    }
+  },
+);

@@ -103,9 +103,7 @@ export const claimsExecutableHeader = (
 ): boolean =>
   (bytes.length >= 4 &&
     (bytes.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) ||
-      [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(
-        bytes.readUInt32BE(0),
-      ))) ||
+      readMachoHeaderPrefixFacts(bytes).format !== null)) ||
   (bytes.length >= 2 && bytes[0] === 0x4d && bytes[1] === 0x5a) ||
   readFatContainerHeader(bytes, fileSize).state !== "not-fat";
 
@@ -132,8 +130,7 @@ export const parseExecutableHeader = (
       parseMzHeaderEvidence(bytes, fileSize, mzWindowsHeaderSignature),
     );
   if (bytes.length < 8) return err("truncated or unsupported binary header");
-  const magic = bytes.readUInt32BE(0);
-  if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic))
+  if (readMachoHeaderPrefixFacts(bytes).format !== null)
     return parseThinMachO(bytes, fileSize);
   const fatHeader =
     fatEvidence?.header ?? readFatContainerHeader(bytes, fileSize);

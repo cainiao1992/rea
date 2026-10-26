@@ -22,8 +22,11 @@ import {
 } from "../../domain/apple/machoPlatform.js";
 import {
   classifyFatContainerIdentity,
+  hasMachoMagic,
   readFatContainerHeader,
+  readFatHeaderPrefix,
   readFatSliceDeclarations,
+  readMachoHeaderPrefixFacts,
   validateFatSlice,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
@@ -46,14 +49,6 @@ export const MAX_LAZY_INFO_DEPENDENCIES = 1024;
  * offset, so stop before that map and those decodes grow.
  */
 export const MAX_LAZY_INFO_SYMBOL_REFERENCES = 64 * 1024;
-const MH_MAGIC = 0xfeedface;
-const MH_MAGIC_64 = 0xfeedfacf;
-const MH_CIGAM = 0xcefaedfe;
-const MH_CIGAM_64 = 0xcffaedfe;
-const FAT_MAGIC = 0xcafebabe;
-const FAT_MAGIC_64 = 0xcafebabf;
-const FAT_CIGAM = 0xbebafeca;
-const FAT_CIGAM_64 = 0xbfbafeca;
 
 const LC_SEGMENT = 0x1;
 const LC_SEGMENT_64 = 0x19;
@@ -114,26 +109,6 @@ class MachoFormatIssue extends Error {
   }
 }
 
-/** Report whether the first bytes carry a Mach-O or FAT magic number. */
-export const hasMachoMagic = (head: Uint8Array): boolean => {
-  if (head.byteLength < 4) return false;
-  const magic = new DataView(
-    head.buffer,
-    head.byteOffset,
-    head.byteLength,
-  ).getUint32(0, false);
-  return [
-    MH_MAGIC,
-    MH_MAGIC_64,
-    MH_CIGAM,
-    MH_CIGAM_64,
-    FAT_MAGIC,
-    FAT_MAGIC_64,
-    FAT_CIGAM,
-    FAT_CIGAM_64,
-  ].includes(magic);
-};
-
 /** Decode every slice's dylib-loading load commands without reading code. */
 export const readMachoImage = async (
   readAt: ReadAt,
@@ -146,10 +121,13 @@ export const readMachoImage = async (
       return hasMachoMagic(head)
         ? { status: "malformed", reason: "Mach-O header is truncated" }
         : { status: "not-mach-o" };
-    const view = viewOf(head);
-    const magic = view.getUint32(0, false);
+    const fatPrefix = readFatHeaderPrefix(head);
+    const mayBeJvmClass =
+      fatPrefix.state === "parsed" &&
+      !fatPrefix.wide &&
+      !fatPrefix.littleEndian;
     let header: ReturnType<typeof readFatContainerHeader>;
-    if (magic === FAT_MAGIC && size <= MAX_JVM_CLASS_IDENTITY_BYTES) {
+    if (mayBeJvmClass && size <= MAX_JVM_CLASS_IDENTITY_BYTES) {
       const complete = await readAt(0, size);
       header =
         complete.byteLength === size
@@ -187,7 +165,7 @@ export const readMachoImage = async (
         // A large CAFEBABE input whose bounded prefix resembles an invalid
         // known-CPU FAT table remains unknown until its JVM identity can be
         // checked; do not turn the resource limit into a malformed claim.
-        if (magic === FAT_MAGIC && size > MAX_JVM_CLASS_IDENTITY_BYTES)
+        if (mayBeJvmClass && size > MAX_JVM_CLASS_IDENTITY_BYTES)
           throw new MachoFormatIssue(
             "unsupported",
             JVM_CLASS_IDENTITY_LIMIT_REASON,
@@ -203,9 +181,10 @@ export const readMachoImage = async (
         ...(hiddenSlice === null ? {} : { hiddenSlices: [hiddenSlice] }),
       };
     }
-    if (magic === MH_CIGAM || magic === MH_CIGAM_64)
+    const thin = readMachoHeaderPrefixFacts(head).format;
+    if (thin?.littleEndian === true)
       return { status: "parsed", slices: [await readSlice(readAt, 0, size)] };
-    if (magic === MH_MAGIC || magic === MH_MAGIC_64)
+    if (thin !== null)
       throw new MachoFormatIssue(
         "unsupported",
         "big-endian Mach-O images are not supported",

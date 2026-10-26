@@ -129,7 +129,9 @@ it("preserves explicit unknown slice evidence instead of falling back to retaine
   const header = readFatContainerHeader(bytes, bytes.length);
   if (header.state !== "parsed") throw new Error("Expected FAT header");
   const offset = header.slices[0]!.offset;
-  const unknown = new Map([[offset, { magic: null, identity: null }]]);
+  const unknown = new Map([
+    [offset, readMachoHeaderPrefixFacts(Buffer.alloc(0))],
+  ]);
   expect(classifyFatContainerEvidence(header, bytes, new Map())).toEqual({
     state: "mach-o",
   });
@@ -258,6 +260,7 @@ describe("FAT Mach-O identity", () => {
     bigEndian.writeUInt32BE(CPU.x86_64.subtype, 8);
     expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 12))).toEqual({
       magic: 0xcffaedfe,
+      format: { wide: true, littleEndian: true, headerSize: 32 },
       identity: {
         cpuType: CPU.arm64.type,
         cpuSubtype: CPU.arm64.subtype,
@@ -265,6 +268,7 @@ describe("FAT Mach-O identity", () => {
     });
     expect(readMachoHeaderPrefixFacts(bigEndian)).toEqual({
       magic: 0xfeedfacf,
+      format: { wide: true, littleEndian: false, headerSize: 32 },
       identity: {
         cpuType: CPU.x86_64.type,
         cpuSubtype: CPU.x86_64.subtype,
@@ -272,10 +276,12 @@ describe("FAT Mach-O identity", () => {
     });
     expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 11))).toEqual({
       magic: 0xcffaedfe,
+      format: { wide: true, littleEndian: true, headerSize: 32 },
       identity: null,
     });
     expect(readMachoHeaderPrefixFacts(littleEndian.subarray(0, 3))).toEqual({
       magic: null,
+      format: null,
       identity: null,
     });
   });

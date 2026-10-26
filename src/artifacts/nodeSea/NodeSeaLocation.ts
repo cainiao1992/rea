@@ -17,7 +17,11 @@ import type { FileHandle } from "node:fs/promises";
 
 import { abortIfNeeded } from "../ArtifactHash.js";
 import { ArtifactReaderFailure } from "../ArtifactReader.js";
-import { readFatContainerHeader } from "../../domain/apple/machoContainer.js";
+import {
+  readFatContainerHeader,
+  readFatHeaderPrefix,
+  readMachoHeaderPrefixFacts,
+} from "../../domain/apple/machoContainer.js";
 import { readElfFixedHeader } from "../../domain/elfFixedHeader.js";
 import { readMachoLoadCommandTableHeader } from "../../domain/apple/machoLoadCommands.js";
 import {
@@ -51,9 +55,6 @@ const MAX_NOTE_NAME_BYTES = 4096;
 const FUSE_LENGTH = "NODE_SEA_FUSE_".length + 32 + 2;
 // PE header structures must fit this prefix for the bounded name probe.
 const PE_HEADER_PROBE_BYTES = 64 * 1024;
-
-const THIN_MAGICS = new Set([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe]);
-const FAT_MAGICS = new Set([0xcafebabe, 0xcafebabf, 0xbebafeca, 0xbfbafeca]);
 
 /** One injected blob inside a native carrier. Offsets are carrier file offsets. */
 export interface NodeSeaLocation {
@@ -96,11 +97,13 @@ export const locateNodeSea = async (
   const carrier: Carrier = { handle, fileSize, signal };
   const prefix = await readExact(carrier, 0, Math.min(fileSize, 64));
   if (prefix === undefined || prefix.length < 4) return undefined;
-  const magic = prefix.readUInt32BE(0);
-  if (THIN_MAGICS.has(magic) || FAT_MAGICS.has(magic)) {
-    const ranges = THIN_MAGICS.has(magic)
-      ? await locateThinMachO(carrier, 0, fileSize)
-      : await locateFatMachO(carrier, prefix);
+  const thin = readMachoHeaderPrefixFacts(prefix).format;
+  const fat = readFatHeaderPrefix(prefix);
+  if (thin !== null || fat.state === "incomplete" || fat.state === "parsed") {
+    const ranges =
+      thin !== null
+        ? await locateThinMachO(carrier, 0, fileSize)
+        : await locateFatMachO(carrier, prefix);
     return collapseRanges(carrier, "mach-o", ranges);
   }
   if (prefix.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])))
@@ -216,7 +219,7 @@ const locateFatMachO = async (
     header = readFatContainerHeader(bytes, carrier.fileSize);
   }
   if (header.state !== "parsed") {
-    if (bytes.length >= 4 && THIN_MAGICS.has(bytes.readUInt32BE(0)))
+    if (readMachoHeaderPrefixFacts(bytes).format !== null)
       return locateThinMachO(carrier, 0, carrier.fileSize);
     return [];
   }

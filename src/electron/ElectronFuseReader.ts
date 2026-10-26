@@ -6,10 +6,11 @@ import type { ResolvedElectronFuseFile } from "./ElectronFusePath.js";
 import { createHash } from "node:crypto";
 import { lstat, type FileHandle } from "node:fs/promises";
 
+import { readMachoImage } from "../artifacts/apple/MachoLoadCommandReader.js";
 import {
   hasMachoMagic,
-  readMachoImage,
-} from "../artifacts/apple/MachoLoadCommandReader.js";
+  readFatHeaderPrefix,
+} from "../domain/apple/machoContainer.js";
 import type { ReadAt } from "../artifacts/apple/MachoLoadCommandReader.js";
 import {
   electronFuseName,
@@ -38,7 +39,6 @@ export const ELECTRON_FUSE_LIMITS = {
 } as const;
 
 const SENTINEL = Buffer.from(ELECTRON_FUSE_SENTINEL, "ascii");
-const FAT_MAGICS = new Set([0xcafebabe, 0xcafebabf, 0xbebafeca, 0xbfbafeca]);
 
 /** Container identity and per-slice fuse wires. Offsets are file-absolute. */
 export interface ElectronFuseImage {
@@ -262,7 +262,11 @@ const identifyMacho = async (
       reason,
     );
   }
-  const format = isFat(head) ? "mach-o-universal" : "mach-o";
+  const fat = readFatHeaderPrefix(head);
+  const format =
+    fat.state === "parsed" || fat.state === "incomplete"
+      ? "mach-o-universal"
+      : "mach-o";
   const slices = machoImageSlices(facts).map((slice, index) => ({
     index,
     fileOffset: slice.slice_offset,
@@ -470,12 +474,6 @@ const isElf = (head: Uint8Array): boolean =>
   head[1] === 0x45 &&
   head[2] === 0x4c &&
   head[3] === 0x46;
-
-const isFat = (head: Uint8Array): boolean => {
-  if (head.length < 4) return false;
-  const magic = Buffer.from(head.buffer, head.byteOffset, 4).readUInt32BE(0);
-  return FAT_MAGICS.has(magic);
-};
 
 const identifyPe = async (
   readAt: ReadAt,

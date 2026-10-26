@@ -21,7 +21,7 @@ import { readAssemblyReferenceName } from "../dotnet/ManagedMetadataInventoryRow
 import { ManagedReaderFailure } from "../dotnet/ManagedReaderFailure.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { abortIfNeeded } from "./ArtifactHash.js";
-import { hasMachoMagic } from "./apple/MachoLoadCommandReader.js";
+import { hasMachoMagic } from "../domain/apple/machoContainer.js";
 
 export interface DesktopReadBudget {
   bytes: number;

@@ -32,6 +32,7 @@ import { parseMzHeaderEvidence } from "../../domain/dosMz.js";
 import {
   classifyFatContainerEvidence,
   readFatContainerHeader,
+  readMachoHeaderPrefixFacts,
 } from "../../domain/apple/machoContainer.js";
 
 /** Mutable internal occurrence used until root-bound IDs are known. */
@@ -581,9 +582,7 @@ export const classifyArtifactBytes = (
   const fatFormat = classifyFatArtifact(evidence, fileSize);
   if (fatFormat !== null) return fatFormat;
   if (prefix.length >= 4) {
-    const magic = prefix.readUInt32BE(0);
-    if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic))
-      return "mach-o";
+    if (readMachoHeaderPrefixFacts(prefix).format !== null) return "mach-o";
     if (prefix.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])))
       return "elf";
   }

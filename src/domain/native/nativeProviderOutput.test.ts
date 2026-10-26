@@ -31,8 +31,8 @@ describe("native provider boundary values", () => {
       parseSegments([{ name: "__TEXT", start: "0x1", end: "0x2" }]).ok,
     ).toBe(false);
   });
-  it("parses direct and wrapped protocol shapes", () => {
-    expect(parseRelatedAddresses({ callers: ["0x3"] }, "callers")).toEqual({
+  it("parses provider arrays", () => {
+    expect(parseRelatedAddresses(["0x3"], "callers")).toEqual({
       ok: true,
       value: ["0x3"],
     });
@@ -68,6 +68,12 @@ describe("native provider boundary values", () => {
 
   it.each([
     ["relations", () => parseRelatedAddresses([1], "callees")],
+    [
+      "wrapped relations",
+      () => parseRelatedAddresses({ callees: ["0x3"] }, "callees"),
+    ],
+    ["wrapped documents", () => parseDocuments({ documents: ["fixture"] })],
+    ["wrapped segments", () => parseSegments({ segments: [] })],
     ["segments", () => parseSegments([{ name: 1 }])],
     ["documents", () => parseDocuments([1])],
   ])(

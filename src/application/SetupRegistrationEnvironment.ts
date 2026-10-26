@@ -2,16 +2,37 @@ import type { DoctorProviderInspection } from "./Doctor.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 
 const SELECTED_REGISTRATION_SETTINGS = [
+  "GHIDRA_INSTALL_DIR",
+  "JAVA_HOME",
+  "HOPPER_LAUNCHER_PATH",
   "REA_ILSPY_CMD_PATH",
+  "REA_IDA_MCP_CONFIG",
+  "REA_JADX_MCP_JAR",
+  "REA_JADX_HEAP_MIB",
+  "REA_JADX_ACTIVE_PROCESSOR_COUNT",
+  "REA_JADX_OPERATION_TIMEOUT_MS",
+  "REA_KUNA_COMMAND",
+  "REA_KUNA_CACHE_DIR",
+  "REA_KUNA_CACHE_MAX_BYTES",
+  "REA_KUNA_PROJECT_TIMEOUT_MS",
+  "REA_KUNA_TIMEOUT_MS",
+  "REA_KUNA_JOBS",
   "REA_ANALYSIS_PROVIDER",
   "REA_ASAR_MAX_HEADER_BYTES",
   "REA_BRIDGE_MAX_REQUEST_BYTES",
   "REA_CAPTURE_DECODER_OLD_GENERATION_MIB",
   "REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS",
   "REA_GHIDRA_STARTUP_TIMEOUT_MS",
+  "REA_GHIDRA_LANGUAGE_ID",
+  "REA_GHIDRA_COMPILER_SPEC_ID",
+  "REA_GHIDRA_DISABLED_ANALYZERS",
+  "REA_GHIDRA_SEED_FILE",
+  "REA_GHIDRA_NATIVEAOT_JAR",
   "REA_HOPPER_STARTUP_TIMEOUT_MS",
   "REA_JEB_MCP_TIMEOUT_MS",
   "REA_MCP_INPUT_SCHEMA_PROFILE",
+  "REA_MCP_OUTPUT_SCHEMA_PROFILE",
+  "REA_MCP_MAX_RESPONSE_BYTES",
   "REA_NATIVE_MATCHING_REPRESENTATION_BYTES",
   "REA_REGEX_MATCHING_DEADLINE_MS",
   "REA_REGEX_WORKER_HEAP_REQUEST_MIB",
@@ -21,7 +42,9 @@ const SELECTED_REGISTRATION_SETTINGS = [
   "REA_MCP_DOCTOR_DEADLINE_MS",
 ] as const;
 
-/** Preserve selected setup settings without copying unrelated process values. */
+/** Explicit selections override discovered defaults even when a provider is unavailable.
+ * This is a registration policy, not a prefix match against the ambient environment.
+ */
 export const explicitSetupRegistrationEnvironment = (
   environment: Readonly<Record<string, string | undefined>>,
 ): Readonly<Record<string, string>> =>
@@ -32,7 +55,7 @@ export const explicitSetupRegistrationEnvironment = (
     }),
   );
 
-/** Preserve adapter-published settings independently of runtime readiness. */
+/** Discovered provider defaults; explicit selections are applied separately. */
 export const providerRegistrationEnvironment = (
   inspections: readonly DoctorProviderInspection[],
 ): Readonly<Record<string, string>> =>

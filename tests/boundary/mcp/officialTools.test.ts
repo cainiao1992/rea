@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { AnalysisOperationPort } from "../../../src/application/AnalysisProvider.js";
 import { OFFICIAL_TOOL_CONTRACTS } from "../../../src/contracts/officialToolContracts.js";
+import { toolContract } from "../../../src/contracts/toolContracts.js";
+import { jsonObjectSchema } from "../../../src/domain/jsonValue.js";
 import { HopperRemoteError } from "../../../src/domain/hopperErrors.js";
 import { err } from "../../../src/domain/result.js";
 import { observed as ok } from "../../fixtures/analysisExecution.js";
@@ -231,6 +233,35 @@ describe("official tool input contracts", () => {
 });
 
 describe("official Hopper proxy tools", () => {
+  it("delivers every batch naming readback key in structured and text Evidence", async () => {
+    const readback = JSON.parse(
+      '{"0x1000":true,"__proto__":false,"constructor":true}',
+    );
+    const client = await connect({
+      execute: () => Promise.resolve(ok(readback)),
+    });
+    const response = await client.callTool({
+      name: "set_addresses_names",
+      arguments: {
+        names: JSON.parse(
+          '{"0x1000":"entry","__proto__":"other","constructor":"named"}',
+        ),
+      },
+    });
+    expect(response.isError).toBeFalsy();
+    const evidence = toolContract("set_addresses_names").outputSchema.parse(
+      response.structuredContent,
+    );
+    const result = jsonObjectSchema.parse(evidence.normalized_result);
+    expect(result).toEqual(readback);
+    expect(Object.hasOwn(result, "__proto__")).toBe(true);
+    const text = response.content.find((item) => item.type === "text");
+    if (text?.type !== "text") throw new Error("Missing serialized Evidence");
+    expect(
+      jsonObjectSchema.parse(JSON.parse(text.text)).normalized_result,
+    ).toEqual(readback);
+  });
+
   it("returns stable safe MCP error content", async () => {
     const client = await connect({
       execute: () => Promise.resolve(err(new HopperRemoteError(-1, "denied"))),

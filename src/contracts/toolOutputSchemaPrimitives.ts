@@ -8,7 +8,7 @@ import {
   evidenceSchema,
   validateAnalysisProfileProvider,
 } from "../domain/evidence.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
+import { jsonObjectSchema } from "../domain/jsonValue.js";
 import {
   PROVIDER_REJECTION_CODES,
   type ProviderRejectionCode,
@@ -255,8 +255,6 @@ const providerRejectionCode: z.ZodType<ProviderRejectionCode> = z.enum(
   PROVIDER_REJECTION_CODES,
 );
 
-const providerDiagnostics = z.record(z.string(), jsonValueSchema);
-
 const providerAvailabilityStates = {
   unknown: z.object({
     status: z.literal("unknown"),
@@ -277,13 +275,13 @@ const providerAvailabilityStates = {
 
 const providerAvailability = z.discriminatedUnion("status", [
   providerAvailabilityStates.unknown.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
   providerAvailabilityStates.available.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
   providerAvailabilityStates.unavailable.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
 ]);
 
@@ -313,13 +311,13 @@ const providerTargetSupportStates = {
 
 const providerTargetSupport = z.discriminatedUnion("status", [
   providerTargetSupportStates.unknown.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
   providerTargetSupportStates.supported.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
   providerTargetSupportStates.unsupported.extend({
-    diagnostics: providerDiagnostics,
+    diagnostics: jsonObjectSchema,
   }),
 ]);
 

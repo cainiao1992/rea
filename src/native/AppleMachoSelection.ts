@@ -15,7 +15,6 @@ import {
 import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
 import {
   readFatSliceDeclarations,
-  readMachoHeaderPrefixFacts,
   validateFatSlice,
   validateFatSliceIdentity,
   type FatSliceDeclaration,
@@ -180,12 +179,7 @@ export const parseMachoLayout = (
     );
   }
   const table = declarations.value;
-  const identity = readMachoHeaderPrefixFacts(selectedBytes).identity;
-  if (identity === null)
-    throw new TypeError(
-      "Only little-endian 64-bit Mach-O metadata is supported",
-    );
-  const { cpuType, cpuSubtype } = identity;
+  const { cpuType, cpuSubtype } = table.identity;
   const fat = selection.fatDeclaration;
   if (fat !== undefined) {
     const issue = validateFatSliceIdentity(fat, {

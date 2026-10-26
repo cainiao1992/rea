@@ -150,7 +150,7 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
   }
   const complete = commands.finish();
   if (!complete.ok) throw new BinaryFormatFailure("malformed", complete.error);
-  const cpu = reader.u32(4);
+  const cpu = table.identity.cpuType;
   const names = new Map([
     [7, "386"],
     [0x01000007, "amd64"],

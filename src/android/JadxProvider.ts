@@ -579,6 +579,9 @@ export class JadxProvider implements AndroidAnalysisPort {
         session = new JadxSession(
           {
             command: configuration.java,
+            // Java PATH shims may execute an interpreter or replace themselves.
+            // Match the prerequisite probe's run-token ownership policy.
+            expectedCommand: null,
             arguments: [
               ...configuration.jvmArguments,
               "--class-path",

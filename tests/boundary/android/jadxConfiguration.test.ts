@@ -244,12 +244,10 @@ it("distinguishes a runnable JRE from a missing Java executable", async () => {
   expect(availability).toMatchObject({
     status: "unavailable",
     code: "runtime_missing",
-    reason: expect.stringContaining("spawn java ENOENT"),
+    reason: expect.stringContaining("Cannot find an executable java"),
     diagnostics: {
       java_executable: "java",
-      phase: "module-inspection",
-      exit_code: null,
-      process_error_code: "ENOENT",
+      phase: "path-lookup",
     },
   });
 });

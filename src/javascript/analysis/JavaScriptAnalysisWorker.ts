@@ -550,6 +550,14 @@ export class JavaScriptAnalysisWorker {
         });
       }
     }
+    if (result.ok && signal?.aborted === true) {
+      const error = new AnalysisCancelledError(OPERATION, {
+        cause: signal.reason,
+        capturedOutput: this.#captured(),
+      });
+      this.#lastFailure = error;
+      result = err({ error, javascript, module, projection });
+    }
     if (this.#applicationProjectionFailure !== undefined)
       return result.ok
         ? ok({

@@ -5,6 +5,7 @@ const faults = vi.hoisted(() => ({
   lowHeadroom: false,
   sourceRemoval: false,
   removals: 0,
+  onSourceRemoval: undefined as (() => void) | undefined,
 }));
 
 vi.mock("node:v8", async (original) => {
@@ -35,6 +36,7 @@ vi.mock("node:fs/promises", async (original) => {
         String(args[0]).endsWith(".source")
       ) {
         faults.removals += 1;
+        faults.onSourceRemoval?.();
         throw Object.assign(
           new Error("controlled source-file removal failure"),
           { code: "EACCES" },
@@ -71,6 +73,7 @@ afterEach(() => {
   faults.lowHeadroom = false;
   faults.sourceRemoval = false;
   faults.removals = 0;
+  faults.onSourceRemoval = undefined;
 });
 
 it.each(["io", "output"] as const)(
@@ -118,6 +121,9 @@ it.each([false, true])(
   async (removalFailure) => {
     faults.lowHeadroom = true;
     faults.sourceRemoval = removalFailure;
+    const controller = new AbortController();
+    const reason = new Error("cancel during denied source-file cleanup");
+    faults.onSourceRemoval = () => controller.abort(reason);
     const sourceMapUrls = [
       {
         declared_url: "app.map",
@@ -144,8 +150,13 @@ it.each([false, true])(
           ],
         }),
     );
+    let cleanupFailure: ProviderCleanupError | undefined;
     try {
-      const result = await worker.analyze(file, { nodes: 100, unknowns: 100 });
+      const result = await worker.analyze(
+        file,
+        { nodes: 100, unknowns: 100 },
+        controller.signal,
+      );
       expect(result.ok).toBe(!removalFailure);
       const retained = result.ok ? result.value : result.error;
       expect(retained.javascript?.source_map_urls).toEqual(sourceMapUrls);
@@ -156,11 +167,21 @@ it.each([false, true])(
       if (!result.ok) {
         expect(result.error.error).toBeInstanceOf(ProviderCleanupError);
         expect(result.error.error.cleanupIncomplete).toBe(true);
+        expect(worker.canReuse()).toBe(false);
+        if (result.error.error instanceof ProviderCleanupError)
+          cleanupFailure = result.error.error;
       }
       expect(faults.removals).toBe(removalFailure ? 1 : 0);
+      expect(controller.signal.aborted).toBe(removalFailure);
+      expect(controller.signal.reason).toBe(
+        removalFailure ? reason : undefined,
+      );
     } finally {
       faults.sourceRemoval = false;
       await worker.close();
     }
+    expect(cleanupFailure?.cleanupIncomplete).toBe(
+      removalFailure ? false : undefined,
+    );
   },
 );

@@ -84,7 +84,6 @@ export const runPcapCommand = async (options: {
   if (signal?.aborted)
     throw new AnalysisCancelledError(operation, { cause: signal.reason });
   const hostEnvironment = {
-    ...process.env,
     ...options.environment,
     LC_ALL: "C",
     LANG: "C",

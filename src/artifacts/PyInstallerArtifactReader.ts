@@ -323,7 +323,9 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     await this.#openHandle(signal);
     const { handle, initial } = await this.#source.readSelectedPath();
     const size = initial.size;
-    const pathDialect = await carrierPathDialect(handle, size, signal);
+    const pathDialect =
+      this.#admission?.carrierPathDialect ??
+      (await carrierPathDialect(handle, size, signal));
     const cookie =
       this.#admission?.cookie ?? (await this.#cookie(handle, size, signal));
     this.#budget = artifactExpansionBudgetBytes(cookie.packageLength);

@@ -302,8 +302,15 @@ const classifyRootFormat = async (
     }
     const packaged = await embeddedProbes.pyInstaller();
     abortIfNeeded(signal);
+    // A valid cookie also proves enough bytes for a thin Mach-O identity;
+    // PE and universal Mach-O classification already require stronger proof.
     if (packaged !== undefined)
-      return { kind: "pyinstaller", source, cookie: packaged };
+      return {
+        kind: "pyinstaller",
+        source,
+        cookie: packaged,
+        carrierPathDialect: format === "pe" ? "windows" : "posix",
+      };
   }
   return format;
 };

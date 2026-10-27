@@ -1,4 +1,4 @@
-import { appendFile, writeFile } from "node:fs/promises";
+import { appendFile, lstat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
@@ -6,6 +6,7 @@ import { withOwnedRegularFile } from "../../filesystem/OwnedRegularFile.js";
 import { ArtifactEmbeddedFormatProbes } from "../ArtifactEmbeddedFormatProbes.js";
 import { ArtifactResourceScope } from "../ArtifactResourceScope.js";
 import { inventoryArtifact } from "../inventory/ArtifactInventory.js";
+import { classifyAndHashRootForInventory } from "../inventory/classify.js";
 import { PyInstallerArtifactReader } from "../PyInstallerArtifactReader.js";
 import { cArchiveExecutable } from "./CArchive.fixture.js";
 import * as layout from "./CArchiveLayout.js";
@@ -24,6 +25,110 @@ const fixture = () =>
       },
     ],
   });
+
+it.each([
+  {
+    carrier: "elf",
+    offset: undefined,
+    dialect: "posix",
+    path: String.raw`pkg\data.bin`,
+  },
+  { carrier: "pe", offset: 64, dialect: "windows", path: "pkg/data.bin" },
+  { carrier: "pe", offset: 8190, dialect: "windows", path: "pkg/data.bin" },
+] as const)(
+  "retains $carrier carrier dialect at offset $offset through member projection",
+  async ({ carrier, offset, dialect, path: memberPath }) => {
+    const root = await createTestTempDirectory(
+      "rea-pyinstaller-carrier-admission-",
+    );
+    const path = join(root, "app");
+    const sourceName = String.raw`pkg\data.bin`;
+    await writeFile(
+      path,
+      cArchiveExecutable({
+        carrier,
+        ...(offset === undefined ? {} : { peHeaderOffset: offset }),
+        layout: "2.1",
+        pythonVersion: 314,
+        members: [
+          {
+            name: sourceName,
+            typeCode: "x",
+            payload: Buffer.from("fixture"),
+            compress: false,
+          },
+        ],
+      }),
+    );
+    const resourceScope = new ArtifactResourceScope();
+    try {
+      const classified = await classifyAndHashRootForInventory(
+        path,
+        false,
+        await lstat(path),
+        { resourceScope },
+      );
+      const admission = classified.readerAdmission;
+      if (
+        admission === undefined ||
+        !("kind" in admission) ||
+        admission.kind !== "pyinstaller"
+      )
+        throw new Error("Fixture did not produce a PyInstaller admission");
+      expect(admission.carrierPathDialect).toBe(dialect);
+      const reader = new PyInstallerArtifactReader(path, admission);
+      try {
+        if (classified.digest === null)
+          throw new Error("Missing carrier digest");
+        await reader.prepareContainer(classified.digest.sha256);
+        const entries = [];
+        for await (const entry of reader.entries()) entries.push(entry);
+        expect(entries).toEqual([
+          expect.objectContaining({
+            path: memberPath,
+            formatMetadata: expect.objectContaining({
+              source_name: sourceName,
+            }),
+          }),
+        ]);
+      } finally {
+        await reader.close();
+      }
+    } finally {
+      await resourceScope.close();
+    }
+  },
+);
+
+it("preserves backslashes when a standalone archive has no recognized carrier", async () => {
+  const root = await createTestTempDirectory(
+    "rea-pyinstaller-unknown-carrier-",
+  );
+  const path = join(root, "app");
+  const sourceName = String.raw`pkg\data.bin`;
+  const bytes = cArchiveExecutable({
+    layout: "2.1",
+    pythonVersion: 314,
+    members: [
+      {
+        name: sourceName,
+        typeCode: "x",
+        payload: Buffer.from("fixture"),
+        compress: false,
+      },
+    ],
+  });
+  bytes.fill(0, 0, 64);
+  await writeFile(path, bytes);
+  const reader = new PyInstallerArtifactReader(path);
+  try {
+    const entries = [];
+    for await (const entry of reader.entries()) entries.push(entry);
+    expect(entries.map((entry) => entry.path)).toEqual([sourceName]);
+  } finally {
+    await reader.close();
+  }
+});
 
 it("inventories members using the cookie discovered by root classification", async () => {
   const root = await createTestTempDirectory(
@@ -66,6 +171,7 @@ it("rejects changed source before consuming an admitted cookie and leaves the bo
       kind: "pyinstaller",
       source,
       cookie,
+      carrierPathDialect: "posix",
     });
     await appendFile(path, "changed");
     try {

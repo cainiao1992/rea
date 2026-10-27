@@ -695,12 +695,14 @@ export class FlutterBuildProvider {
     request: FlutterRequest,
     options?: ExecutionOptions,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
-    if (options?.signal?.aborted === true)
-      return err(
-        new AnalysisCancelledError(request.operation, {
-          cause: options.signal.reason,
-        }),
-      );
+    const cancellation = (): AnalysisCancelledError | undefined =>
+      options?.signal?.aborted === true
+        ? new AnalysisCancelledError(request.operation, {
+            cause: options.signal.reason,
+          })
+        : undefined;
+    const beforeCleanup = cancellation();
+    if (beforeCleanup !== undefined) return err(beforeCleanup);
     // Only failed roots are safe to retry here: concurrent admitted snapshots
     // retain their own live resources until their operations finish.
     try {
@@ -711,6 +713,8 @@ export class FlutterBuildProvider {
     } catch (cause) {
       return err(mapOwnedIoFailure(request.operation, cause, null));
     }
+    const afterCleanup = cancellation();
+    if (afterCleanup !== undefined) return err(afterCleanup);
     const { path } = request.input;
     const signal = options?.signal;
     let snapshot: OwnedSnapshot | undefined;

@@ -1841,6 +1841,43 @@ it("retries retained cleanup before admitting replacement snapshots", async () =
   expect(roots.size).toBe(2);
 });
 
+it("does not create a replacement snapshot when cancelled during cleanup retry", async () => {
+  const path = await buildApk("cancel-cleanup-retry.apk", [
+    { path: "lib/arm64-v8a/libapp.so", bytes: aotImage() },
+  ]);
+  const roots = new Set<string>();
+  const controller = new AbortController();
+  const reason = { caller: "cancel during cleanup retry" };
+  let attempts = 0;
+  const provider = new FlutterBuildProvider({
+    removeRoot: async (root) => {
+      roots.add(root);
+      attempts++;
+      if (attempts === 1) await rmdir(root);
+      else {
+        controller.abort(reason);
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  });
+  onTestFinished(() => provider.close());
+  const request = {
+    operation: "identify_flutter_build" as const,
+    input: { path },
+  };
+  const first = await provider.execute(request);
+  if (first.ok) throw new Error("Expected retained cleanup");
+  const cancelled = await provider.execute(request, {
+    signal: controller.signal,
+  });
+  expect(cancelled.ok).toBe(false);
+  if (cancelled.ok) throw new Error("Expected cancellation");
+  expect(projectAnalysisError(cancelled.error).code).toBe("cancelled");
+  expect(cancelled.error.cause).toBe(reason);
+  expect(first.error.cleanupIncomplete).toBe(false);
+  expect(roots.size).toBe(1);
+});
+
 it("preserves a completed analysis failure through refused cleanup and late cancellation", async () => {
   const path = await buildApk("unsupported-cleanup.apk", []);
   const controlProvider = new FlutterBuildProvider();

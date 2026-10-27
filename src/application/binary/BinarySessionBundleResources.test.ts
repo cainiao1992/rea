@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -43,6 +43,35 @@ afterEach(async () => {
       .map((path) => rm(path, { recursive: true, force: true })),
   );
 });
+
+it.skipIf(process.platform === "win32")(
+  "refuses invalid selected traversal before creating a bundle resource client",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "rea-resource-selected-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "Fixture.app"));
+    await writeFile(
+      join(root, "Fixture.app", "Info.plist"),
+      "<plist><dict/></plist>",
+    );
+    await writeFile(join(root, "regular"), "file");
+    let created = false;
+    const session = new BinarySession(
+      SessionProviderRouter.selectable(new AnalysisProviderRegistry([]), []),
+      new InvestigationRecords(),
+      {
+        createClient: () => {
+          created = true;
+          throw new Error("Invalid selection must not create a client");
+        },
+      },
+    );
+    const selected = `${root}/regular/../Fixture.app`;
+    await expect(stat(selected)).rejects.toMatchObject({ code: "ENOTDIR" });
+    expect((await session.openBundleResources(selected)).ok).toBe(false);
+    expect(created).toBe(false);
+  },
+);
 
 it("opens a resource-only bundle without executable identity and keeps snapshot operations inapplicable", async () => {
   const rootPath = await mkdtemp(join(tmpdir(), "rea-resource-session-"));

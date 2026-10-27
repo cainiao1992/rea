@@ -1184,7 +1184,9 @@ class ProcessCaptureResourceOwner {
   }
 
   get cleanupResources(): readonly string[] {
-    return unresolvedCleanupResources(this.report);
+    return unresolvedCleanupResources(this.report).map((resource) =>
+      resource === "temporary_root" ? this.options.temporaryRoot : resource,
+    );
   }
 
   get report(): ProcessCaptureCleanupReport {

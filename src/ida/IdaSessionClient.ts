@@ -34,7 +34,7 @@ import {
   IDA_LIMITATIONS,
   IDA_OPERATIONS,
   IDA_PROVIDER_IDENTITY,
-  idaProfileAdmits,
+  idaOperationUnavailableReason,
   type IdaOperation,
 } from "./IdaProviderCapabilities.js";
 import {
@@ -303,26 +303,19 @@ export class IdaSessionClient implements AnalysisClient {
           "This integration admits read-only analysis operations only.",
         ),
       );
-    if (
-      operation !== "health" &&
-      !idaProfileAdmits(operation, idaCompatibilityProfile(this.config))
-    )
+    const unavailableReason =
+      operation === "health"
+        ? undefined
+        : idaOperationUnavailableReason(
+            operation,
+            idaCompatibilityProfile(this.config),
+          );
+    if (unavailableReason !== undefined)
       return err(
         new AnalysisCapabilityUnavailableError(
           "ida",
           operation,
-          "This operation is available for the modern headless profile only.",
-        ),
-      );
-    if (
-      operation === "procedure_callers" &&
-      idaCompatibilityProfile(this.config).protocol !== "legacy"
-    )
-      return err(
-        new AnalysisCapabilityUnavailableError(
-          "ida",
-          operation,
-          "This upstream profile does not prove direct callers.",
+          unavailableReason,
         ),
       );
     if (operation !== "health") {

@@ -51,6 +51,30 @@ covers endpoint discovery only. The following WebSocket handshake and
 `Target.attachToTarget` each use `command_timeout_ms`. `capture.limits` controls retained event and network-content
 budgets; it does not change those liveness deadlines.
 
+## Validate a scenario before running it
+
+`validate-browser-scenario INPUT_JSON` checks one scenario against the same
+`browserScenarioSchema` refinement that `capture_browser_scenario` admits, and
+stops there. `INPUT_JSON` may be inline JSON, a JSON file path, or `-` for
+standard input.
+
+```bash
+rea validate-browser-scenario ./browser-scenario.json --json
+```
+
+A valid scenario reports `{"valid":true,"actions":<count>,"secrets":<count>}`
+and exits 0. An invalid one exits 1 and reports the same field paths capture
+would report, so a correction made here is the correction capture needs:
+duplicate or reserved step IDs, duplicate secret identities and
+environment-variable names, undeclared secret references, request-step
+violations, and unknown fields.
+
+Validation performs no browser discovery, launch, attachment, or navigation and
+constructs no provider. It does not read secret environment variables, so a
+scenario whose declared variables are unset still validates; the missing-value
+failure belongs to capture. A schema-valid scenario does not prove that the
+executable or target is available on the host.
+
 ## Minimal launch example
 
 Save this as `browser-scenario.json`, replacing the executable path with an

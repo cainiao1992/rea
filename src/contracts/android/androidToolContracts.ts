@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   androidInputSchemas,
   androidPackageInspectionInputSchema,
+  androidSymbolInspectionInputSchemas,
   androidResultSchemas,
 } from "../../domain/android/androidAnalysis.js";
 import {
@@ -9,6 +10,8 @@ import {
   androidManifestViewResultSchema,
   androidComponentsViewResultSchema,
   androidComponentSummaryViewResultSchema,
+  androidClassSummaryViewResultSchema,
+  androidMethodSummaryViewResultSchema,
 } from "../../domain/analysisView/analysisView.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
@@ -81,14 +84,28 @@ export const ANDROID_TOOL_CONTRACTS = [
     name: "inspect_android_class",
     ...toolContractMetadata("inspect_android_class"),
     description:
-      "Inspect one exact Android class's parsed methods, fields and inner classes, including synthetic members. Returns display signatures, exact DEX prototypes and encoded static final field values without generating source. A prototype is not a complete raw method ID; overload indices remain consistent within the artifact and engine session.",
+      "Inspect one exact Android class's parsed methods, fields and inner classes, including synthetic members. Returns display signatures, exact DEX prototypes and encoded static final field values without generating source. A prototype is not a complete raw method ID; overload indices remain consistent within the artifact and engine session. Optional mapping_path annotates observed raw DEX names with R8/ProGuard mapped names in a separate mapping block, verified by DEX type or prototype; observed names stay primary. Select detail summary to retain complete Evidence and return these normalized symbols without duplicate raw provider calls; omitted or complete detail preserves the complete inline response.",
     kind: "android-provider",
-    inputSchema: androidInputSchemas.inspect_android_class,
-    outputSchema: evidenceResultOf(androidResultSchemas.inspect_android_class),
+    inputSchema: androidSymbolInspectionInputSchemas.inspect_android_class,
+    outputSchema: evidenceResultOf(
+      z.union([
+        androidResultSchemas.inspect_android_class,
+        androidClassSummaryViewResultSchema,
+      ]),
+    ),
     examples: [
       {
         title: "Inspect a class",
         input: { path: "/tmp/Example.apk", class_name: "example.MainActivity" },
+      },
+      {
+        title: "Annotate an obfuscated class with its R8 mapping",
+        input: {
+          path: "/tmp/Example.apk",
+          class_name: "a.b",
+          mapping_path: "/tmp/mapping.txt",
+          detail: "summary",
+        },
       },
     ],
   },
@@ -96,10 +113,15 @@ export const ANDROID_TOOL_CONTRACTS = [
     name: "inspect_android_method",
     ...toolContractMetadata("inspect_android_method"),
     description:
-      "Decompile one Android method with smali fallback. Requires explicit overload_index when multiple methods share a name. Reports its DEX prototype, representation, fallback markers and source truncation; display signatures may be aliases.",
+      "Decompile one Android method with smali fallback. Requires explicit overload_index when multiple methods share a name. Reports its DEX prototype, representation, fallback markers and source truncation; display signatures may be aliases. Optional mapping_path adds R8/ProGuard mapped names for the class and selected method without replacing observed names. Prefer detail summary to retain complete Evidence and return the selected body and annotations without repeating raw class metadata. Omitted or complete detail preserves complete inline Evidence.",
     kind: "android-provider",
-    inputSchema: androidInputSchemas.inspect_android_method,
-    outputSchema: evidenceResultOf(androidResultSchemas.inspect_android_method),
+    inputSchema: androidSymbolInspectionInputSchemas.inspect_android_method,
+    outputSchema: evidenceResultOf(
+      z.union([
+        androidResultSchemas.inspect_android_method,
+        androidMethodSummaryViewResultSchema,
+      ]),
+    ),
     examples: [
       {
         title: "Decompile a method",

@@ -520,6 +520,39 @@ it("retires an idle engine and starts a fresh one for a later request", async ()
   await verifyCleanup(launches);
 });
 
+it("keeps idle retirement after refusing a mapping for a loaded engine", async () => {
+  const { service, apk, launches, provider } = await setup();
+  const missing = `${await createTestTempDirectory("rea-jadx-mapping-")}/mapping.txt`;
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const first = await service.execute("inspect_android_package", {
+      path: apk,
+    });
+    if (!first.ok) throw first.error;
+    const refused = await service.execute("inspect_android_class", {
+      path: apk,
+      class_name: "example.Missing",
+      mapping_path: missing,
+    });
+    expect(refused.ok).toBe(false);
+    vi.advanceTimersByTime(60_000);
+  } finally {
+    vi.useRealTimers();
+  }
+  await expect
+    .poll(async () => {
+      try {
+        await verifyCleanup(launches);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
+  expect(launches).toHaveLength(1);
+  await provider.close();
+});
+
 it("completes large class inventories with exact case-sensitive search semantics", async () => {
   const { service, apk, provider } = await setup("large-inventory");
   const full = await service.execute("search_android_classes", {

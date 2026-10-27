@@ -104,7 +104,7 @@ it.skipIf(process.platform === "win32")(
           detail: "summary",
         },
       ),
-    ).toBe(false);
+    ).toBe(true);
     const reply = await client.callTool({
       name: "inspect_android_package",
       arguments: { path: apk, detail: "summary" },

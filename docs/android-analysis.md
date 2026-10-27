@@ -286,6 +286,70 @@ instructions into field declarations, leaving an empty or incomplete method
 body. The selected method's disassembly preserves those instructions and retains
 the same source byte limit and explicit truncation reporting.
 
+## Apply an R8/ProGuard mapping
+
+Release builds shrunk by R8 or ProGuard rename classes and members. Select the
+build's `mapping.txt` with `mapping_path` on `inspect_android_class` or
+`inspect_android_method`, or `--mapping-path` on the matching CLI command:
+
+```sh
+rea inspect-android-class /path/Example.apk a.b --mapping-path /path/mapping.txt \
+  --detail summary --evidence_output /tmp/class-evidence.json
+```
+
+For agent workflows, select `detail: "summary"` on class and method inspection.
+It preserves the complete normalized member inventory or selected method body,
+including mapping annotations, while retaining duplicate raw provider calls in
+the complete parent Evidence. The reply links that parent's identity and digest;
+export it with `export_evidence_bundle` or read its summary again through
+`inspect_analysis_view`. CLI summaries require `--evidence_output` and return
+the portable bundle path. Omitted or `complete` detail preserves complete inline
+Evidence. Search and reference operations retain their existing contracts.
+Symbol summary views admit at most **1 MiB**, including view context. An admitted
+method's source can already consume that amount; a larger combined summary
+fails explicitly instead of silently truncating facts. MCP refusal includes
+the retained parent ID. Select complete detail, or inspect one method rather
+than a whole class, when the requested summary does not fit.
+
+The mapping path must be absolute. Selectors still take the observed names, such as
+`a.b`, and observed rows are unchanged. The result adds one `mapping` block with
+the file's path, SHA-256 and size, the header values the file reports
+(`compiler`, `compiler_version`, `min_api`, `map_version`, `pg_map_id`,
+`pg_map_hash`), valid record counts and up to 16 malformed line samples. Its
+`symbols` list has one entry per observed class, inner class, method and field;
+`inspect_android_method` lists the class and the selected method. `coverage`
+counts each resolution status. With summary delivery, these unchanged facts are
+under the view's `summary` field; the view separately reports source coverage.
+
+Lookups use the bridge's raw DEX names, not JADX display aliases such as a
+renamed reserved word. Each symbol resolves as:
+
+- `mapped`: exactly one record matches. A class needs one record for its raw
+  name (`verified_by: "class"`). A method must also match its DEX prototype
+  (`"descriptor"`) and a field its DEX type (`"type"`). R8 residual signature
+  metadata is used when present; otherwise original types are translated
+  through the file's class records.
+- `ambiguous`: `multiple-records`, `descriptor-mismatch`, `type-mismatch`,
+  `ambiguous-class` or `residual-signature-conflict`, with `candidate_count` and
+  up to 8 candidates. Conflicting residual metadata never selects a winner. A name match
+  whose prototype or type does not verify is never reported as mapped.
+- `unmapped`: no valid record matched the raw identity.
+- `unknown` with reason `projection-budget`: this claim did not fit the combined
+  reply budget. The observed raw symbol remains present; `coverage.unknown`
+  counts these omissions. Inspect that specific class or method separately,
+  or consult the selected local mapping file for complete source records.
+
+A line continues an inline frame stack when it repeats the previous line's
+minified range and obfuscated name and gives a single call-site line, such as
+`:7`. Only the outermost original of a stack becomes a candidate. Original
+line numbers and source files are not projected. Malformed records are counted
+and skipped, so an `unmapped` symbol might be described by one of them. A file
+that is missing, not a regular file, not UTF-8, larger than the byte limit or
+without any class record, such as `usage.txt` or `seeds.txt`, is refused before
+JADX is used. Requests read their mappings one at a time, in the same queue as
+the JADX work and under the same operation deadline. A mapping failure therefore never starts or retires the JADX
+session, and a different mapping reuses the loaded APK.
+
 ## Interpret the result
 
 - Package inspection retains decoded manifest XML, summary declarations,
@@ -322,6 +386,11 @@ the same source byte limit and explicit truncation reporting.
   `dex_descriptor`, for example `(I)V`. Display names can be JADX aliases;
   the descriptor alone is not a complete raw DEX method ID. Overload indices
   are tied to this artifact and engine, not stable identities across builds.
+- A `mapping` block appears only when the caller selected `mapping_path`. Its
+  names are claims from that file, not observations of the APK. REA does not
+  check that the mapping belongs to this build; `pg_map_id` is reported, not
+  compared. Evidence keeps the selected path in its parameters and the file's
+  SHA-256 in the result.
 - Method inspection reports Java or smali, fallback markers and complete/partial
   returned text. Decompiled source is a derived representation. A complete text
   result does not establish complete semantics or a byte-identical reconstruction.
@@ -495,6 +564,27 @@ truncation. Class-name pages use indexed slices of up to 4,096 names without cha
 complete, case-sensitive search contract. A protocol frame above **8 MiB**, or combined stdout/stderr above
 **32 MiB per operation**, fails with a diagnostic instead of returning an incomplete inventory
 as complete. These are memory-safety boundaries, not undocumented result caps.
+
+A selected R8/ProGuard mapping is re-read and SHA-256 checked on every call, up
+to **64 MiB**. The serialized provider keeps one successful parsed index, keyed
+by byte length and digest with fixed parser options. Identical bytes reuse that
+index; changed bytes are reparsed, missing files still fail, and each response
+preserves the currently selected path. The index is released on provider idle
+retirement or close. Omitting `mapping_path` never applies the cached mapping.
+During replacement, the old index can coexist with the new parse until it
+succeeds; these transient allocations count toward process memory.
+
+Before retaining records, the parser admits an estimated **128 MiB** index
+representation and **8 MiB** of expanded mapped claims per residual class,
+including shared header facts. The index allowance accounts for strings and
+containers; it is not a measured V8 heap cap. Parameter and metadata expansion
+is admitted before splitting or JSON decoding. These fixed resource bounds
+have no runtime override; refusal reports `resource_constraint`, the source
+line and mapping SHA-256. Ambiguous lookups count all candidates while keeping
+only the first eight in stable file order. A separate **8 MiB** combined claim
+budget applies to the actual query set, including outer and inner classes,
+before cloning the report. Claims that do not fit become explicit `unknown`
+entries; other admitted claims and all observed identities remain available.
 
 ## Real verification
 

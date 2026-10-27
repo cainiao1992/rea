@@ -312,6 +312,11 @@ import {
   androidComponentSummarySchema,
 } from "./androidPackageView.js";
 import {
+  projectAndroidSymbolSummary,
+  androidClassSummarySchema,
+  androidMethodSummarySchema,
+} from "./androidSymbolView.js";
+import {
   projectDartAotView,
   dartAotSummarySchema,
   dartAotViewRequestSchema,
@@ -559,6 +564,8 @@ const viewResultBase = {
     "inspect_managed_members",
     "inspect_web_network_capture",
     "inspect_android_package",
+    "inspect_android_class",
+    "inspect_android_method",
     "inspect_pcap_capture",
     "inspect_dart_aot",
     "inspect_il2cpp_metadata",
@@ -862,6 +869,20 @@ export const androidPackageSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.literal("inspect_android_package"),
   summary: androidPackageSummarySchema,
+});
+
+/** Exact class facts with complete raw protocol Evidence retained separately. */
+export const androidClassSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_android_class"),
+  summary: androidClassSummarySchema,
+});
+
+/** Exact selected method body, source coverage and optional mapping facts. */
+export const androidMethodSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  parent_operation: z.literal("inspect_android_method"),
+  summary: androidMethodSummarySchema,
 });
 
 /** Legacy manifest views keep their original shape; new facets are explicit. */
@@ -1255,6 +1276,8 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     webNetworkCaptureSummaryViewResultSchema,
     browserScenarioSummaryViewResultSchema,
     androidPackageSummaryViewResultSchema,
+    androidClassSummaryViewResultSchema,
+    androidMethodSummaryViewResultSchema,
     pcapCaptureSummaryViewResultSchema,
     dartAotSummaryViewResultSchema,
     il2cppMetadataSummaryViewResultSchema,
@@ -1574,6 +1597,8 @@ const retainedViewProjectors = new Map<string, typeof projectWasmArtifactView>([
   ["inspect_managed_artifact", projectManagedArtifactView],
   ["inspect_managed_members", projectManagedMemberView],
   ["inspect_android_package", projectAndroidPackageView],
+  ["inspect_android_class", projectAndroidSymbolSummary],
+  ["inspect_android_method", projectAndroidSymbolSummary],
   ["capture_browser_scenario", projectBrowserScenarioView],
   ["inspect_dart_aot", projectDartAotView],
   ["inspect_il2cpp_metadata", projectIl2cppMetadataView],

@@ -103,6 +103,10 @@ export const verifyAndroidMetadata = async ({
     );
     assert.match(
       result.stdout,
+      /RAW_MEMBER_NAME_REGRESSION_PASS reserved=true overloads=2 inner=true/u,
+    );
+    assert.match(
+      result.stdout,
       /DIRECT_INVOKE_REGRESSION_PASS nodes=1 offsets=0,3 cross_dex=true/u,
     );
     assert.match(

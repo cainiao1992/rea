@@ -9,6 +9,7 @@ import jadx.api.plugins.input.data.ICodeReader;
 import jadx.api.plugins.input.data.IMethodRef;
 import jadx.api.plugins.input.insns.InsnIndexType;
 import jadx.api.plugins.input.insns.Opcode;
+import jadx.core.codegen.TypeGen;
 import jadx.core.dex.info.MethodInfo;
 import jadx.core.dex.nodes.*;
 import java.io.PrintStream;
@@ -270,7 +271,7 @@ class ReaJadxBridge {
                 .map(Object::toString).collect(Collectors.joining(", "))
                 + "): " + method.getReturnType().toString();
             return new MethodSnapshot(name, rawName, shortId, List.copyOf(bodyAbsenceMarkers), Map.of(
-                "name", name, "signature", signature,
+                "name", name, "raw_name", rawName, "signature", signature,
                 "dex_descriptor", descriptor,
                 "is_constructor", method.isConstructor(), "def_pos", 0));
           }).toList();
@@ -280,8 +281,11 @@ class ReaJadxBridge {
           List<Map<String, Object>> valuedFields = new ArrayList<>();
           boolean anyValue = false;
           for (FieldNode field : orderedFields) {
+            // Raw DEX identity for mapping lookups; the display type can carry generics.
             Map<String, Object> entry = Map.of("name", field.getAlias(),
-                "type", field.getType().toString(), "def_pos", 0);
+                "raw_name", field.getFieldInfo().getName(),
+                "type", field.getType().toString(),
+                "dex_type", TypeGen.signature(field.getFieldInfo().getType()), "def_pos", 0);
             fields.add(entry);
             Map<String, Object> value = dexStaticValue(field);
             if (value == null) valuedFields.add(entry);
@@ -293,10 +297,11 @@ class ReaJadxBridge {
             }
           }
           List<String> inner = node.getInnerClasses().stream().map(ClassNode::getFullName).toList();
+          List<String> innerRaw = node.getInnerClasses().stream().map(ClassNode::getRawName).toList();
           Map<String, Object> summary = Map.of(
               "full_name", cls.getFullName(), "raw_name", cls.getRawName(), "name", cls.getName(),
               "method_count", methods.size(), "field_count", fields.size(),
-              "inner_class_count", inner.size(), "inner_classes", inner,
+              "inner_class_count", inner.size(), "inner_classes", inner, "inner_class_raw_names", innerRaw,
               "methods", methods.stream().map(MethodSnapshot::summary).toList(), "fields", List.copyOf(fields));
           // DEX static values are opt-in, so method and reference lookups keep the member-only reply.
           Map<String, Object> summaryWithValues = summary;
@@ -581,7 +586,7 @@ class ReaJadxBridge {
     SessionHolder holder = new SessionHolder(defaults);
     ServerCapabilities capabilities = new ServerCapabilities(
         new ServerCapabilities.Tools(null), null, null, null, null, null, null, Map.of());
-    Server server = new Server(new Implementation("rea-jadx-bridge", "7", null, null, null),
+    Server server = new Server(new Implementation("rea-jadx-bridge", "8", null, null, null),
         new ServerOptions(capabilities), "", ignored -> Unit.INSTANCE);
     SessionToolsKt.registerSessionTools(server, holder);
     ClassToolsKt.registerClassTools(server, holder);

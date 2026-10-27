@@ -36,6 +36,7 @@ const classes = [
 const methods = [
   {
     name: "onCreate",
+    raw_name: "onCreate",
     signature: "onCreate(Bundle): void",
     dex_descriptor: "(Landroid/os/Bundle;)V",
     is_constructor: false,
@@ -43,6 +44,7 @@ const methods = [
   },
   {
     name: "choose",
+    raw_name: "choose",
     signature: "choose(String): void",
     dex_descriptor: "(Ljava/lang/String;)V",
     is_constructor: false,
@@ -50,6 +52,7 @@ const methods = [
   },
   {
     name: "choose",
+    raw_name: "choose",
     signature: "choose(int): void",
     dex_descriptor: "(I)V",
     is_constructor: false,
@@ -166,6 +169,7 @@ register("get_class_summary", () =>
     methods: mode === "summary-error" ? [] : methods,
     fields: [],
     inner_classes: [],
+    inner_class_raw_names: [],
     ...(mode === "summary-error" ? { error: "summary timed out" } : {}),
   }),
 );

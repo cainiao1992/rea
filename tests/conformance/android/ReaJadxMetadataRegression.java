@@ -305,7 +305,9 @@ public class ReaJadxMetadataRegression {
         Path.of(sources, "AbstractShape.smali").toString(),
         Path.of(sources, "MergedMethod.smali").toString(),
         Path.of(sources, "DefaultPackageSelector.smali").toString(),
-        Path.of(sources, "ConstantFields.smali").toString())), "Initializer fixture assembly failed");
+        Path.of(sources, "ConstantFields.smali").toString(),
+        Path.of(sources, "RenamedMembers.smali").toString(),
+        Path.of(sources, "RenamedMembersInner.smali").toString())), "Initializer fixture assembly failed");
     Path apk = directory.resolve("initializers.apk");
     try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(apk))) {
       zip.putNextEntry(new ZipEntry("classes.dex"));
@@ -437,6 +439,7 @@ public class ReaJadxMetadataRegression {
     verifyNoBodyMethods(handle, bridge, holder.current());
     verifyMergedMethods(handle, bridge);
     verifyConstantFields(handle, bridge, holder.current());
+    verifyRawMemberNames(handle, bridge);
 
     SessionConfig bounded = new SessionConfig(96, 0, 90000L, 1, List.of(), List.of(), 64, ResourceMode.FULL);
     BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
@@ -525,6 +528,33 @@ public class ReaJadxMetadataRegression {
     require(refused, "Non-boolean dex_static_values was accepted");
     System.out.println("CONSTANT_FIELD_REGRESSION_PASS encoded=" + encoded.size() + " absent=" + absent.size()
         + " opt_in=true");
+  }
+
+  /** Mapping lookups need raw DEX names and types even where JADX displays an alias. */
+  private static void verifyRawMemberNames(Method handle, Object bridge) throws Exception {
+    JsonObject summary = call(handle, bridge, "get_class_summary", arguments("fixture.RenamedMembers"));
+    Map<String, List<JsonObject>> methods = new HashMap<>();
+    for (JsonElement entry : summary.getAsJsonArray("methods")) {
+      JsonObject method = entry.getAsJsonObject();
+      methods.computeIfAbsent(method.get("raw_name").getAsString(), ignored -> new ArrayList<>()).add(method);
+    }
+    List<JsonObject> reserved = methods.getOrDefault("do", List.of());
+    require(reserved.size() == 1 && !reserved.get(0).get("name").getAsString().equals("do")
+        && reserved.get(0).get("dex_descriptor").getAsString().equals("()V"),
+        "Reserved-word method lost its raw DEX name: " + summary);
+    Set<String> overloads = new HashSet<>();
+    for (JsonObject method : methods.getOrDefault("a", List.of()))
+      overloads.add(method.get("dex_descriptor").getAsString());
+    require(overloads.equals(Set.of("(I)V", "(Ljava/lang/String;)V")),
+        "Same-name overloads lost their raw identity: " + summary);
+    JsonArray fields = summary.getAsJsonArray("fields");
+    require(fields.size() == 1, "Renamed field inventory changed: " + fields);
+    JsonObject field = fields.get(0).getAsJsonObject();
+    require(field.get("raw_name").getAsString().equals("if") && !field.get("name").getAsString().equals("if")
+        && field.get("dex_type").getAsString().equals("I"), "Reserved-word field lost its raw DEX identity: " + field);
+    require(summary.getAsJsonArray("inner_class_raw_names").equals(JsonParser.parseString("[\"fixture.RenamedMembers$a\"]"))
+        && summary.getAsJsonArray("inner_classes").size() == 1, "Inner class raw name was not reported: " + summary);
+    System.out.println("RAW_MEMBER_NAME_REGRESSION_PASS reserved=true overloads=2 inner=true");
   }
 
   private static void verifyMergedMethods(Method handle, Object bridge) throws Exception {

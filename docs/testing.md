@@ -1170,8 +1170,8 @@ its metadata regressions against the same checksum-pinned engine and public APK.
 It runs on branch pushes affecting its bridge, fixture or engine inputs, and can
 also be dispatched manually or called by another workflow. It uses the runner's
 JDK with two active processors and a 512 MiB heap; it needs no npm dependency
-installation. This lane checks exact raw/display class selectors and the existing
-cold-metadata regressions. It does not establish CLI/MCP parity or application
+installation. This lane checks exact raw/display class selectors, raw member names and field
+DEX types used by mapping lookups, and the existing cold-metadata regressions. It does not establish CLI/MCP parity or application
 execution behavior. The broader `verify:android` lane checks CLI/MCP parity;
 neither lane runs the APK.
 
@@ -1217,7 +1217,7 @@ HarmonyOS `.har` libraries are deliberately not suffix-classified because
 Synthetic producer regressions run independently:
 
 ```sh
-npm run test:focused -- tests/boundary/process/jadxIntegration.test.ts tests/boundary/process/androidAnalysisMcp.test.ts
+npm run test:focused -- tests/boundary/process/jadxIntegration.test.ts tests/boundary/process/androidAnalysisMcp.test.ts tests/boundary/process/androidMappingMcp.test.ts
 ```
 
 ## Apktool resource decoding

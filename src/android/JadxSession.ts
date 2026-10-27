@@ -3,6 +3,10 @@ import { Client } from "@modelcontextprotocol/client";
 import { createAnalysisExecution } from "../application/AnalysisProvider.js";
 import type { AndroidAnalysisExecution } from "../application/android/AndroidAnalysisPort.js";
 import type { AndroidRequest } from "../domain/android/androidAnalysis.js";
+import {
+  type AndroidMappingSource,
+  androidMappingLimitations,
+} from "../domain/android/androidMapping.js";
 import type { AndroidPartialObservation } from "../domain/android/androidPartialObservation.js";
 import {
   AnalysisCapabilityUnavailableError,
@@ -82,8 +86,11 @@ export class JadxSession {
     readonly signal: AbortSignal;
     /** Selected whole-operation deadline; also bounds each upstream call. */
     readonly timeoutMs: number;
+    /** Caller-selected mapping, read before this request reached the queue. */
+    readonly mapping?: AndroidMappingSource | undefined;
   }): Promise<AndroidAnalysisExecution> {
-    const { request, target, snapshot, jarHash, signal, timeoutMs } = context;
+    const { request, target, snapshot, jarHash, signal, timeoutMs, mapping } =
+      context;
     this.#partialContext = {
       operation: request.operation,
       selectedPath: request.input.path,
@@ -155,7 +162,11 @@ export class JadxSession {
         heap_limit_mib:
           Math.floor(runtime.max_heap_bytes / (1024 * 1024)) || null,
       } as const;
-      const result = await analyzeJadxRequest(tools, request, loaded, engine);
+      const result = await analyzeJadxRequest(tools, request, {
+        loaded,
+        engine,
+        mapping,
+      });
       const raw = jsonObjectSchema.parse({
         server,
         bridge_sha256: context.bridgeHash,
@@ -171,7 +182,10 @@ export class JadxSession {
             calls: this.#observedCalls.map(({ complete }) => complete),
           },
           subject: target,
-          limitations: JADX_LIMITATIONS,
+          limitations: [
+            ...JADX_LIMITATIONS,
+            ...androidMappingLimitations(mapping),
+          ],
           locations:
             request.operation === "inspect_android_package"
               ? [{ kind: "artifact-path", path: "AndroidManifest.xml" }]

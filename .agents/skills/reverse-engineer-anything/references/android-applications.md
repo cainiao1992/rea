@@ -13,6 +13,16 @@ own APK path and explicit selectors; do not open a native session first.
 Choose an `overload_index` from the class inventory when methods are ambiguous
 instead of guessing.
 
+For an R8/ProGuard release build with its `mapping.txt`, pass the absolute
+`mapping_path` to `inspect_android_class` or `inspect_android_method`. Prefer
+`detail: "summary"` to receive normalized symbols or the selected body without
+duplicate raw class metadata. Complete Evidence stays retained under the linked
+parent ID and can be exported; CLI summary delivery requires `--evidence_output`.
+Omitted or complete detail preserves the full inline response. Keep
+selecting by observed names; the separate `mapping` block reports each symbol
+as `mapped`, `ambiguous` or `unmapped` after checking DEX types and prototypes.
+REA does not verify that the mapping belongs to the APK build.
+
 The provider requires a separately supplied headless JADX MCP JAR 0.7.1 and
 Java 17 or newer. `REA_JADX_MCP_JAR` selects the absolute JAR path; `JAVA_HOME`
 can select Java. Use `rea doctor --provider jadx --json` to check the JADX

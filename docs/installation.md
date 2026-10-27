@@ -449,10 +449,15 @@ Lexically equivalent spellings of that default directory, including a trailing
 separator, a `.` segment, or a repeated separator, share its purge result.
 The comparison preserves POSIX `..` traversal and literal backslashes.
 A client configuration that is malformed, unreadable, or at an unsafe
-path stops the operation before anything is removed, and a client that fails
-while being updated stops the remaining removals. Uninstall reports each
-candidate `configuration_path` with its outcome. A client with multiple files
-keeps their individual `actions` alongside its aggregate status and detail,
+path stops the operation before anything is removed when that client's
+product applicability is established or unresolved. Shared registration
+storage such as `~/.agents/mcp.json` whose product cannot be established
+(for example when FreeBuff and ZCode discovery directories are absent) is
+retained unchanged and does not block other REA removals, including cache
+and state deletion with `--purge-data`. A client that fails while being
+updated stops the remaining removals. Uninstall reports each candidate
+`configuration_path` with its outcome. A client with multiple files keeps
+their individual `actions` alongside its aggregate status and detail,
 including earlier removals when a later file fails. The paths name
 the discovered configuration candidates, not resolved physical file identities.
 For JSON clients, uninstall removes every repeated `rea` member in the effective

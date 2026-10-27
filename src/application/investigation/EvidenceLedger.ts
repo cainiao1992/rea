@@ -100,55 +100,43 @@ export class EvidenceLedger {
       );
     }
     const bundle = parsed.value;
-    // A record-only bundle cannot change the already-valid unknown graph. The
-    // bundle parser has validated every incoming record and its manifests, so
-    // checking ID conflicts and committing only the additions preserves the
-    // atomic merge without rebuilding and reparsing the entire ledger.
-    if (bundle.unknowns.length === 0) {
-      const additions = new Map<string, Evidence>();
-      const replacements: EvidenceMetadataReplacement[] = [];
-      for (const evidence of bundle.records) {
-        const existing = this.#records.get(evidence.evidence_id);
-        if (existing !== undefined) {
-          if (!recordsAgree(existing, evidence))
-            return err(
-              new EvidenceIntegrityError("Conflicting evidence record"),
-            );
-          if (!displayMetadataAgree(existing, evidence)) {
-            replacements.push({
-              kind: "metadata",
-              previous: existing,
-              current: evidence,
-            });
-          }
-          continue;
-        }
-        additions.set(evidence.evidence_id, evidence);
-      }
-      for (const { current } of replacements)
-        this.#records.set(current.evidence_id, current);
-      for (const [id, evidence] of additions) this.#records.set(id, evidence);
-      return ok({
-        recordsAdded: additions.size,
-        unknownsAdded: 0,
-        changed: additions.size > 0 || replacements.length > 0,
-        replacements,
-      });
-    }
-    const pending = new Map(this.#records);
+    // Stage record conflicts and display metadata once, before either commit
+    // path. Unknown history additionally requires validating the merged graph.
+    const recordChanges = new Map<string, Evidence>();
+    let recordsAdded = 0;
     const replacements: EvidenceMetadataReplacement[] = [];
     for (const evidence of bundle.records) {
-      const existing = pending.get(evidence.evidence_id);
-      if (existing !== undefined && !recordsAgree(existing, evidence))
+      const existing = this.#records.get(evidence.evidence_id);
+      if (existing === undefined) {
+        recordChanges.set(evidence.evidence_id, evidence);
+        recordsAdded += 1;
+        continue;
+      }
+      if (!recordsAgree(existing, evidence))
         return err(new EvidenceIntegrityError("Conflicting evidence record"));
-      if (existing !== undefined && !displayMetadataAgree(existing, evidence))
+      if (!displayMetadataAgree(existing, evidence)) {
+        recordChanges.set(evidence.evidence_id, evidence);
         replacements.push({
           kind: "metadata",
           previous: existing,
           current: evidence,
         });
-      pending.set(evidence.evidence_id, evidence);
+      }
     }
+    // A record-only bundle cannot change the already-valid unknown graph.
+    if (bundle.unknowns.length === 0) {
+      for (const evidence of recordChanges.values())
+        this.#records.set(evidence.evidence_id, evidence);
+      return ok({
+        recordsAdded,
+        unknownsAdded: 0,
+        changed: recordChanges.size > 0,
+        replacements,
+      });
+    }
+    const pending = new Map(this.#records);
+    for (const evidence of recordChanges.values())
+      pending.set(evidence.evidence_id, evidence);
     const pendingUnknowns = new Map(this.#unknownRevisions);
     let unknownsAdded = 0;
     for (const unknown of bundle.unknowns) {
@@ -170,12 +158,11 @@ export class EvidenceLedger {
         }),
       );
     }
-    const added = pending.size - this.#records.size;
     this.#commit(checked.value);
     return ok({
-      recordsAdded: added,
+      recordsAdded,
       unknownsAdded,
-      changed: added > 0 || unknownsAdded > 0 || replacements.length > 0,
+      changed: recordChanges.size > 0 || unknownsAdded > 0,
       replacements,
     });
   }

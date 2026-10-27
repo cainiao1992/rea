@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { copyFile, lstat, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { appendCallerPath } from "../filesystem/callerPath.js";
 
 import { z } from "zod";
 import {
@@ -299,7 +300,10 @@ export class LinuxHopperPublisher {
           "verification_unavailable",
           "The Hopper release cache is not a caller-owned directory.",
         );
-      const target = join(this.cacheRoot, verified.release.main_exe_hash);
+      const target = appendCallerPath(
+        this.cacheRoot,
+        verified.release.main_exe_hash,
+      );
       const lease = await this.#acquireCacheLease(
         verified.release.main_exe_hash,
         signal,
@@ -699,7 +703,7 @@ export class LinuxHopperPublisher {
     resources: ArtifactResourceScope,
   ): Promise<Result<VerifiedLinuxHopperPackage, HopperReleaseError>> {
     try {
-      const root = join(this.cacheRoot, digest);
+      const root = appendCallerPath(this.cacheRoot, digest);
       try {
         const directory = await lstat(root);
         if (!directory.isDirectory() || directory.isSymbolicLink())
@@ -722,9 +726,9 @@ export class LinuxHopperPublisher {
       // Distinguish proven malformed/missing evidence from unavailable reads or
       // inspection tools. Only the former authorize approved cache replacement.
       for (const name of ["release.json", "public-key.asc", "archive"])
-        await this.#assertCacheFile(join(root, name));
+        await this.#assertCacheFile(appendCallerPath(root, name));
       const metadata = await this.#read(
-        join(root, "release.json"),
+        appendCallerPath(root, "release.json"),
         RELEASE_METADATA_BYTES,
         signal,
         resources,
@@ -753,7 +757,7 @@ export class LinuxHopperPublisher {
           "The retained Hopper metadata does not identify this launcher.",
         );
       const keyBytes = await this.#read(
-        join(root, "public-key.asc"),
+        appendCallerPath(root, "public-key.asc"),
         RELEASE_METADATA_BYTES,
         signal,
         resources,
@@ -771,7 +775,7 @@ export class LinuxHopperPublisher {
       return await this.#verifyArchive(
         parsed.data.family,
         release.value,
-        join(root, "archive"),
+        appendCallerPath(root, "archive"),
         signal,
         key,
         resources,

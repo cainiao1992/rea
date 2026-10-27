@@ -17,7 +17,7 @@ import {
 } from "../config/parseConfig.js";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
-import { join } from "node:path";
+import { appendCallerPath } from "../filesystem/callerPath.js";
 
 import { analysisErrorRemediationAction } from "../domain/analysisErrorPresentation.js";
 import { BinaryTargetError } from "../domain/configurationErrors.js";
@@ -708,7 +708,10 @@ export const systemDoctorHost = (
         );
         return appdir === undefined
           ? undefined
-          : join(appdir, "Hopper Disassembler.app/Contents/MacOS/hopper");
+          : appendCallerPath(
+              appdir,
+              "Hopper Disassembler.app/Contents/MacOS/hopper",
+            );
       });
     },
     manualHopperPaths: () =>

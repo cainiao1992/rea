@@ -451,3 +451,120 @@ it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
     expect(projectionSource).toEqual(before);
   },
 );
+
+it.each(["[0,1].left,right", "right,[0,1].left"])(
+  "preserves root implicit keys with slices for %s",
+  async (filter) => {
+    expect(
+      JSON.parse(
+        await runFilteredCli(
+          [
+            { left: 1, right: 2 },
+            { left: 3, right: 4 },
+          ],
+          "json",
+          filter,
+        ),
+      ),
+    ).toEqual([{ left: 1, right: 2 }, { right: 4 }]);
+  },
+);
+
+it("keeps root numeric keys as per-item keys when mixed with slices", async () => {
+  expect(
+    JSON.parse(
+      await runFilteredCli(
+        [{ left: 1, "1": { right: 2 } }, { "1": { right: 4 } }],
+        "json",
+        "[0,1].left,1.right",
+      ),
+    ),
+  ).toEqual([{ left: 1, "1": { right: 2 } }, { "1": { right: 4 } }]);
+});
+
+it.each([
+  ["rows[0,1].left,rows.1.right", { rows: [{ left: 1 }, { right: 4 }] }],
+  ["rows.1.right,rows[0,1].left", { rows: [{ left: 1 }, { right: 4 }] }],
+  ["rows.1.right", { rows: { "1": { right: 4 } } }],
+  ["rows[0,1].left,rows.99.right", { rows: [{ left: 1 }] }],
+  ["rows[0,1].left,rows.0.right", { rows: [{ left: 1, right: 2 }] }],
+] as const)(
+  "preserves sibling and key-only projections for %s",
+  async (filter, expected) => {
+    expect(
+      JSON.parse(
+        await runFilteredCli(
+          {
+            rows: [
+              { left: 1, right: 2 },
+              { left: 3, right: 4 },
+            ],
+          },
+          "json",
+          filter,
+        ),
+      ),
+    ).toEqual(expected);
+  },
+);
+
+it("retains sparse slice positions while ignoring an absent explicit index", async () => {
+  const rows = new Array(3);
+  rows[2] = { value: 3 };
+  expect(
+    JSON.parse(
+      await runFilteredCli(
+        { rows },
+        "json",
+        "rows[0,1],rows.1.value,rows.2.value",
+      ),
+    ),
+  ).toEqual({ rows: [null, { value: 3 }] });
+});
+
+it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
+  "refuses incompatible array properties in %s",
+  async (format) => {
+    const args = [
+      "--format",
+      format,
+      "--filter-output",
+      "rows[0,1],rows.length",
+    ];
+    const chunks: Buffer[] = [];
+    const output = createCliResultOutput(
+      parseCliOutputArguments(args),
+      new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          chunks.push(chunk);
+          callback();
+        },
+      }),
+    );
+    await output?.write(
+      { rows: [1, 2] },
+      { command: "rows", duration: "0ms", format },
+    );
+    expect(output?.error).toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("non-index property"),
+    });
+    expect(Buffer.concat(chunks).toString()).toContain("invalid_request");
+  },
+);
+
+it.each(["[0,1][0,1].left,right", "right,[0,1][0,1].left"])(
+  "merges recursively implicit root fields for %s",
+  async (filter) => {
+    const value = freezeRecursively([
+      [{ left: 1, right: 2 }, { right: 4 }],
+      [[{ right: 6 }]],
+      [],
+      [{ left: 7 }],
+    ]);
+    expect(JSON.parse(await runFilteredCli(value, "json", filter))).toEqual([
+      [{ left: 1, right: 2 }, { right: 4 }],
+      [[{ right: 6 }]],
+    ]);
+  },
+);

@@ -9,7 +9,11 @@ import {
   cliOperationFailureIdentity,
   cliOperationFailurePayload,
 } from "../cliLogging.js";
-import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisInputError,
+  AnalysisResourceConstraintError,
+} from "../domain/analysisErrorCore.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { sliceTextByTokenWindow } from "./tokenWindow.js";
 import {
   projectAnalysisError,
@@ -301,11 +305,43 @@ export const createCliResultOutput = (
       !options.tokenCount
     )
       return false;
-    const selected: unknown =
-      operationFailure ??
-      (filterPaths === undefined
-        ? value
-        : applyCliOutputFilter(value, filterPaths));
+    const selection =
+      operationFailure !== undefined || filterPaths === undefined
+        ? ok(operationFailure ?? value)
+        : applyCliOutputFilter(value, filterPaths);
+    if (!selection.ok) {
+      error = projectAnalysisError(
+        new AnalysisInputError(
+          metadata.command,
+          {
+            userMessage: selection.error,
+            remediationAction:
+              "Select array indices with slices, or request array properties in a separate --filter-output invocation.",
+          },
+          [
+            {
+              path: ["filter-output"],
+              reason: "invalid_value",
+              message: selection.error,
+            },
+          ],
+        ),
+      );
+      const document = options.fullOutput
+        ? {
+            ok: false,
+            error,
+            meta: { command: metadata.command, duration: metadata.duration },
+          }
+        : error;
+      handled = true;
+      await writeOutputText(
+        destination,
+        `${formatCliOutput(format === "jsonl" ? jsonLinesErrorRecord(document) : document, format)}\n`,
+      );
+      return true;
+    }
+    const selected = selection.value;
     const filtered =
       (format === "json" || format === "jsonl") &&
       ownsFilteredOutput &&
@@ -550,15 +586,33 @@ type FilterPaths = ReturnType<typeof Filter.parse>;
 type FilterPath = FilterPaths[number];
 
 /** Apply Incur's parsed path grammar while merging sibling array selections. */
-const applyCliOutputFilter = (value: unknown, paths: FilterPaths): unknown => {
-  if (paths.length === 0) return value;
-  if (
-    Array.isArray(value) &&
-    paths.some((path) => path[0] !== undefined && "start" in path[0])
-  )
-    return projectArraySlices(value, paths);
-  if (Array.isArray(value))
-    return value.map((item) => applyCliOutputFilter(item, paths));
+type FilterProjection = Result<unknown, string>;
+
+const applyCliOutputFilter = (
+  value: unknown,
+  paths: FilterPaths,
+): FilterProjection => {
+  if (paths.length === 0) return ok(value);
+  if (Array.isArray(value)) {
+    if (paths.some((path) => path[0] !== undefined && "start" in path[0]))
+      return projectArraySlices(
+        value,
+        paths.flatMap((path) => {
+          const first = path[0];
+          if (first === undefined || "start" in first) return [path];
+          // Root keys retain Incur's implicit per-record traversal, including
+          // numeric keys. Only nested array keys address array positions.
+          return expandImplicitArrayPath(value, path);
+        }),
+      );
+    const selected: unknown[] = [];
+    for (const item of value) {
+      const projection = applyCliOutputFilter(item, paths);
+      if (!projection.ok) return projection;
+      selected.push(projection.value);
+    }
+    return ok(selected);
+  }
   if (
     paths.length === 1 &&
     paths[0]?.length === 1 &&
@@ -571,18 +625,45 @@ const applyCliOutputFilter = (value: unknown, paths: FilterPaths): unknown => {
       value === null ||
       !Object.hasOwn(value, key)
     )
-      return undefined;
+      return ok(undefined);
     const selected = (value as Record<string, unknown>)[key];
-    return typeof selected !== "object" || selected === null
-      ? selected
-      : { [key]: selected };
+    return ok(
+      typeof selected !== "object" || selected === null
+        ? selected
+        : { [key]: selected },
+    );
   }
   return projectObjectPaths(value, paths);
 };
 
+/** Preserve implicit traversal through every root-array layer before merging slices. */
+const expandImplicitArrayPath = (
+  value: unknown,
+  path: FilterPath,
+): FilterPaths => {
+  if (Array.isArray(value))
+    return value.flatMap((item, index) =>
+      expandImplicitArrayPath(item, path).map((tail) => [
+        { start: index, end: index + 1 },
+        ...tail,
+      ]),
+    );
+  const first = path[0];
+  return typeof value === "object" &&
+    value !== null &&
+    first !== undefined &&
+    "key" in first &&
+    Object.hasOwn(value, first.key)
+    ? [path]
+    : [];
+};
+
 /** Build a fresh object projection; a path ending at a key selects its subtree. */
-const projectObjectPaths = (value: unknown, paths: FilterPaths): unknown => {
-  if (typeof value !== "object" || value === null) return {};
+const projectObjectPaths = (
+  value: unknown,
+  paths: FilterPaths,
+): FilterProjection => {
+  if (typeof value !== "object" || value === null) return ok({});
   const byKey = new Map<string, FilterPath[]>();
   for (const path of paths) {
     const [segment, ...tail] = path;
@@ -591,63 +672,86 @@ const projectObjectPaths = (value: unknown, paths: FilterPaths): unknown => {
     siblings.push(tail);
     byKey.set(segment.key, siblings);
   }
-
   const result = new Map<string, unknown>();
   for (const key of [...byKey.keys()].sort()) {
     const siblings = byKey.get(key)!;
     if (!Object.hasOwn(value, key)) continue;
     const child = (value as Record<string, unknown>)[key];
     if (child === undefined) continue;
-    // Selecting a parent retains its complete original subtree and dominates
-    // any narrower selections below it, independent of path order.
     if (siblings.some((path) => path.length === 0)) {
       result.set(key, child);
       continue;
     }
-    const slicePaths = siblings.filter(
-      (path) => path[0] !== undefined && "start" in path[0],
-    );
-    if (slicePaths.length > 0 && Array.isArray(child)) {
-      result.set(key, projectArraySlices(child, slicePaths));
-      continue;
-    }
-    const objectPaths = siblings.filter(
-      (path) => path[0] !== undefined && "key" in path[0],
-    );
-    if (objectPaths.length > 0 && typeof child === "object" && child !== null)
-      result.set(key, projectObjectPaths(child, objectPaths));
+    const projection = projectChildPaths(child, siblings);
+    if (!projection.ok) return projection;
+    if (projection.value !== undefined) result.set(key, projection.value);
   }
-  return Object.fromEntries(result);
+  return ok(Object.fromEntries(result));
 };
 
-/** Union sliced rows by their original index, then emit them in source order. */
+/** Keep key-only array projections compatible; mixed projections use source indices. */
+const projectChildPaths = (
+  value: unknown,
+  paths: FilterPaths,
+): FilterProjection => {
+  if (typeof value !== "object" || value === null) return ok(undefined);
+  return Array.isArray(value) &&
+    paths.some((path) => path[0] !== undefined && "start" in path[0])
+    ? projectArraySlices(value, paths)
+    : projectObjectPaths(value, paths);
+};
+
+/** Union sliced rows and explicit array indices, then emit them in source order. */
 const projectArraySlices = (
   source: readonly unknown[],
   paths: readonly FilterPath[],
-): unknown[] => {
+): FilterProjection => {
   const selected = new Map<number, FilterPath[]>();
+  const select = (index: number, tail: FilterPath): void => {
+    const siblings = selected.get(index) ?? [];
+    siblings.push(tail);
+    selected.set(index, siblings);
+  };
   for (const path of paths) {
-    const [slice, ...tail] = path;
-    if (slice === undefined || !("start" in slice)) continue;
-    const start = normalizeSliceIndex(slice.start, source.length);
-    const end = normalizeSliceIndex(slice.end, source.length);
-    for (let index = start; index < end; index += 1) {
-      const siblings = selected.get(index) ?? [];
-      siblings.push(tail);
-      selected.set(index, siblings);
+    const [segment, ...tail] = path;
+    if (segment === undefined) continue;
+    if ("key" in segment) {
+      // Canonical own array indices share the same identity as slice positions.
+      // Missing properties contribute nothing, as in key-only projections.
+      if (!Object.hasOwn(source, segment.key)) continue;
+      const index = Number(segment.key);
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= 0xffff_ffff ||
+        String(index) !== segment.key
+      )
+        return err(
+          `The --filter-output selection mixes array slices with the non-index property ${JSON.stringify(segment.key)}. These selections cannot share an array result.`,
+        );
+      select(index, tail);
+      continue;
     }
+    const start = normalizeSliceIndex(segment.start, source.length);
+    const end = normalizeSliceIndex(segment.end, source.length);
+    for (let index = start; index < end; index += 1) select(index, tail);
   }
-  return [...selected.keys()]
-    .sort((left, right) => left - right)
-    .map((index) => {
-      const siblings = selected.get(index)!;
-      const item = source[index];
-      if (siblings.some((path) => path.length === 0)) return item;
-      return Array.isArray(item) &&
-        siblings.some((path) => path[0] !== undefined && "start" in path[0])
-        ? projectArraySlices(item, siblings)
-        : projectObjectPaths(item, siblings);
-    });
+  const result: unknown[] = [];
+  for (const index of [...selected.keys()].sort(
+    (left, right) => left - right,
+  )) {
+    const siblings = selected.get(index)!;
+    const item = source[index];
+    if (siblings.some((path) => path.length === 0)) {
+      result.push(item === undefined ? null : item);
+      continue;
+    }
+    const projection = projectChildPaths(item, siblings);
+    if (!projection.ok) return projection;
+    // Slices have historically retained selected scalar rows as empty objects.
+    result.push(projection.value ?? {});
+  }
+  return ok(result);
 };
 
 const normalizeSliceIndex = (index: number, length: number): number => {

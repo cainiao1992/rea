@@ -327,7 +327,13 @@ const facetViewSchema = z.strictObject({
 const indexSelectorSchema = z.strictObject({
   index: z.int().nonnegative(),
 });
-const nameSelectorSchema = z.strictObject({ name: z.string() });
+const nameSelectorSchema = z.strictObject({
+  name: z
+    .string()
+    .describe(
+      "Exact UTF-8 section or symbol name, matched against retained source bytes. Use index for non-UTF-8 names or unresolved name bytes.",
+    ),
+});
 const pathSelectorSchema = z.strictObject({
   path: z
     .string()

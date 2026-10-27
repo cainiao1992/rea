@@ -42,6 +42,10 @@ import {
   scenarioCaptureFixture,
 } from "../../../tests/fixtures/browserScenarioCapture.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import { OwnedFileHandle } from "../../filesystem/OwnedFileHandle.js";
+import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
+import * as queuedInterrupts from "../../process/queuedInterrupts.js";
+import { createEvidenceBundle } from "../../domain/evidenceBundle.js";
 import * as evidenceFileSource from "./evidenceFileSource.js";
 
 it("projects retained GPU source facts while delivering the caller's rebound subject", () => {
@@ -1329,10 +1333,234 @@ it("prioritizes queued cancellation over a file authentication failure", async (
       error: { _tag: "AnalysisCancelledError" },
     });
     expect(result.ok ? undefined : result.error.cause).toBe(reason);
+    if (result.ok) throw new Error("Expected cancellation");
+    expect(result.error.secondaryFailures).toHaveLength(1);
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cancelled",
+      details: {
+        diagnostics: { source_error: { code: "evidence_integrity_mismatch" } },
+      },
+    });
   } finally {
     read.mockRestore();
   }
 });
+
+it("retries the owned descriptor when queued cancellation supersedes file cleanup failure", async () => {
+  const controller = new AbortController();
+  const path = join(
+    await createTestTempDirectory("rea-view-cleanup-"),
+    "evidence.json",
+  );
+  await writeFile(path, JSON.stringify(analysisViewCaptureEvidence()));
+  const resources = new ArtifactResourceScope();
+  const originalClose = OwnedFileHandle.prototype.close;
+  const owners = new Set<OwnedFileHandle>();
+  let failClose = true;
+  const close = vi
+    .spyOn(OwnedFileHandle.prototype, "close")
+    .mockImplementation(async function (this: OwnedFileHandle) {
+      owners.add(this);
+      if (failClose) {
+        setImmediate(() => setImmediate(() => controller.abort("stop")));
+        throw new Error("Fixture descriptor close unavailable");
+      }
+      return originalClose.call(this);
+    });
+  try {
+    const result = await inspectAnalysisView(
+      { source: { kind: "evidence-file", path }, view: manifestView },
+      undefined,
+      { signal: controller.signal, resources },
+    );
+    if (result.ok)
+      throw new Error("Expected cancellation with pending cleanup");
+    expect(result.error.cleanupIncomplete).toBe(true);
+    expect(result.error.cleanupResources).toEqual([path]);
+    expect(result.error.cleanupPrimary?.secondaryFailures).toHaveLength(1);
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      details: {
+        diagnostics: {
+          primary_error: {
+            details: {
+              diagnostics: { source_error: { code: "cleanup_incomplete" } },
+            },
+          },
+        },
+      },
+    });
+    expect(resources.hasPending).toBe(true);
+    expect(owners.size).toBe(1);
+    expect([...owners][0]!.handle.fd).toBeGreaterThanOrEqual(0);
+    expect(projectAnalysisError(result.error)).toMatchObject({
+      code: "cleanup_incomplete",
+      details: { diagnostics: { primary_error: { code: "cancelled" } } },
+    });
+    failClose = false;
+    await resources.retryCleanup();
+    expect([...owners][0]!.handle.fd).toBe(-1);
+    expect(resources.hasPending).toBe(false);
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect(result.error.cleanupResources).toEqual([]);
+  } finally {
+    failClose = false;
+    await resources.close();
+    close.mockRestore();
+  }
+});
+
+it.each(["file", "bundle"] as const)(
+  "preserves the %s source authentication cancellation precedence",
+  async (kind) => {
+    const path = join(
+      await createTestTempDirectory("rea-view-invalid-"),
+      "invalid.json",
+    );
+    await writeFile(path, "{}");
+    const controller = new AbortController();
+    const dispatch = queuedInterrupts.dispatchQueuedInterrupts;
+    const interrupt = vi
+      .spyOn(queuedInterrupts, "dispatchQueuedInterrupts")
+      .mockImplementation(async () => {
+        await dispatch();
+        controller.abort("after-authentication");
+      });
+    try {
+      const result = await inspectAnalysisView(
+        {
+          source:
+            kind === "file"
+              ? { kind: "evidence-file", path }
+              : {
+                  kind: "retained-evidence",
+                  evidence_id: "ev_" + "a".repeat(64),
+                },
+          view: manifestView,
+        },
+        undefined,
+        {
+          signal: controller.signal,
+          ...(kind === "bundle" ? { evidenceBundlePath: path } : {}),
+        },
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        error:
+          kind === "file"
+            ? { _tag: "AnalysisCancelledError", cause: "after-authentication" }
+            : { _tag: "EvidenceIntegrityError" },
+      });
+    } finally {
+      interrupt.mockRestore();
+    }
+  },
+);
+
+it.each(["file", "bundle"] as const)(
+  "preserves completed %s view Evidence when cancellation arrives after projection",
+  async (kind) => {
+    const parent = analysisViewCaptureEvidence();
+    const path = join(
+      await createTestTempDirectory("rea-view-completion-"),
+      "source.json",
+    );
+    await writeFile(
+      path,
+      JSON.stringify(kind === "file" ? parent : createEvidenceBundle([parent])),
+    );
+    const controller = new AbortController();
+    const dispatch = queuedInterrupts.dispatchQueuedInterrupts;
+    let stages = 0;
+    const interrupt = vi
+      .spyOn(queuedInterrupts, "dispatchQueuedInterrupts")
+      .mockImplementation(async () => {
+        await dispatch();
+        stages += 1;
+        if (stages === 2) controller.abort("after-projection");
+      });
+    try {
+      const result = await inspectAnalysisView(
+        {
+          source:
+            kind === "file"
+              ? { kind: "evidence-file", path }
+              : { kind: "retained-evidence", evidence_id: parent.evidence_id },
+          view: manifestView,
+        },
+        undefined,
+        {
+          signal: controller.signal,
+          ...(kind === "bundle" ? { evidenceBundlePath: path } : {}),
+        },
+      );
+      if (result.ok) throw new Error("Expected cancellation after projection");
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCancelledError",
+        partialObservation: {
+          operation: "inspect_analysis_view",
+          evidence_links: [parent.evidence_id],
+        },
+      });
+    } finally {
+      interrupt.mockRestore();
+    }
+  },
+);
+
+it.each(["file", "bundle"] as const)(
+  "preserves a produced %s projection failure when cancellation arrives",
+  async (kind) => {
+    const parent = createEvidence(
+      undefined,
+      { id: "fixture", name: "Fixture", version: "1" },
+      {
+        operation: "inspect_recorded_crash",
+        parameters: {},
+        result: { path: "/artifacts/crash.core" },
+      },
+    );
+    const path = join(
+      await createTestTempDirectory("rea-view-failure-"),
+      "source.json",
+    );
+    await writeFile(
+      path,
+      JSON.stringify(kind === "file" ? parent : createEvidenceBundle([parent])),
+    );
+    const controller = new AbortController();
+    const dispatch = queuedInterrupts.dispatchQueuedInterrupts;
+    let stages = 0;
+    const interrupt = vi
+      .spyOn(queuedInterrupts, "dispatchQueuedInterrupts")
+      .mockImplementation(async () => {
+        await dispatch();
+        if (++stages === 2) controller.abort("after-failure");
+      });
+    try {
+      const result = await inspectAnalysisView(
+        {
+          source:
+            kind === "file"
+              ? { kind: "evidence-file", path }
+              : { kind: "retained-evidence", evidence_id: parent.evidence_id },
+          view: { kind: "summary" },
+        },
+        undefined,
+        {
+          signal: controller.signal,
+          ...(kind === "bundle" ? { evidenceBundlePath: path } : {}),
+        },
+      );
+      expect(controller.signal.aborted).toBe(true);
+      expect(result).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisUnsupportedTargetError" },
+      });
+    } finally {
+      interrupt.mockRestore();
+    }
+  },
+);
 
 describe("inspectAnalysisView scenario parents", () => {
   const view = manifestView;

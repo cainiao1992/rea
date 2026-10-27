@@ -69,6 +69,44 @@ it("does not bind recursive-type index spaces by guessing their cardinality", ()
   ]);
 });
 
+it.each(["\t", "\n", " (; outer (; nested ;) ;) "])(
+  "uses parsed group heads for type uses and mutable globals with %j separators",
+  (separator) => {
+    const imported = `(import "env" "f" (func (${separator}type${separator}$signature)))`;
+    const global = `(global $g (${separator}mut${separator}i64) (i64.const 1))`;
+    const result = parseWabtWat(`(module
+      (type $signature (func (param i32) (result i64)))
+      ${imported}
+      (func (${separator}type${separator}99))
+      ${global}
+      (tag (${separator}type${separator}$signature))
+      (export "unknown" (func 1))
+      (export "global" (global $g))
+      (export "tag" (tag 0)))`);
+    expect(result.imports).toEqual([imported]);
+    expect(result.interface.state).toBe("complete");
+    expect(result.interface.entries).toMatchObject([
+      {
+        name: "f",
+        signature: { kind: "func", params: ["i32"], results: ["i64"] },
+        wat_form: imported,
+        issue: null,
+      },
+      { name: "unknown", index: 1, signature: null, issue: expect.any(String) },
+      {
+        name: "global",
+        signature: { kind: "global", value_type: "i64", mutable: true },
+        issue: null,
+      },
+      {
+        name: "tag",
+        signature: { kind: "tag", params: ["i32"], results: ["i64"] },
+        issue: null,
+      },
+    ]);
+  },
+);
+
 it("preserves custom memory page sizes and treats unadmitted nested declarations as unknown", () => {
   const custom = parseWabtWat(
     '(module (memory 1 2 (pagesize 1)) (export "m" (memory 0)))',

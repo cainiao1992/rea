@@ -3,7 +3,10 @@ import {
   readMachoDylibCommandFacts,
 } from "../domain/apple/machoDylibCommand.js";
 import { readMachoSectionHeader } from "../domain/apple/machoSectionHeader.js";
-import { readMachoSegmentHeader } from "../domain/apple/machoSegmentHeader.js";
+import {
+  admitMachoSegmentMapping,
+  readMachoSegmentHeader,
+} from "../domain/apple/machoSegmentHeader.js";
 import {
   MachoLoadCommandCursor,
   readMachoLoadCommandDeclarations,
@@ -13,6 +16,7 @@ import {
   BinaryFormatFailure,
   createFileMappingIndex,
   type ZeroFillMapping,
+  type FileMapping,
 } from "./metadata/BinaryContainer.js";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
@@ -202,6 +206,7 @@ export const parseMachoLayout = (
     slice,
     sliceEnd,
     segments: [],
+    mappings: [],
     zeroFills: [],
     sections: [],
     dylibs: [],
@@ -226,14 +231,7 @@ export const parseMachoLayout = (
   const complete = framing.finish();
   if (!complete.ok) throw new RangeError(complete.error);
   const { segments, sections, chained, binds, rebases, dylibs } = state;
-  const mappings = createFileMappingIndex(
-    segments.map((segment) => ({
-      address: segment.address,
-      offset: segment.offset,
-      size: Number(segment.size),
-    })),
-    state.zeroFills,
-  );
+  const mappings = createFileMappingIndex(state.mappings, state.zeroFills);
   const offset = (address: bigint, size = 1): number => {
     try {
       return mappings.offset(address, size);
@@ -275,6 +273,7 @@ interface LayoutState {
   readonly slice: number;
   readonly sliceEnd: number;
   readonly segments: Segment[];
+  readonly mappings: FileMapping[];
   readonly zeroFills: ZeroFillMapping[];
   readonly sections: Section[];
   readonly dylibs: FixupCommands["dylibs"][number][];
@@ -313,20 +312,35 @@ const collectSegment = (
     sectionCount: count,
     headerSize,
   } = parsed.value;
+  const admitted = admitMachoSegmentMapping(parsed.value, 64);
+  if (!admitted.ok) throw new RangeError(admitted.error.message);
   if (fileOffset + fileSize > BigInt(state.sliceEnd - state.slice))
     throw new RangeError("Segment file range exceeds target bytes");
+  const name = decodeMachoFixedName(nameBytes);
   state.segments.push({
     address,
     size: fileSize,
     offset: state.slice + Number(fileOffset),
     executable: (protection & 4) !== 0,
   });
-  if (memorySize > fileSize && decodeMachoFixedName(nameBytes) !== "__PAGEZERO")
+  if (!admitted.value.unmapped && name !== "__PAGEZERO")
+    state.mappings.push({
+      address,
+      size: Number(fileSize),
+      offset: state.slice + Number(fileOffset),
+    });
+  if (memorySize > fileSize && name !== "__PAGEZERO")
     state.zeroFills.push({
       address: address + fileSize,
       size: memorySize - fileSize,
     });
-  if (fileOffset === 0n && fileSize > 0n) state.baseAddress ??= address;
+  if (
+    !admitted.value.unmapped &&
+    name !== "__PAGEZERO" &&
+    fileOffset === 0n &&
+    fileSize > 0n
+  )
+    state.baseAddress ??= address;
   if (headerSize + count * 80 > size)
     throw new RangeError("Truncated section table");
   for (let section = 0; section < count; section++) {

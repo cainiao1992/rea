@@ -1,3 +1,4 @@
+import { analysisErrorWithCancellation } from "../domain/analysisErrorCancellation.js";
 import { WorkerFrameSignal } from "../process/WorkerFrameSignal.js";
 import { createHash, randomUUID } from "node:crypto";
 import { open, rm } from "node:fs/promises";
@@ -463,13 +464,21 @@ export class WebBundleAnalysisWorker {
         await rm(join(root, `${id}.result`), { force: true });
       }
     } catch (cause) {
-      return failed(
-        this.#cleanupFailure(cause, result.ok ? undefined : result.error),
-      );
+      const previous = result.ok ? undefined : result.error;
+      const primary = signal?.aborted
+        ? analysisErrorWithCancellation(
+            previous,
+            new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
+          )
+        : previous;
+      return failed(this.#cleanupFailure(cause, primary));
     }
-    if (signal?.aborted && result.ok)
+    if (signal?.aborted)
       return failed(
-        new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
+        analysisErrorWithCancellation(
+          result.ok ? undefined : result.error,
+          new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
+        ),
       );
     return result.ok ? result : failed(result.error);
   }

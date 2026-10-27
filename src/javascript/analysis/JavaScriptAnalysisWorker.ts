@@ -1,3 +1,4 @@
+import { analysisErrorWithCancellation } from "../../domain/analysisErrorCancellation.js";
 import { safeParseUtf8Json } from "../../domain/safeJson.js";
 import { analysisSettingLimit } from "../../domain/analysisSettingDefinitions.js";
 import { WorkerFrameSignal } from "../../process/WorkerFrameSignal.js";
@@ -541,7 +542,17 @@ export class JavaScriptAnalysisWorker {
           await rm(join(rootPath, `${id}.${suffix}`), { force: true });
       } catch (cause: unknown) {
         this.#runtime.retainForCleanup();
-        const error = this.#cleanupError(message(cause));
+        const previous = result.ok ? undefined : result.error.error;
+        const primary = signal?.aborted
+          ? analysisErrorWithCancellation(
+              previous,
+              new AnalysisCancelledError(OPERATION, {
+                cause: signal.reason,
+                capturedOutput: this.#captured(),
+              }),
+            )
+          : previous;
+        const error = this.#cleanupError(message(cause), primary);
         this.#runtime.bindCleanupFailure(error);
         result = err({
           javascript,
@@ -551,12 +562,15 @@ export class JavaScriptAnalysisWorker {
         });
       }
     }
-    if (result.ok && signal?.aborted === true) {
-      const error = new AnalysisCancelledError(OPERATION, {
-        cause: signal.reason,
-        capturedOutput: this.#captured(),
-      });
-      this.#lastFailure = error;
+    if (signal?.aborted === true) {
+      const error = analysisErrorWithCancellation(
+        result.ok ? undefined : result.error.error,
+        new AnalysisCancelledError(OPERATION, {
+          cause: signal.reason,
+          capturedOutput: this.#captured(),
+        }),
+      );
+      if (result.ok) this.#lastFailure = error;
       result = err({ error, javascript, module, projection });
     }
     if (this.#applicationProjectionFailure !== undefined)

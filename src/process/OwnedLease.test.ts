@@ -6,6 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { AnalysisCleanupLease } from "../artifacts/AnalysisCleanupLease.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import { HopperStartError } from "../domain/hopperErrors.js";
 const createTestTempDirectory = async (prefix: string): Promise<string> => {
@@ -358,5 +359,120 @@ describe.skipIf(process.platform === "win32")(
       if (failure instanceof HopperStartError)
         expect(failure.cleanupIncomplete).toBe(true);
     });
+  },
+);
+
+describe.skipIf(process.platform === "win32")(
+  "launcher lease release finalization",
+  () => {
+    it.each(["bootstrap", "cancelled", "nested"] as const)(
+      "retains a lease whose release fails after %s startup failure",
+      async (stage) => {
+        const root = await createTestTempDirectory("rea-launch-release-");
+        const release = vi
+          .fn()
+          .mockRejectedValueOnce(new Error("injected lease release failure"))
+          .mockResolvedValue(undefined);
+        const socketPath = join(root, "lease.sock");
+        const controller = new AbortController();
+        const probeRelease = vi
+          .fn()
+          .mockRejectedValueOnce(new Error("probe cleanup still pending"))
+          .mockResolvedValue(undefined);
+        const probeLease = new AnalysisCleanupLease(probeRelease, ["probe"]);
+        const launcher = new HopperApplicationLauncher(
+          {
+            environment: {},
+            launcherPath: join(root, "hopper"),
+            targetPath: join(root, "target"),
+            targetKind: "database",
+            loaderArgs: [],
+            bridgeScriptPath: join(root, "bridge.py"),
+            launchMode: "verified_linux_demo",
+            demoHelperPath: join(root, "helper"),
+          },
+          {
+            platform: "linux",
+            acquireApplicationLease: async () => ({
+              acquired: true,
+              lease: { socketPath, release },
+            }),
+            retryPublisherCleanup: async () => undefined,
+            verifyLinuxLauncher: async () => ({
+              ok: true,
+              value: {
+                sha256: "0".repeat(64),
+                version: "fixture",
+                primaryFingerprint: "0".repeat(40),
+                signingFingerprint: "1".repeat(40),
+                source: "signed_package_cache",
+              },
+            }),
+            selectPrivateDisplay: async () => {
+              controller.abort("cancel during probe finalization");
+              return {
+                ok: false,
+                strategy: "unavailable",
+                exitCode: 70,
+                diagnostic: {
+                  component: "hopper_private_display",
+                  operation: "probe",
+                  status: "error",
+                  failure_code: "private_display_unavailable",
+                  reason: "fixture",
+                  socket_directory: "/tmp/.X11-unix",
+                  socket_directory_mode: null,
+                  mount_read_only: null,
+                  effective_socket_directory_mode: null,
+                  effective_mount_read_only: null,
+                  wsl: false,
+                  strategy: "unavailable",
+                  fallback_reason: null,
+                  xvfb_stderr_bytes: 0,
+                },
+                cleanup: {
+                  status: "pending",
+                  lease: probeLease,
+                  reason: "fixture cleanup",
+                },
+              };
+            },
+          },
+        );
+        const signal =
+          stage === "nested"
+            ? controller.signal
+            : AbortSignal.abort("cancel fixture");
+        const launched = await launcher.launch(
+          {
+            directory: stage === "bootstrap" ? join(root, "missing") : root,
+            socketPath: join(root, "bridge.sock"),
+            token: "fixture-token",
+            runId: "lease-release-test",
+          },
+          stage !== "bootstrap" ? { signal } : {},
+        );
+        expect(launched.ok).toBe(false);
+        if (launched.ok) return;
+        expect(launched.error.cleanupPrimary?._tag).toBe(
+          stage !== "bootstrap" ? "HopperCancelledError" : "HopperStartError",
+        );
+        expect(launched.error.cleanupIncomplete).toBe(true);
+        expect(launched.error.cleanupResources).toEqual(
+          stage === "nested" ? ["probe", socketPath] : [socketPath],
+        );
+        expect(release).toHaveBeenCalledTimes(1);
+        if (stage === "nested") {
+          expect((await launcher.cleanup()).ok).toBe(false);
+          expect(launched.error.cleanupResources).toEqual(["probe"]);
+          expect(launched.error.cleanupIncomplete).toBe(true);
+        }
+        expect((await launcher.cleanup()).ok).toBe(true);
+        expect(release).toHaveBeenCalledTimes(2);
+        expect(launched.error.cleanupIncomplete).toBe(false);
+        expect((await launcher.cleanup()).ok).toBe(true);
+        expect(release).toHaveBeenCalledTimes(2);
+      },
+    );
   },
 );

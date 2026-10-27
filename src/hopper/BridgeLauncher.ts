@@ -289,8 +289,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
     const leaseResult = await this.#acquireLaunchLease(session.runId);
     if (!leaseResult.ok) return leaseResult;
     const lease = leaseResult.value;
-    let leaseTransferred = false;
-    try {
+    const outcome = await (async () => {
       let loadedPath = this.options.targetPath;
       const preparedImage = this.options.preparedImage;
       const sourceSha256 =
@@ -354,11 +353,33 @@ export class HopperApplicationLauncher implements BridgeLauncher {
         ownsProcessLifetime,
         lease,
       });
-      leaseTransferred = launched.ok;
       return launched;
-    } finally {
-      if (!leaseTransferred) await lease?.release();
-    }
+    })().catch((cause: unknown) => err(new HopperStartError({ cause })));
+    if (outcome.ok || lease === undefined) return outcome;
+    const released = await this.#probeResources.release({
+      kind: "lease",
+      resource: lease.socketPath ?? session.directory,
+      lease,
+    });
+    if (released.kind === "released") return outcome;
+    const cleanup = this.#probeResources.cleanupFailure({ kind: "completed" }, [
+      released,
+    ]);
+    const leaseFailure = new HopperStartError({
+      cause: cleanup,
+      cleanup: cleanup.cleanup,
+    });
+    bindRetainedArtifactCleanup(leaseFailure, cleanup);
+    const failure = new HopperStartError({
+      cause: cleanup,
+      cleanupPrimary: outcome.error,
+      cleanup: cleanup.cleanup,
+      ...(outcome.error.userMessage === undefined
+        ? {}
+        : { userMessage: outcome.error.userMessage }),
+    });
+    failure.bindCleanupDependencies([outcome.error, leaseFailure]);
+    return err(failure);
   }
 
   async #launchPreparedTarget(input: {

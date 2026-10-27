@@ -646,12 +646,14 @@ export const inspectNativeDispatchMetadata = (
           left.selector,
           left.method_type,
           left.implementation_address ?? "",
+          left.category ?? null,
         ]),
         compositeKey([
           right.class_name,
           right.selector,
           right.method_type,
           right.implementation_address ?? "",
+          right.category ?? null,
         ]),
       ),
   );

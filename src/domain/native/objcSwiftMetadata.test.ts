@@ -91,6 +91,29 @@ describe("symbol-only Objective-C implementation identity", () => {
       "category",
     );
   });
+
+  it("orders distinct category identities independently of provider inventory order", () => {
+    const names = [
+      "-[StoreController(Actions) buildTapped:]",
+      "-[StoreController(OtherActions) buildTapped:]",
+    ];
+    const inspect = (ordered: string[]) =>
+      inspectNativeDispatchMetadata(
+        ordered.map((name) => ({ address: "0x1000", name })),
+        ordered.length,
+      );
+    const forward = inspect(names);
+    const reverse = inspect([...names].reverse());
+    expect(reverse).toEqual(forward);
+    expect(
+      reverse.objc_dispatch_implementations.map(({ category }) => category),
+    ).toEqual(["Actions", "OtherActions"]);
+    expect(
+      reverse.objc_dispatch_implementations.map(({ evidence }) =>
+        evidence.map(({ description }) => description),
+      ),
+    ).toEqual(names.map((name) => [`Provider symbol ${name}`]));
+  });
 });
 
 describe("symbol-only Objective-C implementation addresses", () => {

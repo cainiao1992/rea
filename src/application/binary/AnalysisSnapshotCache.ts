@@ -51,6 +51,15 @@ const RELATIONSHIP_OPERATIONS: ReadonlySet<AnalysisOperation> = new Set([
   "procedure_callees",
 ]);
 
+// These reports depend on selected bundle resources or loader context beyond
+// the immutable executable identity carried by a binary analysis snapshot.
+const RESOURCE_SCOPED_OPERATIONS: ReadonlySet<AnalysisOperation> = new Set([
+  "decode_interface_builder",
+  "inspect_asset_catalog",
+  "inspect_keyed_archive",
+  "trace_dylib_resolution",
+]);
+
 const STATEFUL_OPERATIONS: ReadonlySet<AnalysisOperation> = new Set([
   "health",
   "current_address",
@@ -85,6 +94,7 @@ export const isSnapshotCacheable = (
   parameters: Readonly<Record<string, JsonValue>>,
 ): descriptor is CapabilityDescriptor =>
   !STATEFUL_OPERATIONS.has(operation) &&
+  !RESOURCE_SCOPED_OPERATIONS.has(operation) &&
   (!DOCUMENT_SCOPED_OPERATIONS.has(operation) ||
     typeof parameters.document === "string") &&
   (!CURSOR_DEFAULT_OPERATIONS.has(operation) ||

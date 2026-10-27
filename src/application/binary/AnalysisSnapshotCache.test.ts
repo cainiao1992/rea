@@ -716,6 +716,26 @@ describe("analysis snapshot cache policy", () => {
       effects: { changesPermissions: true },
       cacheable: false,
     },
+    {
+      policy: "snapshot",
+      operation: "decode_interface_builder",
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      operation: "inspect_asset_catalog",
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      operation: "inspect_keyed_archive",
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      operation: "trace_dylib_resolution",
+      cacheable: false,
+    },
     { policy: "snapshot", operation: "list_documents", cacheable: false },
     { policy: "snapshot", operation: "list_strings", cacheable: false },
     {

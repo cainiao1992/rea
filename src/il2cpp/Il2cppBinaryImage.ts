@@ -1,4 +1,5 @@
 import {
+  classifyFatContainerEvidence,
   readFatContainerHeader,
   validateFatSlice,
 } from "../domain/apple/machoContainer.js";
@@ -34,7 +35,16 @@ const selectImage = (
   architecture: string | undefined,
 ): Buffer => {
   const fat = readFatContainerHeader(bytes, bytes.length);
-  if (fat.state === "not-fat") {
+  const identity =
+    fat.state === "parsed"
+      ? classifyFatContainerEvidence(fat, bytes)
+      : undefined;
+  if (identity?.state === "malformed")
+    throw new Il2cppBinaryFormatFailure("malformed-container", identity.reason);
+  if (
+    fat.state === "not-fat" ||
+    (fat.state === "parsed" && identity?.state !== "mach-o")
+  ) {
     if (architecture !== undefined)
       throw new Il2cppBinaryFormatFailure(
         "slice-not-found",

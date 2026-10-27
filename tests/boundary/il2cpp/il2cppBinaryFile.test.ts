@@ -1,3 +1,4 @@
+import { javaClassFile } from "../../fixtures/javaClassFile.js";
 import { Il2cppBinaryFormatFailure } from "../../../src/il2cpp/Il2cppBinaryFormat.js";
 import { readBinaryContainer } from "../../../src/native/metadata/readBinaryContainer.js";
 import {
@@ -191,10 +192,33 @@ it("rejects reused MethodDef tokens within an image but preserves cross-image re
   );
 });
 
+it.each([0, 4000, 9000])(
+  "reports a valid JVM class with %i unused constant bytes as unsupported",
+  (constantBytes) => {
+    expect(failure(javaClassFile(constantBytes, true))).toEqual({
+      reason: "unsupported-container",
+      kind: "unsupported",
+    });
+  },
+);
+
+it("does not infer universal Mach-O identity from a FAT-shaped non-Mach-O table", () => {
+  // CAFEBABE also identifies JVM classes. A plausible FAT table and known CPU
+  // do not prove Mach-O unless the declared slice contains a Mach-O header.
+  const bytes = createUniversalFixture([
+    { cpu: 0x0100000c, bytes: Buffer.alloc(0x100) },
+  ]);
+  expect(failure(bytes)).toEqual({
+    reason: "unsupported-container",
+    kind: "unsupported",
+  });
+  expect(failure(bytes, "arm64").reason).toBe("slice-not-found");
+});
+
 it("requires an explicit slice of a universal Mach-O and reads only that slice", () => {
   const thin = createIl2cppBinaryFixture();
   const universal = createUniversalFixture([
-    { cpu: 0x01000007, bytes: Buffer.alloc(0x100) },
+    { cpu: 0x01000007, bytes: createIl2cppBinaryFixture() },
     { cpu: 0x0100000c, bytes: thin },
   ]);
   expect(failure(universal)).toEqual({

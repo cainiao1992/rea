@@ -2099,10 +2099,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         requireKeys(params, Set.of("document", "address"));
         requireDocument(params);
         Address query = requireAddress(params, "address");
-        Function function = currentProgram.getFunctionManager().getFunctionAt(query);
-        if (function == null && query.isMemoryAddress()) {
-            function = currentProgram.getFunctionManager().getFunctionContaining(query);
-        }
+        Function function = functionAtOrContaining(query);
         JsonObject result = new JsonObject();
         result.addProperty("query_address", canonicalAddress(query));
         if (function != null) {
@@ -2291,6 +2288,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return function;
     }
 
+    /** Exact entries include externals; containment applies only to memory addresses. */
     private Function functionAtOrContaining(Address address) {
         Function function = currentProgram.getFunctionManager().getFunctionAt(address);
         return function == null && address.isMemoryAddress()
@@ -2995,7 +2993,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         if (!currentProgram.getLanguageID().getIdAsString().startsWith("AARCH64:")) {
             return null;
         }
-        Function function = containingFunction(jumpTable.getSwitchAddress());
+        Function function = functionAtOrContaining(jumpTable.getSwitchAddress());
         if (function == null) return null;
 
         List<Instruction> instructions = new ArrayList<>();
@@ -3495,7 +3493,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
 
     private boolean unrepresentedCaller(Reference reference, Set<Function> callers) {
         if (!reference.getReferenceType().isCall()) return false;
-        Function caller = containingFunction(reference.getFromAddress());
+        Function caller = functionAtOrContaining(reference.getFromAddress());
         return caller == null || !callers.contains(caller);
     }
 
@@ -3642,7 +3640,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         void observe(Reference reference) {
             if (!reference.getReferenceType().isCall()) return;
             // Reference identity follows the same containing-function owner as referenceEdge.
-            Function target = containingFunction(reference.getToAddress());
+            Function target = functionAtOrContaining(reference.getToAddress());
             if (returnedCallees != null && (target == null || !returnedCallees.contains(target)))
                 unrepresented++;
             if (target == null) unresolved(reference.getFromAddress(),
@@ -3812,8 +3810,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         JsonObject result = new JsonObject();
         result.addProperty("source_address", canonicalAddress(reference.getFromAddress()));
         result.addProperty("target_address", canonicalAddress(reference.getToAddress()));
-        Function source = containingFunction(reference.getFromAddress());
-        Function target = containingFunction(reference.getToAddress());
+        Function source = functionAtOrContaining(reference.getFromAddress());
+        Function target = functionAtOrContaining(reference.getToAddress());
         result.add(
             "source_procedure",
             source == null ? JsonNull.INSTANCE : procedureIdentity(source)
@@ -3845,14 +3843,6 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.addProperty("primary", reference.isPrimary());
         result.addProperty("operand_index", reference.getOperandIndex());
         result.addProperty("external", reference.isExternalReference());
-        return result;
-    }
-
-    private Function containingFunction(Address address) {
-        Function result = currentProgram.getFunctionManager().getFunctionAt(address);
-        if (result == null && address.isMemoryAddress()) {
-            result = currentProgram.getFunctionManager().getFunctionContaining(address);
-        }
         return result;
     }
 

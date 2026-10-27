@@ -15,10 +15,9 @@ import {
   astObservationEvidence,
   staticInferenceEvidence,
 } from "./JavaScriptArtifactGraphEvidence.js";
-import {
-  collectElectronIpcRecords,
-  unambiguousElectronIpcPairings,
-  type ElectronIpcRecord,
+import type {
+  ElectronIpcContext,
+  ElectronIpcRecord,
 } from "./ElectronBoundaryAnalysis.js";
 import {
   addElectronAstEdge,
@@ -30,6 +29,7 @@ import {
 interface IpcGraphState {
   readonly context: JavaScriptArtifactGraphContext;
   readonly records: readonly ElectronIpcRecord[];
+  readonly ipc: ElectronIpcContext;
   readonly channels: Map<string, ApplicationNode>;
   readonly handlers: Map<string, ApplicationNode>;
   readonly sources: Map<string, ApplicationNode>;
@@ -54,10 +54,12 @@ interface ValidationObservationInput {
 /** Project IPC syntax, handler locations, validations, and exact pairings. */
 export const addElectronIpcBoundaries = (
   context: JavaScriptArtifactGraphContext,
+  ipc: ElectronIpcContext,
 ): void => {
   const state: IpcGraphState = {
     context,
-    records: collectElectronIpcRecords(context.analysis),
+    records: ipc.records,
+    ipc,
     channels: new Map(),
     handlers: new Map(),
     sources: new Map(),
@@ -82,7 +84,12 @@ const addIpcRecord = (
   );
   if (source === undefined) return;
   state.sources.set(record.key, source);
-  const channel = addChannelNode(context, record, coverage);
+  const channel = addChannelNode(
+    context,
+    record,
+    coverage,
+    state.ipc.owners.get(record.key) ?? null,
+  );
   state.channels.set(record.key, channel);
   if (record.finding.mode === "listen" || record.finding.mode === "handle") {
     const handler = addHandlerNode({
@@ -117,6 +124,7 @@ const addChannelNode = (
   context: JavaScriptArtifactGraphContext,
   record: ElectronIpcRecord,
   coverage: JavaScriptArtifactGraphCoverage,
+  owner: string | null,
 ): ApplicationNode => {
   const { finding, file } = record;
   const channelKey =
@@ -125,7 +133,10 @@ const addChannelNode = (
       : `literal:${finding.channel}`;
   const identityKey =
     finding.receiver === undefined
-      ? channelKey
+      ? JSON.stringify([
+          owner === null ? ["unknown", file.path] : ["application", owner],
+          channelKey,
+        ])
       : JSON.stringify([
           file.path,
           file.sha256,
@@ -204,7 +215,7 @@ const addHandlerNode = (input: IpcHandlerInput): ApplicationNode => {
   const handlerKey = `${finding.side}:${finding.operation}:${finding.channel ?? finding.channel_expression}:${javascriptSourceRangeKey(handlerRange)}`;
   const identityKey =
     finding.receiver === undefined
-      ? handlerKey
+      ? JSON.stringify([file.path, handlerKey])
       : JSON.stringify([
           file.path,
           finding.module_runtime ?? null,
@@ -280,7 +291,7 @@ const addHandlerNode = (input: IpcHandlerInput): ApplicationNode => {
 };
 
 const addLiteralPairings = (state: IpcGraphState): void => {
-  for (const pairing of unambiguousElectronIpcPairings(state.records)) {
+  for (const pairing of state.ipc.pairings) {
     const source = state.sources.get(pairing.transmission.key);
     const handler = state.handlers.get(pairing.handler.key);
     const coverage = coverageFor(state.context, pairing.transmission.file);

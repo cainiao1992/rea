@@ -16,6 +16,228 @@ const capture = (layers: ReadonlyArray<Record<string, string[]>>) =>
     })),
   );
 
+// Representative selected-field output for one A reply with a CNAME answer
+// and unrelated additional glue. This is not a recorded real-provider run.
+const cnameAndGlue = {
+  "dns.flags.response": ["1"],
+  "dns.qry.name": ["www.example"],
+  "dns.qry.type": ["1"],
+  "dns.count.queries": ["1"],
+  "dns.count.answers": ["2"],
+  "dns.count.auth_rr": ["0"],
+  "dns.count.add_rr": ["1"],
+  "dns.resp.name": ["www.example", "edge.example", "ns.example"],
+  "dns.resp.type": ["5", "1", "1"],
+  "dns.cname": ["edge.example"],
+  "dns.a": ["192.0.2.10", "192.0.2.53"],
+};
+
+it("reports unknown RR coverage when a DNS response omits all count and address fields", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        "dns.flags.response": ["1"],
+        "dns.qry.name": ["www.example"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+  expect(result.unattributedDnsAddresses).toEqual([]);
+  expect(result.partial).toBe(true);
+});
+
+it("keeps a query with an additional OPT record complete", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...cnameAndGlue,
+        "dns.flags.response": ["0"],
+        "dns.count.answers": ["0"],
+        "dns.resp.name": [""],
+        "dns.resp.type": ["41"],
+        "dns.cname": [],
+        "dns.a": [],
+      },
+    ]),
+  );
+  expect(result.partial).toBe(false);
+});
+
+it("preserves a CNAME answer while separating additional glue", async () => {
+  const result = await parseTsharkJsonOutput(capture([cnameAndGlue]));
+  expect(result.dnsQueries).toEqual([
+    {
+      query: "www.example",
+      response_addresses: ["192.0.2.10"],
+      response_address_count: 1,
+    },
+  ]);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.53"]);
+  expect(result.unattributedDnsPackets).toBe(1);
+  expect(result.partial).toBe(true);
+});
+
+it("accepts hexadecimal RR type codes without changing recorded identities", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...cnameAndGlue,
+        "dns.qry.type": ["0x0001"],
+        "dns.resp.type": ["0x0005", "0x0001", "0x0001"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual(["192.0.2.10"]);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.53"]);
+});
+
+it("retains direct answers with a root-owned OPT and compares DNS names without rewriting them", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...cnameAndGlue,
+        "dns.qry.name": ["WWW.Example"],
+        "dns.count.answers": ["1"],
+        "dns.resp.name": ["www.example", ""],
+        "dns.resp.type": ["1", "41"],
+        "dns.cname": [],
+        "dns.a": ["192.0.2.10"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries).toEqual([
+    {
+      query: "WWW.Example",
+      response_addresses: ["192.0.2.10"],
+      response_address_count: 1,
+    },
+  ]);
+  expect(result.partial).toBe(false);
+});
+
+it("joins mixed answer types using their own queues and preserves multiple valid answers", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...cnameAndGlue,
+        "dns.qry.type": ["255"],
+        "dns.count.answers": ["5"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": [
+          "www.example",
+          "edge.example",
+          "edge.example",
+          "edge.example",
+          "edge.example",
+        ],
+        "dns.resp.type": ["5", "28", "1", "28", "1"],
+        "dns.a": ["192.0.2.10", "192.0.2.11"],
+        "dns.aaaa": ["2001:db8::10", "2001:db8::11"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([
+    "2001:db8::10",
+    "192.0.2.10",
+    "2001:db8::11",
+    "192.0.2.11",
+  ]);
+  expect(result.partial).toBe(false);
+});
+
+it.each([
+  { "dns.resp.name": ["www.example", "unrelated.example", "ns.example"] },
+  { "dns.count.answers": ["1"], "dns.count.auth_rr": ["1"] },
+  { "dns.qry.type": ["28"] },
+  { "dns.flags.response": ["1", "1"] },
+  { "dns.count.answers": ["garbage"] },
+  { "dns.count.answers": ["4"] },
+  { "dns.count.answers": [] },
+  { "dns.resp.name": ["www.example"] },
+  { "dns.resp.type": ["5", "28", "1"] },
+  { "dns.cname": [] },
+  { "dns.cname": ["www.example"] },
+  { "dns.count.queries": ["2"] },
+  // NSEC/NXT type bitmaps can contribute additional dns.resp.type fields.
+  { "dns.resp.type": ["5", "1", "47", "1", "28"] },
+] as Record<string, string[]>[])(
+  "retains all addresses when ownership is unsupported or inconsistent: %j",
+  async (override) => {
+    const result = await parseTsharkJsonOutput(
+      capture([{ ...cnameAndGlue, ...override }]),
+    );
+    expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+    expect(result.unattributedDnsAddresses).toEqual([
+      "192.0.2.10",
+      "192.0.2.53",
+    ]);
+    expect(result.partial).toBe(true);
+  },
+);
+
+it("does not follow conflicting CNAME declarations", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...cnameAndGlue,
+        "dns.count.answers": ["4"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": [
+          "www.example",
+          "www.example",
+          "edge.example",
+          "other.example",
+        ],
+        "dns.resp.type": ["5", "5", "1", "1"],
+        "dns.cname": ["edge.example", "other.example"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.10", "192.0.2.53"]);
+});
+
+it.each([
+  { "dns.a": [] },
+  { "dns.a": [], "dns.resp.name": [], "dns.resp.type": [] },
+])(
+  "marks missing address/owner decoding partial even when no addresses were extracted: %j",
+  async (override) => {
+    const result = await parseTsharkJsonOutput(
+      capture([{ ...cnameAndGlue, ...override }]),
+    );
+    expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+    expect(result.unattributedDnsAddresses).toEqual([]);
+    expect(result.partial).toBe(true);
+  },
+);
+
+it.each([
+  { "dns.count.answers": ["0"], "dns.resp.name": [], "dns.resp.type": [] },
+  {
+    "dns.count.answers": ["1"],
+    "dns.resp.name": ["www.example"],
+    "dns.resp.type": ["2"],
+  },
+])(
+  "keeps valid empty or non-address answers complete: %j",
+  async (override) => {
+    const result = await parseTsharkJsonOutput(
+      capture([
+        {
+          ...cnameAndGlue,
+          "dns.count.add_rr": ["0"],
+          "dns.cname": [],
+          "dns.a": [],
+          ...override,
+        },
+      ]),
+    );
+    expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+    expect(result.partial).toBe(false);
+  },
+);
+
 it.each([
   [[], []],
   [["", ""], []],
@@ -64,6 +286,13 @@ it.each(["before", "after"] as const)(
       "dns.qry.name": ["api.example"],
       "dns.flags.response": ["True"],
       "dns.a": ["203.0.113.5"],
+      "dns.qry.type": ["1"],
+      "dns.count.queries": ["1"],
+      "dns.count.answers": ["1"],
+      "dns.count.auth_rr": ["0"],
+      "dns.count.add_rr": ["0"],
+      "dns.resp.name": ["api.example"],
+      "dns.resp.type": ["1"],
     };
     const result = await parseTsharkJsonOutput(
       capture(position === "before" ? [empty, response] : [response, empty]),
@@ -112,11 +341,25 @@ it("binds interleaved DNS answers to the question in their response packet", asy
         "dns.qry.name": ["alpha.example"],
         "dns.flags.response": ["True"],
         "dns.a": ["192.0.2.10"],
+        "dns.qry.type": ["1"],
+        "dns.count.queries": ["1"],
+        "dns.count.answers": ["1"],
+        "dns.count.auth_rr": ["0"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": ["alpha.example"],
+        "dns.resp.type": ["1"],
       },
       {
         "dns.qry.name": ["beta.example"],
         "dns.flags.response": ["True"],
         "dns.a": ["192.0.2.20"],
+        "dns.qry.type": ["1"],
+        "dns.count.queries": ["1"],
+        "dns.count.answers": ["1"],
+        "dns.count.auth_rr": ["0"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": ["beta.example"],
+        "dns.resp.type": ["1"],
       },
     ]),
   );
@@ -197,6 +440,13 @@ it("preserves all DNS addresses and their exact examined count", async () => {
         "dns.qry.name": ["rotating.example"],
         "dns.flags.response": ["True"],
         "dns.a": [`192.0.2.${String(index)}`],
+        "dns.qry.type": ["1"],
+        "dns.count.queries": ["1"],
+        "dns.count.answers": ["1"],
+        "dns.count.auth_rr": ["0"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": ["rotating.example"],
+        "dns.resp.type": ["1"],
       })),
     ),
   );

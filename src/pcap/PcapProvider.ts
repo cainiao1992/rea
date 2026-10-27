@@ -75,6 +75,14 @@ const FIELDS = [
   "ipv6.dst",
   "dns.flags.response",
   "dns.qry.name",
+  "dns.qry.type",
+  "dns.count.queries",
+  "dns.count.answers",
+  "dns.count.auth_rr",
+  "dns.count.add_rr",
+  "dns.resp.name",
+  "dns.resp.type",
+  "dns.cname",
   "dns.a",
   "dns.aaaa",
   "tls.handshake.extensions_server_name",
@@ -1059,7 +1067,7 @@ export class PcapProvider {
       limitations: [
         ...this.nativeLimitations,
         "Both tools read one owned snapshot; target identity comes from its admitted source descriptor",
-        "DNS address values are associated only with a single question in the same response packet; values may include additional DNS records, not only final resolution answers",
+        "DNS address attribution requires consistent RR owner/type and section counts for one question in one response; only matching answer owners or unambiguous answer-section CNAME chains are associated. Authority, additional, unrelated and ambiguous addresses are retained separately as unattributed; these packet-local relationships do not prove final resolution",
         "Only bytes present in the saved capture are examined; encryption and capture truncation can hide higher-level fields",
         "HTTP URI inventory examines decoded HTTP/1 and HTTP/2 request fields; HTTP/3 URI semantics are outside this profile",
         ...(fields.partial

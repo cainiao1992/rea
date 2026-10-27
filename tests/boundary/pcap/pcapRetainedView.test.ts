@@ -29,6 +29,13 @@ const createPcapToolFixture = async (root: string) => {
         "dns.qry.name": ["many.example"],
         "dns.flags.response": ["True"],
         "dns.a": [`198.51.100.${index}`],
+        "dns.qry.type": ["1"],
+        "dns.count.queries": ["1"],
+        "dns.count.answers": ["1"],
+        "dns.count.auth_rr": ["0"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.name": ["many.example"],
+        "dns.resp.type": ["1"],
         "tls.handshake.extensions_server_name": [`host${index}.example`],
         "http.request.full_uri": [
           "http://user:password@example.invalid/p?q=keep",

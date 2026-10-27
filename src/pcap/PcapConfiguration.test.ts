@@ -348,10 +348,12 @@ describe("parseTsharkJsonOutput", () => {
     expect(result.dnsQueries).toEqual([
       {
         query: "example.com",
-        response_addresses: ["93.184.216.34"],
-        response_address_count: 1,
+        response_addresses: [],
+        response_address_count: 0,
       },
     ]);
+    expect(result.unattributedDnsAddresses).toEqual(["93.184.216.34"]);
+    expect(result.partial).toBe(true);
     expect(result.tlsSniValues).toEqual(["example.com"]);
     expect(result.httpRequestUris).toEqual(["http://example.com/page"]);
     expect(result.protocolDistribution).toEqual(

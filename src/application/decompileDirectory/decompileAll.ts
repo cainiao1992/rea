@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { z } from "zod";
 
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
+
 import {
   DECOMPILE_DIRECTORY_INDEX_NAME,
   DECOMPILE_DIRECTORY_INLINE_FAILURE_LIMIT,
@@ -33,6 +35,7 @@ import { err, ok, type Result } from "../../domain/result.js";
 import {
   classifyOutputPath,
   DecompileExport,
+  exportOutputFailure,
   type ExportIdentity,
 } from "./exportTree.js";
 import {
@@ -355,6 +358,7 @@ const publishSelected = async (
       procedure.address,
       input.signal,
     );
+    if (typeof existing === "object") return err(existing.error);
     if (isAborted(input.signal)) return err(cancelled(input.signal));
     if (existing === "skip") {
       input.state.skipped += 1;
@@ -707,7 +711,12 @@ const readBody = async (
   };
 };
 
-type ExistingFile = "skip" | "write" | "conflict" | "io";
+type ExistingFile =
+  | "skip"
+  | "write"
+  | "conflict"
+  | "io"
+  | { readonly error: AnalysisError };
 
 const existingFile = async (
   session: DecompileExport,
@@ -724,6 +733,13 @@ const existingFile = async (
   const digest = await session
     .hashFile(record.relative_path, signal)
     .catch((cause: unknown) => cause);
+  if (digest instanceof ArtifactReaderFailure && digest.cleanup !== undefined)
+    return {
+      error: exportOutputFailure(
+        "decompile file verification cleanup failed",
+        digest,
+      ),
+    };
   if (typeof digest === "string")
     return digest === record.sha256 ? "skip" : "conflict";
   return nodeAbsent(digest) ? "write" : "io";

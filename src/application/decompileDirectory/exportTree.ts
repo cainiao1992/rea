@@ -396,7 +396,7 @@ const commitFunctionFile = async (
   if (linked instanceof ArtifactReaderFailure && linked.cleanup !== undefined)
     return {
       status: "error",
-      error: exportPublicationFailure(
+      error: exportOutputFailure(
         "decompile function publication cleanup failed",
         linked,
       ),
@@ -405,6 +405,17 @@ const commitFunctionFile = async (
   const existing = await resources
     .hashFile(finalPath)
     .catch((cause: unknown) => cause);
+  if (
+    existing instanceof ArtifactReaderFailure &&
+    existing.cleanup !== undefined
+  )
+    return {
+      status: "error",
+      error: exportOutputFailure(
+        "decompile file verification cleanup failed",
+        existing,
+      ),
+    };
   if (typeof existing !== "string") return { status: "io" };
   return existing === digest
     ? { status: "matched", sha256: digest }
@@ -972,7 +983,7 @@ const writeOwnedIndex = async (
     return ok(undefined);
   } catch (cause: unknown) {
     return err(
-      exportPublicationFailure(
+      exportOutputFailure(
         cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined
           ? "decompile index publication cleanup failed"
           : "decompile index could not be written",
@@ -983,7 +994,7 @@ const writeOwnedIndex = async (
 };
 
 /** Preserve the publisher's parsed failure and exact cleanup authority. */
-const exportPublicationFailure = (
+export const exportOutputFailure = (
   message: string,
   cause: unknown,
 ): AnalysisOutputError => {

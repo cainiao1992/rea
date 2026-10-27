@@ -1,4 +1,11 @@
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +20,7 @@ import { AnalysisCleanupLease } from "../../artifacts/AnalysisCleanupLease.js";
 import { EnhancedTools } from "../EnhancedTools.js";
 import { DecompileExport } from "./exportTree.js";
 import { ExportResources } from "./exportResources.js";
+import { OwnedFileHandle } from "../../filesystem/OwnedFileHandle.js";
 import { OwnedStagedOutput } from "../../filesystem/OwnedStagedOutput.js";
 import {
   composedLimitationBudget,
@@ -1927,6 +1935,53 @@ describe("decompile_all publication cleanup", () => {
         message: "staging removal denied",
       });
       expect(result.error.cleanupIncomplete).toBe(false);
+    },
+  );
+});
+
+describe("decompile_all resumed file cleanup", () => {
+  const directory = useOutputDirectory();
+  afterEach(() => vi.restoreAllMocks());
+  it.each(["journaled", "unjournaled"])(
+    "reports a %s file verification close failure after final cleanup succeeds",
+    async (kind) => {
+      const { tools } = harness();
+      expect((await run(tools, directory())).ok).toBe(true);
+      if (kind === "unjournaled") {
+        const journal = join(directory(), DECOMPILE_DIRECTORY_JOURNAL_NAME);
+        const header = (await readFile(journal, "utf8")).split("\n")[0];
+        await writeFile(journal, `${header}\n`);
+      }
+      const identity = await stat(join(directory(), "functions/0x1000.c"));
+      const close = OwnedFileHandle.prototype.close;
+      let failed = false;
+      vi.spyOn(OwnedFileHandle.prototype, "close").mockImplementation(
+        async function (this: OwnedFileHandle) {
+          const observed = await this.handle.stat();
+          if (
+            !failed &&
+            observed.dev === identity.dev &&
+            observed.ino === identity.ino
+          ) {
+            failed = true;
+            throw new Error("verification close denied");
+          }
+          return close.call(this);
+        },
+      );
+      const result = await run(tools, directory(), { resume: true });
+      expect(failed).toBe(true);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("verification cleanup failed");
+      expect(result.error.cleanupIncomplete).toBe(false);
+      expect(
+        await readFile(join(directory(), "functions/0x1000.c"), "utf8"),
+      ).toContain(sentinel);
+      const resumed = await run(tools, directory(), { resume: true });
+      expect(resumed.ok).toBe(true);
+      if (resumed.ok)
+        expect(resumed.value).toMatchObject({ counts: { skipped: 3 } });
     },
   );
 });

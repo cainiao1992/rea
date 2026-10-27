@@ -221,7 +221,14 @@ const tryAcquireLease = async (
   securePath: boolean,
   resources: ArtifactResourceScope,
 ): Promise<LeaseAcquisition | "missing" | "stale"> => {
-  const server = createServer((socket) => sendOwner(socket, owner));
+  const connections = new Set<Socket>();
+  const server = createServer((socket) => {
+    connections.add(socket);
+    socket.once("close", () => connections.delete(socket));
+    // A failed owner reply ends only this connection, not the lease owner.
+    socket.on("error", () => socket.destroy());
+    sendOwner(socket, owner);
+  });
   // The lease lives exactly as long as its owning process. A lease retained
   // after unconfirmed cleanup must not keep a completed one-shot command
   // alive; process exit leaves a stale socket that later acquirers recover.
@@ -237,6 +244,9 @@ const tryAcquireLease = async (
     socketPath,
     release: async () => {
       if (released) return;
+      // Owner replies do not require peers to close their writable half. End
+      // every accepted connection before awaiting the listening server.
+      for (const socket of connections) socket.destroy();
       // Node removes the bound socket; never unlink a later owner's socket.
       await closeServer(server);
       released = true;

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { Server } from "node:net";
+import { createConnection, Server } from "node:net";
 import { promisify } from "node:util";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -74,6 +74,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const { acquireLinuxHopperApplicationLease } = await import("./HopperLease.js");
+const { acquireOwnedLease } = await import("./OwnedLease.js");
 const { HopperApplicationLauncher } =
   await import("../hopper/BridgeLauncher.js");
 
@@ -87,6 +88,68 @@ afterEach(() => {
   injection.socketPermissionsFailure = false;
   vi.restoreAllMocks();
 });
+
+describe.skipIf(process.platform === "win32")(
+  "accepted lease connections",
+  () => {
+    it.each([false, true])(
+      "closes a held peer and preserves retry after failure=%s",
+      async (failClose) => {
+        const directory = await createTestTempDirectory("rea-peer-");
+        const input = {
+          identity: { test: "held-peer" },
+          directory,
+          runId: "held-peer",
+          failure: (failure: { kind: string }) => new Error(failure.kind),
+        };
+        const acquired = await acquireOwnedLease(input);
+        if (!acquired.acquired) throw new Error("expected acquired lease");
+        onTestFinished(() => acquired.lease.release());
+        const contender = await acquireOwnedLease({
+          ...input,
+          runId: "contender",
+        });
+        expect(contender).toEqual({
+          acquired: false,
+          owner: { runId: input.runId, processId: process.pid },
+        });
+        const peer = createConnection({
+          path: acquired.lease.socketPath!,
+          allowHalfOpen: true,
+        });
+        onTestFinished(() => {
+          peer.destroy();
+        });
+        peer.resume();
+        await new Promise<void>((resolve, reject) => {
+          peer.once("end", resolve);
+          peer.once("error", reject);
+        });
+        expect(peer.writable).toBe(true);
+        if (failClose) {
+          const close = Server.prototype.close;
+          vi.spyOn(Server.prototype, "close")
+            .mockImplementationOnce(function (this: Server, callback) {
+              callback?.(new Error("injected socket close failure"));
+              return this;
+            })
+            .mockImplementation(function (this: Server, callback) {
+              return close.call(this, callback);
+            });
+          await expect(acquired.lease.release()).rejects.toThrow(
+            "injected socket close failure",
+          );
+        }
+        // The peer stays open until the owner releases; a test timeout catches the
+        // original server.close deadlock without relying on elapsed-time assertions.
+        await acquired.lease.release();
+        const next = await acquireOwnedLease(input);
+        expect(next.acquired).toBe(true);
+        if (next.acquired) await next.lease.release();
+      },
+    );
+  },
+);
 
 describe.skipIf(process.platform === "win32")(
   "lease socket recovery finalization",

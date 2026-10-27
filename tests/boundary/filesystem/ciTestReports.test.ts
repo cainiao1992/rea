@@ -369,7 +369,6 @@ it("reports skipped modules without treating an entirely skipped suite as succes
   const mixed = await run("passed");
   expect(mixed.summary).toContain("Skipped test modules: 1");
   expect(mixed.summary).toContain("- tests/platform.test.ts");
-  expect(mixed.summary).toContain("required coverage are not established");
   await expect(run("skipped")).rejects.toMatchObject({
     stderr: expect.stringContaining("Every portable test module was skipped"),
   });

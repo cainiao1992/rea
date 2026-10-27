@@ -34,7 +34,7 @@ import { ARTIFACT_CLASSIFICATION_PREFIX_BYTES } from "./ArtifactClassificationPr
 import { PyInstallerPyzStore } from "./pyinstaller/PyInstallerPyzStore.js";
 import { pyInstallerMemberStream } from "./pyinstaller/PyInstallerMemberStream.js";
 import {
-  findPyInstallerCookie,
+  observePyInstallerCookie,
   readCArchiveToc,
   type CArchiveEntry,
   type PyInstallerCookie,
@@ -406,14 +406,17 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     size: number,
     signal?: AbortSignal,
   ): Promise<PyInstallerCookie> {
-    const found = await findPyInstallerCookie(handle, size, signal);
-    if (found === undefined)
+    const found = await observePyInstallerCookie(handle, size, signal);
+    if (!found.ok) throw failure(found.error);
+    const observed = found.value;
+    if (observed.state === "absent")
       throw new ArtifactReaderFailure(
         "format",
         "PyInstaller CArchive cookie was not found",
       );
-    if (!found.ok) throw failure(found.error);
-    return found.value;
+    if (observed.state === "rejected-candidates")
+      throw failure(observed.failure);
+    return observed.cookie;
   }
 
   async #toc(

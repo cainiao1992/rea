@@ -83,17 +83,26 @@ export const isCArchiveDeclaration = (entry: CArchiveEntry): boolean =>
 export const isCArchivePythonModule = (entry: CArchiveEntry): boolean =>
   entry.role === "module" || entry.role === "package";
 
-/** Locate a structurally valid cookie. Invalid magic copies are skipped. */
-export const findPyInstallerCookie = async (
+/** Completed search facts; a rejected magic copy does not establish an archive. */
+export type PyInstallerCookieObservation =
+  | { readonly state: "absent" }
+  | {
+      readonly state: "rejected-candidates";
+      readonly failure: PyInstallerFailure;
+    }
+  | { readonly state: "located"; readonly cookie: PyInstallerCookie };
+
+/** Search the bounded tail completely; acquisition failures are not negative observations. */
+export const observePyInstallerCookie = async (
   handle: FileHandle,
   fileSize: number,
   signal?: AbortSignal,
-): Promise<Result<PyInstallerCookie, PyInstallerFailure> | undefined> => {
+): Promise<Result<PyInstallerCookieObservation, PyInstallerFailure>> => {
   if (
     !Number.isSafeInteger(fileSize) ||
     fileSize < PYINSTALLER_COOKIE_V20_BYTES
   )
-    return undefined;
+    return ok({ state: "absent" });
   const tailSize = Math.min(fileSize, PYINSTALLER_COOKIE_SEARCH_BYTES);
   const read = await readPyInstallerBytes(handle, {
     position: fileSize - tailSize,
@@ -112,11 +121,15 @@ export const findPyInstallerCookie = async (
     if (relative < 0) break;
     const cookieOffset = fileSize - tailSize + relative;
     const parsed = parseCookieAt(observed, relative, cookieOffset, fileSize);
-    if (parsed.ok) return parsed;
+    if (parsed.ok) return ok({ state: "located", cookie: parsed.value });
     failure = parsed.error;
     from = relative;
   }
-  return failure === undefined ? undefined : err(failure);
+  return ok(
+    failure === undefined
+      ? { state: "absent" }
+      : { state: "rejected-candidates", failure },
+  );
 };
 
 /** Read and parse the TOC that a validated cookie names. */

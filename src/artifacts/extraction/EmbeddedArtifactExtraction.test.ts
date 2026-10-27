@@ -46,7 +46,7 @@ const cases = [
         ],
       }),
     member: "pkg/payload.txt",
-    observe: () => vi.spyOn(cArchive, "findPyInstallerCookie"),
+    observe: () => vi.spyOn(cArchive, "observePyInstallerCookie"),
   },
   {
     format: "node-sea" as const,

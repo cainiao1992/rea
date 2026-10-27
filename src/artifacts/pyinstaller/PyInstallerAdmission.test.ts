@@ -136,7 +136,7 @@ it("inventories members using the cookie discovered by root classification", asy
   );
   const path = join(root, "app");
   await writeFile(path, fixture());
-  const locate = vi.spyOn(layout, "findPyInstallerCookie");
+  const locate = vi.spyOn(layout, "observePyInstallerCookie");
   const resourceScope = new ArtifactResourceScope();
   try {
     const result = await inventoryArtifact(path, {
@@ -194,7 +194,7 @@ it("retains completed cookie facts across unchanged admissions and honors cached
   const root = await createTestTempDirectory("rea-pyinstaller-cookie-cache-");
   const path = join(root, "app");
   await writeFile(path, fixture());
-  const locate = vi.spyOn(layout, "findPyInstallerCookie");
+  const locate = vi.spyOn(layout, "observePyInstallerCookie");
   try {
     await withOwnedRegularFile(path, {}, async (source) => {
       const controller = new AbortController();
@@ -221,4 +221,109 @@ it("retains completed cookie facts across unchanged admissions and honors cached
   } finally {
     locate.mockRestore();
   }
+});
+
+it("retains rejected magic candidates without classifying their native carrier as PyInstaller", async () => {
+  const root = await createTestTempDirectory("rea-pyinstaller-candidate-");
+  const path = join(root, "app");
+  await writeFile(
+    path,
+    Buffer.concat([
+      fixture().subarray(0, 64),
+      layout.PYINSTALLER_COOKIE_MAGIC,
+      Buffer.alloc(88),
+    ]),
+  );
+  await withOwnedRegularFile(path, {}, async (source) => {
+    const probes = new ArtifactEmbeddedFormatProbes(path, source);
+    await expect(probes.pyInstaller()).resolves.toBeUndefined();
+    const observed = probes.completedFacts().pyInstaller;
+    expect(observed).toMatchObject({
+      state: "rejected-candidates",
+      failure: { reason: "format" },
+    });
+    const resumed = new ArtifactEmbeddedFormatProbes(
+      path,
+      source,
+      undefined,
+      probes.completedFacts(),
+    );
+    await expect(resumed.pyInstaller()).resolves.toBeUndefined();
+    expect(resumed.completedFacts().pyInstaller).toBe(observed);
+  });
+  const resourceScope = new ArtifactResourceScope();
+  try {
+    const result = await inventoryArtifact(path, {
+      environment: {},
+      resourceScope,
+    });
+    expect(result.manifest.root_format).toBe("elf");
+  } finally {
+    await resourceScope.close();
+  }
+});
+
+it("continues past an invalid trailing magic copy to inventory the valid cookie", async () => {
+  const root = await createTestTempDirectory(
+    "rea-pyinstaller-candidate-valid-",
+  );
+  const path = join(root, "app");
+  await writeFile(
+    path,
+    Buffer.concat([
+      fixture(),
+      layout.PYINSTALLER_COOKIE_MAGIC,
+      Buffer.alloc(88),
+    ]),
+  );
+  const resourceScope = new ArtifactResourceScope();
+  try {
+    const result = await inventoryArtifact(path, {
+      environment: {},
+      resourceScope,
+    });
+    expect(result.manifest.root_format).toBe("pyinstaller");
+    expect(result.occurrences).toContainEqual(
+      expect.objectContaining({
+        logical_path: "payload",
+        hash_status: "verified",
+      }),
+    );
+  } finally {
+    await resourceScope.close();
+  }
+});
+
+it("does not cache an incomplete tail read as an absent cookie and can retry", async () => {
+  const root = await createTestTempDirectory("rea-pyinstaller-tail-short-");
+  const path = join(root, "app");
+  await writeFile(path, fixture());
+  await withOwnedRegularFile(path, {}, async (source) => {
+    const probes = new ArtifactEmbeddedFormatProbes(path, source);
+    const read = source.handle.read.bind(source.handle);
+    let calls = 0;
+    const short = vi
+      .spyOn(source.handle, "read")
+      .mockImplementation((...args: unknown[]) => {
+        calls += 1;
+        if (calls > 1)
+          return Promise.resolve({ bytesRead: 0, buffer: args[0] });
+        args[2] = 3;
+        return Reflect.apply(read, source.handle, args);
+      });
+    try {
+      await expect(probes.pyInstaller()).rejects.toMatchObject({
+        reason: "format",
+        message: "CArchive tail is truncated",
+      });
+      expect(calls).toBe(2);
+      expect(Object.hasOwn(probes.completedFacts(), "pyInstaller")).toBe(false);
+    } finally {
+      short.mockRestore();
+    }
+    await expect(probes.pyInstaller()).resolves.toMatchObject({
+      layout: "2.1",
+    });
+    expect(probes.completedFacts().pyInstaller?.state).toBe("located");
+  });
 });

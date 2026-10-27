@@ -1,4 +1,4 @@
-import { plistUidValue } from "./plistUid.js";
+import { copyPlistUidIdentity, plistUidValue } from "./plistUid.js";
 import type { JsonValue } from "../jsonValue.js";
 
 /** Source element types needed to distinguish large integers from integral reals. */
@@ -88,9 +88,11 @@ export const createPlistNumberProjection = (literals: PlistNumberLiterals) => {
           ambiguousNumberCount += 1;
         return item;
       }
-      return Object.fromEntries(
+      const projected = Object.fromEntries(
         Object.entries(item).map(([key, child]) => [key, map(child)]),
       );
+      copyPlistUidIdentity(item, projected);
+      return projected;
     }
     return item;
   };

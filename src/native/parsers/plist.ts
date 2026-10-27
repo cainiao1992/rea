@@ -376,6 +376,7 @@ export const parsePlistBinary = (
       {
         budget: "the native plist decode budget",
         numberProjection: true,
+        uidProjection: true,
         maximumDepth: MAX_NATIVE_PLIST_NESTING_DEPTH,
         fail: (kind, message) =>
           kind === "cycle"

@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { buildBinary, type PlistValue } from "plist";
 import { MAX_JSON_DEPTH, jsonValueSchema } from "../../domain/jsonValue.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import { plistUidValue } from "../../domain/apple/plistUid.js";
 import {
   decodeBinaryPlistScalars,
   scanBinaryPlistScalars,
@@ -19,6 +20,35 @@ import {
   binaryPlistObjectTable,
   binaryPlistWithOverlappingDateAndData,
 } from "../../../tests/fixtures/binaryPlistObjectTable.js";
+
+it("retains binary dictionary identity after native plist number projection", () => {
+  const result = parsePlistBinary(
+    Buffer.from(buildBinary({ nested: { CF$UID: 7 }, reference: { UID: 7 } })),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw result.error;
+  const value = result.value.value as Record<string, unknown>;
+  expect(value).toEqual({ nested: { CF$UID: 7 }, reference: { UID: 7 } });
+  expect(plistUidValue(value["nested"])).toBeUndefined();
+  expect(plistUidValue(value["reference"])).toBe(7);
+});
+
+it("projects wide integers in binary CF$UID dictionaries as data", () => {
+  const bytes = Buffer.alloc(27 + 3 + 32);
+  bytes.write("bplist00");
+  bytes.set([0xd1, 1, 2, 0x56], 8);
+  bytes.write("CF$UID", 12);
+  bytes[18] = 0x13;
+  bytes.writeBigInt64BE(9007199254740993n, 19);
+  const result = parsePlistBinary(
+    binaryPlistObjectTable(bytes, [8, 11, 18], 27),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw result.error;
+  expect(result.value.value).toEqual({
+    CF$UID: { $plist_type: "integer", decimal: "9007199254740993" },
+  });
+});
 
 it.each([
   "binary data",

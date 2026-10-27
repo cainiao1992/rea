@@ -57,7 +57,7 @@ import {
   commitExecutionProfile,
   prepareSessionExecution,
 } from "./BinarySessionExecution.js";
-import { closeAnalysisClient } from "../../providers/AnalysisClientCleanup.js";
+import { closeAnalysisClient } from "../AnalysisClientCleanup.js";
 import { analysisErrorWithCleanupFailure } from "../../domain/analysisErrorCleanup.js";
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { profilelessNativeDispatchProfile } from "./ProfilelessNativeWorkflowSnapshot.js";

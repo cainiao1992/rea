@@ -1,7 +1,7 @@
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { err, type Result } from "../domain/result.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
-import type { AnalysisClient } from "../application/AnalysisProvider.js";
+import type { AnalysisClient } from "./AnalysisProvider.js";
 
 /** Close one provider client and normalize unexpected adapter rejection. */
 export const closeAnalysisClient = async (

@@ -15,7 +15,7 @@ import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { SharedStartupAttempt } from "../process/SharedStartupAttempt.js";
-import { closeAnalysisClient } from "./AnalysisClientCleanup.js";
+import { closeAnalysisClient } from "../application/AnalysisClientCleanup.js";
 
 /** Own deferred client creation while callers wait independently and close joins it. */
 export class AnalysisClientCreation {

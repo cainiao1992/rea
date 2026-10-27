@@ -84,11 +84,15 @@ const renderTable = (
   rows: readonly string[][],
 ): string => {
   if (headers.length === 0) return "";
-  const escapedHeaders = headers.map(escapeTableCell);
+  const encodeTableCell = (value: string): string =>
+    escapeTableCell(value).replace(/^ +| +$/g, (spaces) =>
+      "&#32;".repeat(spaces.length),
+    );
+  const escapedHeaders = headers.map(encodeTableCell);
   const widths = escapedHeaders.map((header) => header.length);
   for (const row of rows) {
     for (let index = 0; index < escapedHeaders.length; index += 1) {
-      const width = escapeTableCell(row[index] ?? "").length;
+      const width = encodeTableCell(row[index] ?? "").length;
       if (width > widths[index]!) widths[index] = width;
     }
   }
@@ -102,7 +106,7 @@ const renderTable = (
   for (const row of rows) {
     lines.push(
       `| ${escapedHeaders
-        .map((_, index) => pad(escapeTableCell(row[index] ?? ""), index))
+        .map((_, index) => pad(encodeTableCell(row[index] ?? ""), index))
         .join(" | ")} |`,
     );
   }

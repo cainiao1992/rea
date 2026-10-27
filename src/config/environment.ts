@@ -7,7 +7,7 @@ import { isAbsolute } from "node:path";
 
 import { ConfigurationError } from "../domain/configurationErrors.js";
 import { err, ok, type Result } from "../domain/result.js";
-import { analysisProviderSelectorSchema } from "../contracts/providerSelection.js";
+import { analysisProviderSelectorSchema } from "../domain/providerSelection.js";
 import {
   ghidraCompilerSpecIdSchema,
   ghidraLanguageIdSchema,

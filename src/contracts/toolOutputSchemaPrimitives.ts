@@ -12,7 +12,7 @@ import { jsonObjectSchema } from "../domain/jsonValue.js";
 import {
   PROVIDER_REJECTION_CODES,
   type ProviderRejectionCode,
-} from "./providerSelection.js";
+} from "../domain/providerSelection.js";
 import {
   PROVIDER_FAILURE_STAGES,
   PROVIDER_OPERATION_STATES,

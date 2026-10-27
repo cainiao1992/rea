@@ -81,7 +81,7 @@ import {
 } from "../artifacts/AnalysisCleanupLease.js";
 import { bindRegularFileCleanup } from "./RegularFileRead.js";
 import { CURRENT_ENTRYPOINT_PATH } from "../process/CurrentEntrypointPath.js";
-import { analysisProviderSelectorSchema } from "../contracts/providerSelection.js";
+import { analysisProviderSelectorSchema } from "../domain/providerSelection.js";
 
 /** Resolve the executable and arguments used in a managed MCP registration. */
 export const setupRegistrationCommand = (

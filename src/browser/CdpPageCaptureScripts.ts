@@ -6,11 +6,8 @@ import {
 import type { CapturedResource } from "./CdpCaptureDocuments.js";
 import type { CdpCaptureEvents } from "./CdpCaptureEvents.js";
 import type { CapturedScript } from "./CdpCaptureEventTypes.js";
-import {
-  requiredScriptSource,
-  sourceExcluded,
-  sourceResult,
-} from "./CdpCaptureValues.js";
+import { sourceExcluded } from "./CdpCaptureValues.js";
+import { capturePassiveCdpScriptSource } from "./CdpScriptSourceCapture.js";
 import type { CaptureContext } from "./CdpPageCapture.js";
 import type { WebSourceMapRequest } from "./WebSourceMapFetcher.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
@@ -18,7 +15,6 @@ import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import type { BrowserObservationOperation } from "../domain/browserObservationErrors.js";
 import { selectedCdpCommandTimeoutMs } from "../domain/browserDeadline.js";
 import {
-  CDP_SCRIPT_SOURCE_BYTES_OMISSION_REASON,
   cdpScriptSourceDeadlineOmissionReason,
   CdpScriptSourceBudget,
 } from "./CdpScriptSourceBudget.js";
@@ -101,7 +97,15 @@ export const captureScripts = async (
         sourceBudget !== undefined
       ) {
         try {
-          source = await captureScriptSource(script, state, sourceBudget);
+          source = await capturePassiveCdpScriptSource({
+            connection: context.connection,
+            sessionId: context.sessionId,
+            signal: context.signal,
+            operation: context.operation,
+            scriptId: script.scriptId,
+            sourceBudget,
+            completeness: events.completeness,
+          });
         } catch (cause: unknown) {
           throwIfCallerCancelled(context.signal, context.operation);
           if (isSourceDeadlineExpired(sourceBudget))
@@ -166,39 +170,6 @@ const buildScriptDraft = (
     },
     sourceMapRawUrl: script.sourceMapRawUrl,
   };
-};
-
-const captureScriptSource = async (
-  script: CapturedScript,
-  state: ScriptDraftState,
-  sourceBudget: CdpScriptSourceBudget,
-): Promise<WebPageInspection["scripts"]["items"][number]["source"]> => {
-  const { context } = state;
-  const response = await context.connection.send(
-    "Debugger.getScriptSource",
-    { scriptId: script.scriptId },
-    context.sessionId,
-    sourceBudget.signal,
-  );
-  throwIfCallerCancelled(context.signal, context.operation);
-  const content = requiredScriptSource(response, context.operation);
-  if (sourceBudget.timedOut) {
-    state.events.completeness.exclude(
-      "script_sources",
-      "resource_budget_exhausted",
-    );
-    return sourceExcluded(
-      cdpScriptSourceDeadlineOmissionReason(sourceBudget.commandTimeoutMs),
-    );
-  }
-  if (!sourceBudget.admit(content)) {
-    state.events.completeness.exclude(
-      "script_sources",
-      "resource_budget_exhausted",
-    );
-    return sourceExcluded(CDP_SCRIPT_SOURCE_BYTES_OMISSION_REASON);
-  }
-  return sourceResult(content);
 };
 
 const throwIfCallerCancelled = (

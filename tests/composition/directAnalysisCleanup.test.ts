@@ -202,6 +202,45 @@ it.each([false, true])(
   },
 );
 
+it("retains both execution and final-close resources in one-shot failures", async () => {
+  const [path] = await createBinarySessionTargets();
+  const executionError = new AnalysisTimeoutError("read_bytes", 100, {
+    capturedOutput: {
+      stdout: "execution observation",
+      stderr: "",
+      truncated: false,
+    },
+    cleanup: {
+      reason: "execution worker remains",
+      resources: ["execution-worker", "shared-owner"],
+    },
+  });
+  const closeError = new ProviderCleanupError(
+    "fixture",
+    ["session-owner", "shared-owner"],
+    { reason: "session remains" },
+  );
+  const { dependencies } = factories({
+    executionError,
+    cleanupError: closeError,
+  });
+  const result = analysisCliErrorEnvelopeSchema.parse(
+    await runDirectAnalysis(dependencies, path, "read_bytes", {
+      address: "0x1000",
+      length: 1,
+    }).then(projectCliAnalysisResult),
+  );
+  expect(result).toMatchObject({
+    code: "cleanup_incomplete",
+    details: {
+      resources: ["execution-worker", "shared-owner", "session-owner"],
+      execution_failure: "provider_timeout",
+      captured_output: executionError.capturedOutput,
+      cleanup_error: projectAnalysisError(closeError),
+    },
+  });
+});
+
 describe("one-shot finalization cancellation", () => {
   it.each(["read_bytes", "analyze_function"] as const)(
     "retains completed %s Evidence when cancellation arrives during final close",
@@ -420,6 +459,46 @@ describe("snapshot publication finalization", () => {
   });
 });
 
+it.each([false, true])(
+  "retains original cleanup diagnostics when final close fails: %s",
+  async (closeFails) => {
+    const [path] = await createBinarySessionTargets();
+    const executionError = new AnalysisTimeoutError("read_bytes", 100, {
+      cleanup: {
+        reason: "snapshot removal failed during execution",
+        resources: ["primary-snapshot"],
+      },
+      capturedOutput: primaryError.capturedOutput,
+    });
+    const primary = projectAnalysisError(executionError);
+    const { dependencies } = factories({
+      executionError,
+      ...(closeFails ? { cleanupError } : {}),
+    });
+    const result = analysisCliErrorEnvelopeSchema.parse(
+      await runDirectAnalysis(dependencies, path, "read_bytes", {}).then(
+        projectCliAnalysisResult,
+      ),
+    );
+    expect(result).toMatchObject({
+      code: "cleanup_incomplete",
+      details: {
+        ...primary.details,
+        ...(closeFails
+          ? {
+              resources: ["primary-snapshot", "fixture-provider-process"],
+              cleanup_error: projectAnalysisError(cleanupError),
+            }
+          : {}),
+      },
+    });
+    expect(JSON.stringify(result).match(/retained observation/g)).toHaveLength(
+      1,
+    );
+    if (!closeFails) expect(result.details).not.toHaveProperty("cleanup_error");
+  },
+);
+
 describe("one-shot analysis cleanup outcomes", () => {
   it("retains successful evidence and reports CLI failure when close fails", async () => {
     const [path] = await createBinarySessionTargets();
@@ -503,44 +582,6 @@ describe("one-shot analysis cleanup outcomes", () => {
       },
     });
   });
-
-  it.each([false, true])(
-    "retains original cleanup diagnostics when final close fails: %s",
-    async (closeFails) => {
-      const [path] = await createBinarySessionTargets();
-      const executionError = new AnalysisTimeoutError("read_bytes", 100, {
-        cleanup: {
-          reason: "snapshot removal failed during execution",
-          resources: ["primary-snapshot"],
-        },
-        capturedOutput: primaryError.capturedOutput,
-      });
-      const primary = projectAnalysisError(executionError);
-      const { dependencies } = factories({
-        executionError,
-        ...(closeFails ? { cleanupError } : {}),
-      });
-      const result = analysisCliErrorEnvelopeSchema.parse(
-        await runDirectAnalysis(dependencies, path, "read_bytes", {}).then(
-          projectCliAnalysisResult,
-        ),
-      );
-      expect(result).toMatchObject({
-        code: "cleanup_incomplete",
-        details: {
-          ...primary.details,
-          ...(closeFails
-            ? { cleanup_error: projectAnalysisError(cleanupError) }
-            : {}),
-        },
-      });
-      expect(
-        JSON.stringify(result).match(/retained observation/g),
-      ).toHaveLength(1);
-      if (!closeFails)
-        expect(result.details).not.toHaveProperty("cleanup_error");
-    },
-  );
 
   it("retains both unexpected execution failure and cleanup failure", async () => {
     const [path] = await createBinarySessionTargets();

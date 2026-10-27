@@ -38,6 +38,7 @@ export const directAnalysisCleanupFailure = (
   const cleanup = projectAnalysisError(error);
   if (!result.ok) {
     const primary = projectAnalysisError(result.error);
+    const combined = analysisErrorWithCleanupFailure(result.error, error);
     return {
       error: "Analysis failed",
       ...primary,
@@ -45,8 +46,10 @@ export const directAnalysisCleanupFailure = (
       retryable: false,
       remediation: cleanup.remediation,
       details: {
-        resources: error.cleanupResources.slice(),
         ...primary.details,
+        // The domain composition owns the union of still-retained resources;
+        // neither projection may overwrite the other owner's cleanup state.
+        resources: [...combined.cleanupResources],
         cleanup: "incomplete",
         execution_failure: primary.details?.execution_failure ?? primary.code,
         cleanup_error: cleanup,

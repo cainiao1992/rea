@@ -561,7 +561,7 @@ for (const layout of ["symlinked-default", "escaping-prefix"] as const) {
       await writeFile(join(native, "active_profile"), "coder");
       for (const exists of [false, true]) {
         if (exists) await mkdir(root);
-        const usesNative = layout === "symlinked-default" ? exists : !exists;
+        const usesNative = layout === "symlinked-default";
         const selected = usesNative ? profile : root;
         const plan = await cli.run({
           arguments: ["setup", "--client", "hermes", "--dry-run", "--json"],

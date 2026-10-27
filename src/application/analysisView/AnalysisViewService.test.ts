@@ -11,7 +11,7 @@ import {
   analysisViewJavaScriptEvidence,
   analysisViewLayoutEvidence,
 } from "../../../tests/fixtures/analysisView.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { JAVASCRIPT_APPLICATION_EVIDENCE_EXAMPLE } from "../../contracts/javascript/javascriptRuntimeReconciliationExample.js";
 import {
@@ -41,6 +41,7 @@ import {
   scenarioCaptureFixture,
 } from "../../../tests/fixtures/browserScenarioCapture.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
+import * as evidenceFileSource from "./evidenceFileSource.js";
 
 it.each(["inline", "retained-evidence", "invalid"] as const)(
   "refuses an already cancelled %s view before source admission",
@@ -1220,6 +1221,37 @@ describe("inspectAnalysisView", () => {
     });
     expect(result.ok ? undefined : result.error.cause).toBe(reason);
   });
+});
+
+it("prioritizes queued cancellation over a file authentication failure", async () => {
+  const controller = new AbortController();
+  const reason = Object.freeze({ requested: "cancel-after-authentication" });
+  // Model an event callback which queues the caller's cancellation notification
+  // as authentication finishes. The service must dispatch that notification
+  // before accepting the authentication failure.
+  const read = vi
+    .spyOn(evidenceFileSource, "readEvidenceFileSource")
+    .mockImplementationOnce(async () => {
+      setImmediate(() => setImmediate(() => controller.abort(reason)));
+      return err(new EvidenceIntegrityError("Invalid selected Evidence"));
+    });
+  try {
+    const result = await inspectAnalysisView(
+      {
+        source: { kind: "evidence-file", path: "/selected-evidence.json" },
+        view: manifestView,
+      },
+      undefined,
+      { signal: controller.signal },
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { _tag: "AnalysisCancelledError" },
+    });
+    expect(result.ok ? undefined : result.error.cause).toBe(reason);
+  } finally {
+    read.mockRestore();
+  }
 });
 
 describe("inspectAnalysisView scenario parents", () => {

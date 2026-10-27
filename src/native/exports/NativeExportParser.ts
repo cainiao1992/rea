@@ -132,12 +132,15 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
   const mappings = imageFileMappings(image);
   const map = (rva: number, size: number): number =>
     mappedFileOffset(mappings, base + BigInt(rva), size, image.zero_fills);
-  const cStringBytes = (rva: number): Buffer => {
+  const cStringBytes = (
+    rva: number,
+    maximumBytes = MAXIMUM_NAME_BYTES,
+  ): Buffer => {
     const value = readMappedCString(
       bytes,
       image,
       base + BigInt(rva),
-      MAXIMUM_NAME_BYTES,
+      maximumBytes,
     );
     if (value.length === 0)
       throw new BinaryFormatFailure(
@@ -216,7 +219,12 @@ const parsePeExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
       try {
         target = {
           address: null,
-          forwarder: cStringBytes(rva).toString("latin1"),
+          // PE forwarder strings, including their NUL, must fit within the
+          // export data directory. Ordinary export names have no such bound.
+          forwarder: cStringBytes(
+            rva,
+            Math.min(MAXIMUM_NAME_BYTES, forwarderEnd - rva - 1),
+          ).toString("latin1"),
         };
       } catch (cause) {
         issues.push({

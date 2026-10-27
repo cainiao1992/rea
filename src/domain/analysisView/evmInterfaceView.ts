@@ -4,7 +4,10 @@ import type { AnalysisError } from "../analysisErrorBase.js";
 import { uniqueSorted } from "../canonicalOrdering.js";
 import { evmInterfaceSchema } from "../evm/evmInterface.js";
 import { err, ok, type Result } from "../result.js";
-import { parseAnalysisViewResult } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  parseAnalysisViewResult,
+} from "./analysisViewParent.js";
 import type {
   AnalysisViewParent,
   AnalysisViewRequest,
@@ -66,11 +69,12 @@ export const projectEvmInterfaceView = (
   const parsed = parseAnalysisViewResult(evmInterfaceSchema, parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
-    parent.subject == null ||
-    parent.subject.format !== "file" ||
-    parent.subject.local_path !== report.artifact.path ||
-    parent.subject.digest.sha256 !== report.artifact.sha256
+    sourceSubject == null ||
+    sourceSubject.format !== "file" ||
+    sourceSubject.local_path !== report.artifact.path ||
+    sourceSubject.digest.sha256 !== report.artifact.sha256
   )
     return err(
       analysisViewInputError([

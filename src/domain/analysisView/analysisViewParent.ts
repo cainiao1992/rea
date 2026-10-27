@@ -67,3 +67,9 @@ export const analysisViewResultInputError = (
     { source: { normalized_result: input } },
     { cause },
   );
+
+/** Resolve report-validation identity once, preserving explicit source absence. */
+export const analysisViewSourceSubject = (
+  parent: AnalysisViewParent,
+): AnalysisViewParent["subject"] =>
+  parent.sourceSubject === undefined ? parent.subject : parent.sourceSubject;

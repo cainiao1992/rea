@@ -24,7 +24,10 @@ import {
   il2cppMetadataTypeSchema,
 } from "../il2cpp/il2cppMetadata.js";
 import { err, ok, type Result } from "../result.js";
-import { createAnalysisViewResultReader } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  createAnalysisViewResultReader,
+} from "./analysisViewParent.js";
 import type {
   AnalysisViewParent,
   AnalysisViewRequest,
@@ -535,11 +538,12 @@ export const projectIl2cppMetadataView = (
   const parsed = parseMetadataReport(parent);
   if (!parsed.ok) return parsed;
   const { report, counts } = parsed.value;
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
-    parent.subject != null &&
-    (parent.subject.format !== "file" ||
-      parent.subject.local_path !== report.artifact.path ||
-      parent.subject.digest.sha256 !== report.artifact.sha256)
+    sourceSubject != null &&
+    (sourceSubject.format !== "file" ||
+      sourceSubject.local_path !== report.artifact.path ||
+      sourceSubject.digest.sha256 !== report.artifact.sha256)
   )
     return err(
       analysisViewInputError([

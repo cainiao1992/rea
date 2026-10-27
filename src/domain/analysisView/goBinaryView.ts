@@ -20,7 +20,10 @@ import {
   pageViewCoverage,
 } from "./analysisViewCoverage.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import { createAnalysisViewResultReader } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  createAnalysisViewResultReader,
+} from "./analysisViewParent.js";
 import { selectViewRows } from "./selectViewRows.js";
 
 const indexSchema = z.number().int().nonnegative();
@@ -122,11 +125,12 @@ export const projectGoBinaryView = (
   const parsed = parseReport(parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
-    parent.subject?.local_path !== report.artifact.path ||
-    parent.subject.digest.sha256 !== report.artifact.sha256 ||
-    parent.subject.format !== metadataReportSubjectFormat(report) ||
-    parent.subject.architecture !==
+    sourceSubject?.local_path !== report.artifact.path ||
+    sourceSubject.digest.sha256 !== report.artifact.sha256 ||
+    sourceSubject.format !== metadataReportSubjectFormat(report) ||
+    sourceSubject.architecture !==
       (binaryMetadataArchitecture(report.architecture) ?? null)
   )
     return err(

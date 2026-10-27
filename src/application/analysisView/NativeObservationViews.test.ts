@@ -18,7 +18,11 @@ import {
   type AnalysisViewRequest,
   type AnalysisViewResult,
 } from "../../domain/analysisView/analysisView.js";
-import { inspectAnalysisView } from "./AnalysisViewService.js";
+import {
+  inspectAnalysisView,
+  projectRetainedAnalysis,
+} from "./AnalysisViewService.js";
+import { EvidenceLedger } from "../investigation/EvidenceLedger.js";
 
 const provider = { id: "fixture", name: "Fixture provider", version: "1" };
 const parent = (
@@ -494,6 +498,27 @@ it("keeps context identity across authenticated target path aliases while preser
   });
   expect(second.evidence.subject?.local_path).toBe("/other/alias.elf");
   expect(second.evidence.evidence_id).not.toBe(first.evidence.evidence_id);
+  const ledger = new EvidenceLedger();
+  expect(ledger.record(original).ok).toBe(true);
+  const retained = ledger.forAnalysis(original.evidence_id)!;
+  const delivered = projectRetainedAnalysis(
+    rebound,
+    {
+      recordEvidence: (evidence) => ledger.record(evidence),
+      evidenceById: (id) => ledger.forAnalysis(id),
+    },
+    view,
+  );
+  if (!delivered.ok) throw delivered.error;
+  expect(delivered.value.subject?.local_path).toBe("/other/alias.elf");
+  expect(delivered.value.normalized_result).toMatchObject({
+    artifact: { path: "/other/alias.elf" },
+    items: {
+      rows: [{ record: { subject: { local_path: "/other/alias.elf" } } }],
+    },
+  });
+  expect(ledger.forAnalysis(original.evidence_id)).toBe(retained);
+  expect(retained.subject?.local_path).toBe("/selected/fixture.elf");
 });
 
 it("pages recorded empty graph levels without inventing nodes or dropping their identity", async () => {

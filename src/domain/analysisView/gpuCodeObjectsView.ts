@@ -18,7 +18,10 @@ import type {
   UnsignedAnalysisView,
 } from "./analysisView.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import { createAnalysisViewResultReader } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  createAnalysisViewResultReader,
+} from "./analysisViewParent.js";
 import {
   boundedViewMessages,
   completeWithinViewCoverage,
@@ -193,10 +196,11 @@ const readGpuFacts = (
     };
     if (reusable) checkedGpu.set(report, checked);
   }
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
-    parent.subject != null &&
-    (parent.subject.local_path !== checked.report.artifact.path ||
-      parent.subject.digest.sha256 !== checked.report.artifact.sha256)
+    sourceSubject != null &&
+    (sourceSubject.local_path !== checked.report.artifact.path ||
+      sourceSubject.digest.sha256 !== checked.report.artifact.sha256)
   )
     return err(
       analysisViewInputError([

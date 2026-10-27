@@ -1437,8 +1437,10 @@ export interface AnalysisViewParent {
   readonly environment?: Evidence["environment"];
   /** The owner proved normalizedResult belongs to a sealed, deep-frozen Evidence snapshot. */
   readonly sealedResult?: boolean;
-  /** Preserve the authenticated source identity, including explicit absence. */
+  /** Subject presentation for this delivery, including explicit absence. */
   readonly subject?: Evidence["subject"];
+  /** Original retained identity for report validation; omitted for direct domain callers. */
+  readonly sourceSubject?: Evidence["subject"];
   readonly limitations: readonly string[];
   readonly artifact?: { readonly path: string; readonly sha256: string } | null;
   /** Parent Evidence parameters, when the parent operation records them. */

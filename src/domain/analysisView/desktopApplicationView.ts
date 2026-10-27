@@ -11,7 +11,10 @@ import {
   type DesktopApplication,
 } from "../desktopApplication.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import { parseAnalysisViewResult } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  parseAnalysisViewResult,
+} from "./analysisViewParent.js";
 import {
   completeWithinViewCoverage,
   pageViewCoverage,
@@ -181,12 +184,13 @@ export const projectDesktopApplicationView = (
       validatedParents.add(key);
     }
   }
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
-    parent.subject === undefined ||
-    parent.subject === null ||
-    parent.subject.format !== "directory" ||
-    parent.subject.local_path !== report.root.path ||
-    parent.subject.digest.sha256 !== report.root.snapshot_sha256
+    sourceSubject === undefined ||
+    sourceSubject === null ||
+    sourceSubject.format !== "directory" ||
+    sourceSubject.local_path !== report.root.path ||
+    sourceSubject.digest.sha256 !== report.root.snapshot_sha256
   )
     return err(
       analysisViewInputError([

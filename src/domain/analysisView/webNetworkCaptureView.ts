@@ -3,7 +3,10 @@ import { analysisViewInputError } from "./analysisViewErrors.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
-import { parseAnalysisViewResult } from "./analysisViewParent.js";
+import {
+  analysisViewSourceSubject,
+  parseAnalysisViewResult,
+} from "./analysisViewParent.js";
 import type { JsonValue } from "../jsonValue.js";
 import { err, ok, type Result } from "../result.js";
 import {
@@ -422,11 +425,12 @@ const parseCaptureParent = (
   const parsed = parseAnalysisViewResult(captureParser, parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
+  const sourceSubject = analysisViewSourceSubject(parent);
   if (
     report.artifact.sha256 !== null &&
-    (parent.subject == null ||
-      parent.subject.local_path !== report.artifact.path ||
-      parent.subject.digest.sha256 !== report.artifact.sha256)
+    (sourceSubject == null ||
+      sourceSubject.local_path !== report.artifact.path ||
+      sourceSubject.digest.sha256 !== report.artifact.sha256)
   )
     return err(
       analysisViewInputError([

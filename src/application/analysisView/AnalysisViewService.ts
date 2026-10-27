@@ -208,6 +208,7 @@ const projectResolvedAnalysisView = (
     // Sealing an Evidence root deep-freezes it; only the root is registered.
     sealedResult: isImmutableJsonSnapshot(parent),
     subject: presentation.subject,
+    sourceSubject: parent.subject,
     limitations: parent.limitations,
     parameters: parent.parameters,
     artifact:

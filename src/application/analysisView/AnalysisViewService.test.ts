@@ -33,6 +33,7 @@ import { EvidenceIntegrityError } from "../../domain/evidenceErrors.js";
 import { err, ok } from "../../domain/result.js";
 import { EvidenceLedger } from "../investigation/EvidenceLedger.js";
 import { WEB_NETWORK_CAPTURE_LIMITS } from "../../domain/webNetworkCapture.js";
+
 import { isImmutableJsonSnapshot } from "../../domain/immutableJson.js";
 import { createTestTempDirectory } from "../../../tests/fixtures/temporaryDirectory.js";
 import {
@@ -43,6 +44,85 @@ import {
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import * as evidenceFileSource from "./evidenceFileSource.js";
 
+it("projects retained GPU source facts while delivering the caller's rebound subject", () => {
+  const sha256 = "a".repeat(64);
+  const original = createEvidence(
+    { path: "/original/gpu", sha256, format: "elf" },
+    { id: "fixture", name: "Fixture", version: "1" },
+    {
+      operation: "inspect_gpu_code_objects",
+      parameters: {},
+      result: {
+        artifact: {
+          path: "/original/gpu",
+          file_size: 0,
+          sha256,
+          bytes_read: 0,
+        },
+        format: "elf",
+        analysis: "inventory",
+        objects: [],
+        kernels: [],
+        ptx_artifacts: [],
+        coverage: {
+          discovery_scope: "supported-section-names-and-standalone-formats",
+          discovery: "partial",
+          payloads: "not-requested",
+          examined_sections: 0,
+          unknown_section_names: 0,
+        },
+        limitations: [],
+      },
+    },
+  );
+  const ledger = new EvidenceLedger();
+  expect(ledger.record(original).ok).toBe(true);
+  const retained = ledger.forAnalysis(original.evidence_id)!;
+  const payload = retained.normalized_result;
+  const selected = rebindEvidenceToTargetPath(original, {
+    path: "/selected/gpu",
+    sha256,
+    format: "elf",
+  });
+  expect(selected.evidence_id).toBe(original.evidence_id);
+  const retention = {
+    recordEvidence: (evidence: Evidence) => ledger.record(evidence),
+    evidenceById: (id: string) => ledger.forAnalysis(id),
+  };
+  for (const view of [
+    { kind: "summary" as const },
+    {
+      kind: "gpu-code-objects" as const,
+      collection: "objects" as const,
+      offset: 0,
+      limit: 64,
+    },
+  ]) {
+    const result = projectRetainedAnalysis(selected, retention, view);
+    if (!result.ok) throw result.error;
+    expect(result.value.subject?.local_path).toBe("/selected/gpu");
+    expect(result.value.normalized_result).toMatchObject({
+      parent_evidence_id: original.evidence_id,
+      artifact: { path: "/original/gpu", sha256 },
+    });
+  }
+  expect(ledger.forAnalysis(original.evidence_id)).toBe(retained);
+  expect(retained.normalized_result).toBe(payload);
+  expect(retained.subject?.local_path).toBe("/original/gpu");
+  const mismatched = createEvidence(
+    { path: "/original/gpu", sha256: "b".repeat(64), format: "elf" },
+    original.provider,
+    {
+      operation: original.operation,
+      parameters: {},
+      result: original.normalized_result,
+    },
+  );
+  expect(summarizeRetainedAnalysis(mismatched, retention)).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisInputError" },
+  });
+});
 it.each(["inline", "retained-evidence", "invalid"] as const)(
   "refuses an already cancelled %s view before source admission",
   async (kind) => {

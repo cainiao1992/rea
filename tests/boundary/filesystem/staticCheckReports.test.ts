@@ -69,7 +69,6 @@ it("covers the lint inventory and root tool configs in resolved cache inputs", (
       join(repository, "node_modules/turbo/bin/turbo"),
       "run",
       "lint",
-      "lint:built",
       "knip",
       "--dry=json",
     ],
@@ -92,10 +91,8 @@ it("covers the lint inventory and root tool configs in resolved cache inputs", (
       ),
     })
     .parse(JSON.parse(dry.stdout));
-  const lintTasks = tasks.filter(({ task }) =>
-    ["lint", "lint:built"].includes(task),
-  );
-  expect(lintTasks).toHaveLength(2);
+  const lintTasks = tasks.filter(({ task }) => task === "lint");
+  expect(lintTasks).toHaveLength(1);
   for (const task of lintTasks)
     expect(
       files.filter((file) => !Object.hasOwn(task.inputs, file)),

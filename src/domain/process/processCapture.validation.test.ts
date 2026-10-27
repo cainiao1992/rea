@@ -137,6 +137,50 @@ it.each([
   expect(parseProcessCapture(capture)).toEqual(capture);
 });
 
+it("preserves distinct byte-name omissions at one directory through finalized capture parsing", () => {
+  const capture = captureWithEnumerationOmission({
+    path: "root_0:.",
+    reason: "unrepresentable_name",
+    system_code: null,
+    raw_name_hex: "ff",
+  });
+  const coverage = capture.truncation_details.filesystem_after;
+  coverage.enumeration_omissions.push({
+    path: "root_0:.",
+    reason: "unrepresentable_name",
+    system_code: null,
+    raw_name_hex: "fe",
+  });
+  expect(parseProcessCapture(capture)).toEqual(capture);
+  coverage.enumeration_omissions.push({
+    path: "root_0:.",
+    reason: "identity_changed",
+    system_code: null,
+  });
+  coverage.enumeration_reasons.push("identity_changed");
+  expect(parseProcessCapture(capture)).toEqual(capture);
+  // Re-reading the same raw basename is not a distinct omission.
+  coverage.enumeration_omissions.push({
+    path: "root_0:.",
+    reason: "unrepresentable_name",
+    system_code: null,
+    raw_name_hex: "ff",
+  });
+  expect(() => parseProcessCapture(capture)).toThrow("enumeration_omissions");
+});
+
+it("requires raw-name evidence for an unrepresentable-name coverage reason", () => {
+  const capture = captureWithEnumerationOmission({
+    path: "root_0:.",
+    reason: "unrepresentable_name",
+    system_code: null,
+    raw_name_hex: "ff",
+  });
+  expect(parseProcessCapture(capture)).toEqual(capture);
+  capture.truncation_details.filesystem_after.enumeration_omissions = [];
+  expect(() => parseProcessCapture(capture)).toThrow("enumeration_omissions");
+});
+
 it.each([
   { path: "root_0:.", reason: "entry_unavailable", system_code: null },
   { path: "root_0:.", reason: "identity_changed", system_code: "ENOENT" },

@@ -375,8 +375,17 @@ const validateCoverage = (
             ? omission.system_code !== null
             : omission.system_code === null),
       ), `truncation_details.${name}.hash_omissions`, "every retained regular file without a digest must have one matching omission reason");
-    require(new Set(coverage.enumeration_omissions.map(({ path }) => path))
-      .size === coverage.enumeration_omissions.length &&
+    require(new Set(
+      coverage.enumeration_omissions.map((omission) =>
+        omission.reason === "unrepresentable_name"
+          ? JSON.stringify([
+              omission.path,
+              omission.reason,
+              omission.raw_name_hex,
+            ])
+          : JSON.stringify([omission.path]),
+      ),
+    ).size === coverage.enumeration_omissions.length &&
       (!coverage.enumeration_reasons.includes("entry_unavailable") ||
         coverage.enumeration_omissions.some(
           ({ reason }) => reason === "entry_unavailable",
@@ -384,6 +393,10 @@ const validateCoverage = (
       (!coverage.enumeration_reasons.includes("symlink_not_followed") ||
         coverage.enumeration_omissions.some(
           ({ reason }) => reason === "symlink_not_followed",
+        )) &&
+      (!coverage.enumeration_reasons.includes("unrepresentable_name") ||
+        coverage.enumeration_omissions.some(
+          ({ reason }) => reason === "unrepresentable_name",
         )) &&
       coverage.enumeration_omissions.every((omission) => {
         if (!coverage.enumeration_reasons.includes(omission.reason))

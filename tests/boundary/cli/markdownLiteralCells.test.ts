@@ -103,3 +103,56 @@ cliTest(
     ).toEqual(expectedCells);
   },
 );
+
+cliTest(
+  "preserves literal scalar, array, and heading Evidence facts",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-markdown-literal-text-");
+    const path = join(root, "bundle.json");
+    const literal = "**literal** [source](wrong) <T> &copy;";
+    const heading = "**key**\n# injected";
+    const result = {
+      [heading]: literal,
+      list: [literal],
+      bullet: "- literal",
+      numbered: "1. literal",
+      rule: "---",
+      indented: "    literal\n- next\n# heading",
+      nested: { value: 1 },
+    };
+    const record = createEvidence(
+      undefined,
+      { id: "fixture", name: "Fixture", version: "1" },
+      { operation: "ordinary-json", parameters: {}, result },
+    );
+    await writeFile(path, JSON.stringify(createEvidenceBundle([record])));
+    const base = [
+      "inspect-evidence-bundle",
+      JSON.stringify({ path, detail: "complete" }),
+      "--filter-output",
+      "records.0.normalized_result",
+    ];
+    const markdown = await cli.run({ arguments: [...base, "--format", "md"] });
+    const json = await cli.run({ arguments: [...base, "--json"] });
+    expect(markdown.exitCode, markdown.stderr).toBe(0);
+    expect(json.exitCode, json.stderr).toBe(0);
+    expect(JSON.parse(json.stdout)).toEqual({
+      records: { "0": { normalized_result: result } },
+    });
+    const renderer = await createMarkdownRenderer(root, { linkify: false });
+    for (const document of [
+      markdown.stdout,
+      renderCliDocument(result, "md", false),
+    ]) {
+      const html = renderer.render(document);
+      expect(html).toContain(
+        "**literal** [source](wrong) &lt;T&gt; &amp;copy;",
+      );
+      expect(html).toContain("**key**<br># injected");
+      expect(html).toContain("literal<br>- next<br># heading");
+      expect(html).not.toMatch(/<(?:strong|em|ul|ol|li|T|pre|hr)(?:\s|>)/u);
+      expect(html).not.toContain('href="wrong"');
+      expect(html).not.toContain("<h1");
+    }
+  },
+);

@@ -100,7 +100,7 @@ it("formats arrays of empty objects without columns as JSON in Markdown", async 
   const json = await runFilteredCli(value, "json");
   expect(JSON.parse(json)).toEqual(value);
   const markdown = await runFilteredCli(value, "md");
-  expect(markdown).toBe("[{},{}]\n");
+  expect(markdown).toBe("\\[{},{}\\]\n");
 });
 
 it.each(
@@ -375,7 +375,7 @@ it.each(["json", "jsonl", "yaml", "toon", "md"] as const)(
           .split("\n")
           .map((line) => JSON.parse(line)),
       ).toEqual([1, null, null]);
-    else if (format === "md") expect(output).toBe("[1,null,null]\n");
+    else if (format === "md") expect(output).toBe("\\[1,null,null\\]\n");
     else expect(output).toBe(`${Formatter.format(selected, format)}\n`);
     expect(value).toEqual([{ selected: 1 }, {}, { selected: null }]);
   },

@@ -5,12 +5,14 @@ import { fittedClockFormat } from "./environmentStateWriteClockFormats.js";
 import { composedValue } from "./environmentStateWriteComposed.js";
 import {
   alikeRules,
+  isBlankValue,
   type FieldRule,
   type WriteBody,
 } from "./environmentStateWriteRules.js";
 import { slugOf, type Ampersand } from "./environmentStateWriteValues.js";
 
 type Default = { readonly member: string; readonly value: JsonValue };
+type Blank = NonNullable<WriteBody["blank"]>[number];
 
 /** What earlier calls showed that a merge must respect: members stored unsorted as sent, and the value showing each clock's width. */
 export interface EarlierEvidence {
@@ -350,6 +352,22 @@ export const mergedCreatePlan = (
   };
 };
 
+/** Every empty value recorded calls sent a member, the earliest first. */
+const joinedBlanks = (
+  held: readonly Blank[],
+  added: readonly Blank[],
+): Blank[] => {
+  const blank = [...held];
+  for (const entry of added)
+    if (
+      !blank.some(
+        ({ member, sent }) => member === entry.member && same(sent, entry.sent),
+      )
+    )
+      blank.push(entry);
+  return blank;
+};
+
 /** Two calls' body contracts joined, undefined when a member one accepts with any value the other fixes, or both fix it at different values. */
 const mergedBody = (
   body: WriteBody,
@@ -375,6 +393,7 @@ const mergedBody = (
   const added = contract.accepted.filter(
     (member) => !body.accepted.includes(member),
   );
+  const blank = joinedBlanks(body.blank ?? [], contract.blank ?? []);
   return {
     ...body,
     accepted: [...body.accepted, ...added],
@@ -382,10 +401,12 @@ const mergedBody = (
       ...body.fixed,
       ...contract.fixed.filter((entry) => !fixed.has(entry.member)),
     ],
-    required: body.required.filter((member) =>
-      Object.hasOwn(later.body, member),
+    required: body.required.filter(
+      (member) =>
+        Object.hasOwn(later.body, member) && !isBlankValue(later.body[member]),
     ),
     identity: body.identity ?? contract.identity,
     kinds: [...body.kinds, ...storedKinds(added, exemplar, later.entity)],
+    ...(blank.length === 0 ? {} : { blank }),
   };
 };

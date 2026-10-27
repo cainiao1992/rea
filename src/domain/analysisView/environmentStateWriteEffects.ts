@@ -163,6 +163,8 @@ export interface EffectContext {
   readonly isWrite: (record: StateRecordFacts) => boolean;
   readonly viewOf: (ordinal: number) => StateView | undefined;
   readonly idField: (type: string) => string;
+  /** Fields of a type whose values change on their own, which no read checks. */
+  readonly volatileOf: (type: string) => ReadonlySet<string>;
   /** Mark a later read as a create's or update's observation, so it does not check that write. */
   readonly observed: (ordinal: number) => void;
   /** Whether an unmodelled write may have changed the entity since the state last saw it. */
@@ -171,6 +173,8 @@ export interface EffectContext {
   readonly initialDocument: (tool: string) => StateDocument | undefined;
   /** The entities of a type the initial state held, whose values a sequence never reuses. */
   readonly startedWith: (type: string) => readonly StateEntity[];
+  /** Fields the type's item views show that no initial entity holds, which an answer leaves out for an entity without them. */
+  readonly laterFields: (type: string) => ReadonlySet<string>;
   /** Whether another tool's modelled write to the target awaits a check, which a later read must still make. */
   readonly pending: (target: string) => boolean;
 }

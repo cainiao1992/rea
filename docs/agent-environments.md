@@ -768,7 +768,12 @@ sending a `derived` rule's member to an entity that does not hold the value the
 recorded call found, a nested clock on an entity holding no such object, and a
 rendered answer missing a field the recorded response carried, and an update or delete of an entity the state does not hold answers
 the recorded 400, 404 or 410 of the tool or of an item view of the type, if
-any. A refused call leaves the state unchanged. Values a write generates are
+any. A served delete of a type whose item view has a `deleted_flag` (the
+member, `deleted`, `isDeleted` or `is_deleted`, its reads set `true` on a
+record the application soft-deleted, as EspoCRM does) keeps the entity until
+`data/reset` or `data/add`, within the size `data/add` loads, so a read of it by
+id answers its last fields with that flag `true`. A refused call leaves the
+state unchanged. Values a write generates are
 deterministic: the clock starts at `write_clock` and advances one second per
 served write, sequences take one past both the largest held value and the
 largest they generated, and UUIDs and tokens derive from the state Evidence

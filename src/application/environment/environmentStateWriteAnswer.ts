@@ -1,6 +1,7 @@
 import {
   createdFields,
   documentBodyProblem,
+  laterItemFields,
   optionalFields,
   renewUuids,
   updatedEntity,
@@ -12,6 +13,7 @@ import {
 } from "../../domain/analysisView/environmentStateWriteApply.js";
 import {
   insertIndex,
+  resortedMembers,
   nextInteger,
 } from "../../domain/analysisView/environmentStateWriteExplain.js";
 import { callRenewal } from "../../domain/analysisView/environmentStateWriteGenerated.js";
@@ -38,10 +40,12 @@ import {
   spelledLike,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
 import {
+  at,
   ownMember,
   collectionMatch,
   decodedSegment,
   isObject,
+  pointerTokens,
   scalarText,
   type JsonObject,
   type StateEntity,
@@ -63,6 +67,8 @@ import {
   namedEntity,
   recordedJson,
   refused,
+  deleteAnswerFields,
+  softDeleteFlag,
   stateAnswer,
   type StateAnswer,
   type StateProvenance,
@@ -333,7 +339,11 @@ export const writeAnswer = (
   serving: StateServing,
   request: WriteRequest,
   rendered:
-    | { readonly fields: JsonObject | undefined; readonly id: string }
+    | {
+        readonly fields: JsonObject | undefined;
+        readonly id: string;
+        readonly sent?: readonly string[];
+      }
     | ((
         recorded: JsonValue | undefined,
       ) => Result<JsonValue | undefined, string>),
@@ -370,8 +380,25 @@ export const writeAnswer = (
                     rule.rule === "clock" ? [rule.field] : [],
                   )
                 : [],
+            // A member the call sent and the plan stores as sent is answered as sent; any other keeps the recorded answer.
+            unloaded: (plan.observation?.read?.unloaded ?? []).filter(
+              (path) => {
+                const [field] = pointerTokens(path);
+                return !(
+                  rendered.sent?.includes(field!) === true &&
+                  plan.rules.some(
+                    (rule) => rule.field === field && rule.rule === "echo",
+                  )
+                );
+              },
+            ),
           },
           optionalFields(plan),
+          laterItemFields(
+            serving.store.state.views.values(),
+            serving.store.state.entities,
+            plan.target,
+          ),
         );
   if (!body.ok) return err(refused(tool, body.error));
   return stateAnswer(serving, { exchange, exact }, body.value ?? null, state);
@@ -519,7 +546,7 @@ const answerCreate = (
   const answer = writeAnswer(
     serving,
     request,
-    { fields: fields.value, id },
+    { fields: fields.value, id, sent: Object.keys(call.body ?? {}) },
     state,
   );
   if (!answer.ok) return answer;
@@ -591,7 +618,11 @@ const answerUpdate = (
   const answer = writeAnswer(
     serving,
     request,
-    { fields: written.value, id: entity.id },
+    {
+      fields: written.value,
+      id: entity.id,
+      sent: Object.keys(call.body ?? {}),
+    },
     {
       source: "state",
       view: "update",
@@ -601,10 +632,32 @@ const answerUpdate = (
     },
   );
   if (!answer.ok) return answer;
-  const updated = serving.store.update(updatedEntity(entity, written.value));
+  const after = updatedEntity(entity, written.value);
+  const updated = serving.store.updateAll(
+    [after],
+    sortedOrder(serving, plan, [{ before: entity, after }]),
+  );
   if (!updated.ok) return updated;
   serving.store.commitWrite(values.taken);
   return answer;
+};
+
+/** The collection's members in the order a sorted collection holds them after these writes; empty when the plan keeps them in place. */
+export const sortedOrder = (
+  serving: StateServing,
+  plan: StateWritePlan,
+  writes: readonly {
+    readonly before: StateEntity;
+    readonly after: StateEntity;
+  }[],
+): StateEntity[] => {
+  const [first] = writes;
+  if (plan.insert?.rule !== "sorted" || first === undefined) return [];
+  return resortedMembers(
+    plan.insert,
+    serving.store.inCollection(first.before.type, first.before.collection),
+    writes,
+  );
 };
 
 const answerDelete = (
@@ -614,10 +667,27 @@ const answerDelete = (
   const target = targetEntity(serving, request);
   if (!target.ok) return target.error;
   const entity = target.value;
+  const { response } = request.plan;
+  const exchange =
+    response === null
+      ? undefined
+      : serving.source.exchanges.get(response.ordinal);
+  const recorded = exchange === undefined ? undefined : recordedJson(exchange);
+  // A soft-deleting application answers with the entity's deleted flag as its recorded answer showed it.
   const answer = writeAnswer(
     serving,
     request,
-    { fields: entity.fields, id: entity.id },
+    {
+      fields: deleteAnswerFields(
+        serving,
+        entity.type,
+        entity.fields,
+        recorded === undefined
+          ? undefined
+          : at(recorded, response!.pointer ?? ""),
+      ),
+      id: entity.id,
+    },
     {
       source: "state",
       view: "delete",
@@ -627,7 +697,11 @@ const answerDelete = (
     },
   );
   if (answer.ok) {
-    serving.store.remove(entity);
+    // An application that soft-deletes still answers the entity by id, so its last fields are kept for that read.
+    serving.store.remove(
+      entity,
+      softDeleteFlag(serving, entity.type) !== undefined,
+    );
     serving.store.commitWrite(new Map());
   }
   return answer;

@@ -1479,6 +1479,53 @@ it.each(["file", "bundle"] as const)(
 );
 
 it.each(["file", "bundle"] as const)(
+  "preserves authenticated %s parent Evidence when cancellation arrives before projection",
+  async (kind) => {
+    const parent = analysisViewCaptureEvidence();
+    const path = join(
+      await createTestTempDirectory("rea-view-admission-"),
+      "source.json",
+    );
+    await writeFile(
+      path,
+      JSON.stringify(kind === "file" ? parent : createEvidenceBundle([parent])),
+    );
+    const controller = new AbortController();
+    const dispatch = queuedInterrupts.dispatchQueuedInterrupts;
+    const interrupt = vi
+      .spyOn(queuedInterrupts, "dispatchQueuedInterrupts")
+      .mockImplementation(async () => {
+        await dispatch();
+        controller.abort("after-source-admission");
+      });
+    try {
+      const result = await inspectAnalysisView(
+        {
+          source:
+            kind === "file"
+              ? { kind: "evidence-file", path }
+              : { kind: "retained-evidence", evidence_id: parent.evidence_id },
+          view: manifestView,
+        },
+        undefined,
+        {
+          signal: controller.signal,
+          ...(kind === "bundle" ? { evidenceBundlePath: path } : {}),
+        },
+      );
+      if (result.ok) throw new Error("Expected cancellation before projection");
+      expect(result.error).toMatchObject({
+        _tag: "AnalysisCancelledError",
+        cause: "after-source-admission",
+        partialObservation: parent,
+      });
+    } finally {
+      interrupt.mockRestore();
+    }
+  },
+);
+
+it.each(["file", "bundle"] as const)(
   "preserves completed %s view Evidence when cancellation arrives after projection",
   async (kind) => {
     const parent = analysisViewCaptureEvidence();

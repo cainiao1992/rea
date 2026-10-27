@@ -101,7 +101,11 @@ const inspectFileView = async (
   // the signal notifications they enqueue before accepting either result.
   await dispatchQueuedInterrupts();
   // A request cancelled during authentication reports cancellation, even when authentication failed.
-  const admitted = cancelledFileViewResult(loaded, options.signal);
+  const admitted = cancelledFileViewResult(
+    loaded,
+    options.signal,
+    loaded.ok ? loaded.value : undefined,
+  );
   if (!admitted.ok) return admitted;
   const id = admitted.value.evidence_id;
   const projected = inspectAnalysisViewValidated(
@@ -140,7 +144,14 @@ const inspectBundleView = async (
   await dispatchQueuedInterrupts();
   // Preserve an already-produced bundle failure before considering a later abort.
   if (!loaded.ok) return loaded;
-  const admitted = cancelledFileViewResult(loaded, signal);
+  const parentId = input.source.evidence_id;
+  const admitted = cancelledFileViewResult(
+    loaded,
+    signal,
+    signal?.aborted
+      ? loaded.value.records.find((record) => record.evidence_id === parentId)
+      : undefined,
+  );
   if (!admitted.ok) return admitted;
   const projected = inspectAnalysisViewValidated(
     { source: input.source, view: input.view },

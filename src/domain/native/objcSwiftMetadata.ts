@@ -6,7 +6,7 @@ import {
   type BinaryTarget,
 } from "../binaryTargetTypes.js";
 import { providerSchema } from "../evidence.js";
-import { isSwiftMangledSymbolName } from "../swiftSymbolClassification.js";
+import { isSwiftSymbolName } from "../swiftSymbolClassification.js";
 import { nativeCallReferenceSchema } from "./nativeCallReference.js";
 import { machoTargetSelectionSchema } from "../apple/machoTargetSelection.js";
 import {
@@ -608,7 +608,7 @@ export const inspectNativeDispatchMetadata = (
       classNames.add(className);
     }
 
-    if (isSwiftMangledSymbolName(entry.name) || entry.name.startsWith("_Tt"))
+    if (isSwiftSymbolName(entry.name))
       swiftSymbols.push({
         mangled_name: entry.name,
         address,

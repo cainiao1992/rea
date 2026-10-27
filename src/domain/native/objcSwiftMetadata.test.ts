@@ -259,13 +259,14 @@ describe("ObjC/Swift metadata", () => {
     );
   });
 
-  it("projects every accepted Swift mangling prefix and counts it", () => {
+  it("projects every accepted Swift symbol spelling and counts it", () => {
     const names = [
       "$s5Store7launchyyF",
       "_$s5Store7launchyyF",
       "$S5Store7launchyyF",
       "_$S5Store7launchyyF",
       "_T05Store7launchyyF",
+      "__T05Store7launchyyF",
       "@__swiftmacro_5Store7launchfMf_",
       "$e5Store7launchyyF",
       "_$e5Store7launchyyF",
@@ -289,7 +290,7 @@ describe("ObjC/Swift metadata", () => {
     expect(result.coverage).toContainEqual(
       expect.objectContaining({
         facet: "swift_declarations",
-        examined: 9,
+        examined: 10,
         decoded: 0,
       }),
     );

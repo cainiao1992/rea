@@ -1,8 +1,9 @@
+import { webBundleDeliveryOptions } from "./javascriptRouteDelivery.js";
 import {
-  parseJavaScriptRouteDelivery,
-  webBundleDeliveryOptions,
-} from "./javascriptRouteDelivery.js";
-import { deliverCliAnalysisEvidence } from "./analysisEvidenceDelivery.js";
+  deliverCliAnalysisEvidence,
+  parseCliAnalysisEvidenceDelivery,
+} from "./analysisEvidenceDelivery.js";
+import { webRoutesDeliverySchema } from "../domain/analysisView/javascriptRoutesView.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { Cli, z } from "incur";
 
@@ -180,9 +181,10 @@ const registerBundleAnalysis = (
     run: ({ args, options }) =>
       withCommandCancellation((signal) =>
         logCliCommand(logger, "analyze-web-bundle", async () => {
-          const delivery = parseJavaScriptRouteDelivery(
+          const delivery = parseCliAnalysisEvidenceDelivery(
             "analyze_web_bundle",
             options,
+            webRoutesDeliverySchema,
           );
           if (!delivery.ok) return projectAnalysisError(delivery.error);
           const provider = createBrowserObservationProvider();

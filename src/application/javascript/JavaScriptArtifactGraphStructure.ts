@@ -553,8 +553,6 @@ export const addJavaScriptPackageNodes = (
             version: packageValue.version,
             main: packageValue.main,
             main_status: packageValue.main_status,
-            // Legacy derived candidate; source fields live in renderer_declarations.
-            renderer: packageValue.renderer_entrypoint?.path ?? null,
             renderer_declarations: packageValue.renderer_declarations,
             parse_status: packageValue.status,
           },

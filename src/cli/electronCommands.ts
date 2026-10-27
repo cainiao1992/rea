@@ -1,4 +1,5 @@
-import { parseJavaScriptRouteDelivery } from "./javascriptRouteDelivery.js";
+import { parseCliAnalysisEvidenceDelivery } from "./analysisEvidenceDelivery.js";
+import { javaScriptRoutesDeliverySchema } from "../domain/analysisView/javascriptRoutesView.js";
 import { isAbsolute, resolve, sep } from "node:path";
 
 import { Cli, z } from "incur";
@@ -321,9 +322,10 @@ const registerJavaScriptApplicationCommand = (
           logger,
           CLI_COMMANDS.analyzeJavaScriptApplication,
           async () => {
-            const delivery = parseJavaScriptRouteDelivery(
+            const delivery = parseCliAnalysisEvidenceDelivery(
               "analyze_javascript_application",
               options,
+              javaScriptRoutesDeliverySchema,
             );
             if (!delivery.ok) return projectAnalysisError(delivery.error);
             const sourcePaths = await cliJavaScriptSourcePaths(

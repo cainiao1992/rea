@@ -606,10 +606,24 @@ describe("evidence metadata imports and snapshot cache", () => {
     );
     expect(
       session.importEvidenceBundle(createEvidenceBundle([addition])),
-    ).toEqual({ ok: true, value: 1 });
+    ).toEqual({
+      ok: true,
+      value: {
+        recordsAdded: 1,
+        unknownsAdded: 0,
+        totalRecords: before.value.evidence_bundle.records.length + 1,
+      },
+    });
     expect(
       session.importEvidenceBundle(createEvidenceBundle([addition])),
-    ).toEqual({ ok: true, value: 0 });
+    ).toEqual({
+      ok: true,
+      value: {
+        recordsAdded: 0,
+        unknownsAdded: 0,
+        totalRecords: before.value.evidence_bundle.records.length + 1,
+      },
+    });
     expect(session.exportAnalysisSnapshot()).toMatchObject({
       ok: true,
       value: {
@@ -630,7 +644,9 @@ describe("evidence metadata imports and snapshot cache", () => {
     expect(session.exportAnalysisSnapshot().ok).toBe(true);
     await session.close();
   });
+});
 
+describe("Evidence display metadata refresh", () => {
   it.each(["active", "unrelated"] as const)(
     "refreshes %s Evidence display metadata without invalidating provider observations",
     async (scope) => {
@@ -671,7 +687,14 @@ describe("evidence metadata imports and snapshot cache", () => {
         const unsubscribe = session.onAnalysisSnapshotChanged(changed);
         expect(
           session.importEvidenceBundle(createEvidenceBundle([relocated])),
-        ).toEqual({ ok: true, value: 0 });
+        ).toEqual({
+          ok: true,
+          value: {
+            recordsAdded: 0,
+            unknownsAdded: 0,
+            totalRecords: session.immutableEvidenceBundle().records.length,
+          },
+        });
         expect(changed).toHaveBeenCalledTimes(1);
         unsubscribe();
         expect(session.evidenceById(evidence.evidence_id)).toEqual(relocated);

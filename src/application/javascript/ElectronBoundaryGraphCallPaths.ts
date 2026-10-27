@@ -2,7 +2,7 @@ import { javascriptSourceRangeKey } from "../../domain/javascript/javascriptSour
 import type { ApplicationNode } from "../../domain/javascript/javascriptApplicationGraphSchemas.js";
 import type { ElectronCallPath } from "../../domain/javascript/electronStaticAnalysisTypes.js";
 import type { JavaScriptArtifactFile } from "../../domain/javascript/javascriptArtifactFiles.js";
-import { sha256Text } from "../../domain/javascript/javascriptStaticAnalysisHelpers.js";
+import { electronCallPathId } from "./ElectronCallPathIdentity.js";
 import type {
   ElectronIpcContext,
   ElectronIpcRecord,
@@ -36,7 +36,7 @@ export const addElectronCallPaths = (
     if (javascript === null) continue;
     const coverage = javascriptAnalysisCoverage(javascript);
     for (const path of javascript.electron.call_paths ?? []) {
-      const pathId = sha256Text(JSON.stringify([file.path, path]));
+      const pathId = electronCallPathId(file.path, path);
       const nodes = path.steps.map((step, index) =>
         context.accumulator.addNode({
           kind: "javascript-expression",

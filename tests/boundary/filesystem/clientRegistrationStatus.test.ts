@@ -16,6 +16,7 @@ import { existingMaintenanceScope } from "../../../src/application/UpdateMainten
 import { ConfigurationError } from "../../../src/domain/configurationErrors.js";
 import { err } from "../../../src/domain/result.js";
 import { PRODUCT_IDENTITY } from "../../../src/identity.js";
+import { CURRENT_ENTRYPOINT_PATH } from "../../../src/process/CurrentEntrypointPath.js";
 
 beforeEach(clearClientLocationEnvironment);
 afterEach(() => {
@@ -87,19 +88,19 @@ describe("client registration status", () => {
           client: "cursor",
           state: "stale",
           command: [foreignEntry, "mcp"],
-          remediation: expect.any(String),
+          remediation: expect.stringMatching(/\S/u),
         }),
         expect.objectContaining({
           client: "gemini_cli",
           state: "invalid",
           command: [],
-          remediation: expect.any(String),
+          remediation: expect.stringMatching(/\S/u),
         }),
         expect.objectContaining({
           client: "claude_code",
           state: "missing",
           command: [],
-          remediation: expect.any(String),
+          remediation: expect.stringMatching(/\S/u),
         }),
       ]),
     );
@@ -236,12 +237,11 @@ describe("client registration launcher identity", () => {
     const home = await createTestTempDirectory("rea-registration-unknown-");
     await mkdir(join(home, ".cursor"));
     const command = ["/opt/rea/bin/rea", "mcp"];
-    await writeFile(
-      join(home, ".cursor/mcp.json"),
-      JSON.stringify({
-        mcpServers: { rea: { command: command[0], args: [command[1]] } },
-      }),
-    );
+    const config = join(home, ".cursor/mcp.json");
+    const original = JSON.stringify({
+      mcpServers: { rea: { command: command[0], args: [command[1]] } },
+    });
+    await writeFile(config, original);
 
     const [status] = await readClientRegistrationStatuses(home, "");
 
@@ -249,7 +249,8 @@ describe("client registration launcher identity", () => {
       client: "cursor",
       command,
       state: "unknown",
-      remediation: expect.stringContaining("registration was retained"),
+      config_path: config,
+      remediation: expect.stringMatching(/\S/u),
     });
     expect(status).not.toHaveProperty("commandIdentity");
     expect(await readClientRegistrationInspections(home, "")).toEqual([
@@ -259,6 +260,7 @@ describe("client registration launcher identity", () => {
         commandIdentity: "unknown",
       }),
     ]);
+    expect(await readFile(config, "utf8")).toBe(original);
   });
 
   it("does not use the REA process cwd to resolve a client's relative launcher path", async () => {
@@ -498,7 +500,8 @@ describe("Ghidra multi-function deadline registration advice", () => {
     async ({ provider, timeout, hasBatchScope }) => {
       const home = await createTestTempDirectory("rea-codex-decompile-scope-");
       await mkdir(join(home, ".codex"));
-      const entry = resolve("scripts/rea.mjs");
+      const entry = CURRENT_ENTRYPOINT_PATH;
+      if (entry === undefined) throw new Error("missing current entrypoint");
       const configPath = join(home, ".codex/config.toml");
       // Two 600-second Ghidra decompiles plus startup/headroom would need an
       // estimated 1650 seconds. A caller's shorter or longer choice stays theirs.
@@ -758,7 +761,7 @@ it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
         config_path: path,
         state: "invalid",
         command: [],
-        remediation: expect.any(String),
+        remediation: expect.stringMatching(/\S/u),
       });
       expect(
         (await existingMaintenanceScope(home, "/current/rea", process.env))

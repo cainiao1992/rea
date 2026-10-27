@@ -81,7 +81,14 @@ const inventoryEvidence = (
     limitations: [],
   });
   const nodes = new Map([[rootId, node(rootSha, rootFormat)]]);
-  const occurrences = [occurrence(".", "file", rootId, rootFormat)];
+  const occurrences = [
+    occurrence(
+      ".",
+      rootFormat === "directory" ? "directory" : "file",
+      rootId,
+      rootFormat,
+    ),
+  ];
   for (const {
     path,
     kind = "file",

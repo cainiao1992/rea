@@ -1630,6 +1630,11 @@ results after a failure. Available failed-shard reports remain diagnostic only:
 failed, cancelled, skipped, or missing selected shards cannot pass the gate or
 publish successful timing history. This deliberately avoids relying on an
 import graph for generated files, filesystem inputs, subprocesses, or bridges.
+The portable report rejects an entirely skipped module inventory and lists
+fully skipped modules in its summary. A mixed passed/skipped inventory is
+allowed: Vitest's skip state does not establish whether a skipped module was
+required on that runner. Review the listed skips against platform and provider
+prerequisites; the inventory alone does not prove every required case ran.
 
 Scheduled qualification is admitted hourly at minute 23. A forced full run at
 03:23 UTC refreshes runner and dependency drift every day. Other hourly runs

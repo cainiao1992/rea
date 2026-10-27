@@ -1,4 +1,6 @@
 import {
+  chmod,
+  rm,
   mkdir,
   readFile,
   readdir,
@@ -220,5 +222,54 @@ it.skipIf(process.platform === "win32")(
         resources,
       ),
     ).rejects.toMatchObject({ diagnostics: { system_code: "ENOENT" } });
+  },
+);
+
+it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "preserves denied access between profile resolution and snapshot copying",
+  async () => {
+    const { source, destination } = await fixture();
+    const project = await resolveGhidraProject(
+      { path: join(source, "selected.gpr") },
+      { path: "/tmp/target" },
+      resources,
+    );
+    try {
+      await chmod(source, 0);
+      await expect(
+        copyExistingGhidraProject(project.project_path, destination, {
+          projectName: project.project_name,
+          expectedSha256: project.sha256,
+          resources,
+        }),
+      ).rejects.toMatchObject({
+        _tag: "AnalysisAccessDeniedError",
+        operation: "open_binary",
+        systemCode: "EACCES",
+        path: join(project.project_path, "selected.gpr"),
+      });
+    } finally {
+      await chmod(source, 0o700);
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "keeps missing entries and symbolic links classified as invalid selections",
+  async () => {
+    const { source, destination } = await fixture();
+    await rm(join(source, "selected.gpr"));
+    await expect(
+      copyExistingGhidraProject(source, destination, {
+        projectName: "selected",
+      }),
+    ).rejects.toMatchObject({ _tag: "ConfigurationError" });
+    await writeFile(join(source, "other.gpr"), "marker");
+    await symlink("other.gpr", join(source, "selected.gpr"));
+    await expect(
+      copyExistingGhidraProject(source, destination, {
+        projectName: "selected",
+      }),
+    ).rejects.toMatchObject({ _tag: "ConfigurationError" });
   },
 );

@@ -1087,12 +1087,17 @@ describe("web bundle configuration and navigation parity", () => {
     });
   });
 
-  it("recognizes loadURL endpoints like static analysis", () => {
+  it("keeps loadURL spelling without Electron receiver proof as a candidate", () => {
     const result = analyzeWebBundleFixture(
       inspection('window.win.loadURL("https://embedded.test/app");'),
     );
-    expect(result.observations.endpoints).toContainEqual(
-      expect.objectContaining({ value: "https://embedded.test/app" }),
+    expect(result.observations.endpoints).toEqual([]);
+    expect(result.inferences).toContainEqual(
+      expect.objectContaining({
+        kind: "endpoint_candidate",
+        value: "https://embedded.test/app",
+        confidence: "low",
+      }),
     );
   });
 });

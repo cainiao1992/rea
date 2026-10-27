@@ -518,7 +518,7 @@ const inspectEndpointCall = (
   context: FindingContext,
   bindings: JavaScriptSemanticAnalysisState,
 ): void => {
-  if (isKnownNetworkRequest(node, bindings)) {
+  if (isKnownNetworkRequest(node, bindings, context)) {
     const target = argumentNode(node.arguments[0]);
     if (target === undefined) return;
     const literal =
@@ -609,8 +609,17 @@ const isNetworkRequestSpelling = (name: string): boolean =>
 const isKnownNetworkRequest = (
   node: JavaScriptCallLike,
   bindings: JavaScriptSemanticAnalysisState,
+  context: FindingContext,
 ): boolean => {
   if (isFetchCall(node, bindings)) return true;
+  const callee = unwrapJavaScriptExpression(node.callee).node;
+  if (
+    (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
+    (t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)) &&
+    semanticStaticPropertyKey(callee.property, callee.computed) === "loadURL" &&
+    context.rendererLoad?.(node.callee, node) === true
+  )
+    return true;
   if (
     t.isNewExpression(node) &&
     (isUnmodifiedGlobalReference(node.callee, bindings, "WebSocket") ||
@@ -633,7 +642,7 @@ export const finishPartialNetworkEndpoints = (
   index: JavaScriptBindingIndex,
 ): void => {
   for (const { node, name } of context.accumulator.pendingNetworkCalls) {
-    if (!isKnownNetworkRequest(node, bindings)) {
+    if (!isKnownNetworkRequest(node, bindings, context)) {
       if (!isIntrinsicMapLookup(node, bindings, index))
         inspectLiteralEndpointCall(node, name, context);
       continue;

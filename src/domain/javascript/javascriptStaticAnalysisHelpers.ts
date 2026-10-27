@@ -657,7 +657,7 @@ const isKeyedCollectionReceiver = (callee: t.Node): boolean => {
   );
 };
 
-/** A literal endpoint shape or an ambiguous argument of an HTTP-method-named call. */
+/** A literal endpoint shape or an argument whose callee spelling is unproven. */
 export interface JavaScriptEndpointArgument {
   readonly kind: "endpoint" | "candidate";
   readonly value: string;
@@ -728,8 +728,10 @@ export const endpointArgument = (
   // Beacon URLs are endpoint observations, retaining the upstream API support.
   if (name === "sendBeacon" || name.endsWith(".sendBeacon"))
     return literal(stringValue(args[0]));
-  if (name === "loadURL" || name.endsWith(".loadURL"))
-    return literal(stringValue(args[0]));
+  if (name === "loadURL" || name.endsWith(".loadURL")) {
+    const value = stringValue(args[0]);
+    return value === undefined ? undefined : { kind: "candidate", value };
+  }
   return undefined;
 };
 

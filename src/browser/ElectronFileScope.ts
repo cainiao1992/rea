@@ -14,6 +14,7 @@ import {
   bindArtifactFileCleanup,
   withArtifactFileHandle,
 } from "../artifacts/ArtifactFileOperation.js";
+import { asarNodeSchema } from "../artifacts/AsarNode.js";
 import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import {
@@ -311,6 +312,12 @@ const asarFiles = async (
   return admitted.files;
 };
 
+// File authorization interprets structure and size, not optional integrity or
+// executable declarations that belong to artifact analysis.
+const asarFileScopeNodeSchema = asarNodeSchema
+  .pick({ files: true, link: true, size: true })
+  .strip();
+
 const isAsarRegularFile = (
   files: unknown,
   member: readonly string[],
@@ -321,11 +328,12 @@ const isAsarRegularFile = (
     if (!isRecord(children) || !Object.hasOwn(children, part)) return false;
     node = children[part];
   }
+  const parsed = asarFileScopeNodeSchema.safeParse(node);
   return (
-    isRecord(node) &&
-    typeof node.size === "number" &&
-    !("files" in node) &&
-    !("link" in node)
+    parsed.success &&
+    parsed.data.size !== undefined &&
+    parsed.data.files === undefined &&
+    parsed.data.link === undefined
   );
 };
 

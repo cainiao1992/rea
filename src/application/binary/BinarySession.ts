@@ -10,7 +10,11 @@ import {
   AnalysisCapabilityUnavailableError,
   AnalysisOutputError,
 } from "../../domain/analysisErrorCore.js";
-import { AnalysisError } from "../../domain/analysisErrorBase.js";
+import {
+  AnalysisError,
+  primaryAnalysisError,
+} from "../../domain/analysisErrorBase.js";
+import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import type { JsonValue } from "../../domain/jsonValue.js";
 import { createAnalysisExecutionEvidence } from "../../domain/analysisObservation.js";
@@ -1031,9 +1035,15 @@ export class BinarySession
     primary: AnalysisError,
   ): Promise<AnalysisError> {
     const restored = await this.#restore(previous);
-    return restored.ok
-      ? primary
-      : sessionCleanupFailure(primary, restored.error, "open_binary");
+    if (restored.ok) return primary;
+    primary.retainSecondaryFailure(restored.error, {
+      restoration_error: projectAnalysisError(
+        primaryAnalysisError(restored.error),
+      ),
+    });
+    return restored.error.cleanupIncomplete
+      ? sessionCleanupFailure(primary, restored.error, "open_binary")
+      : primary;
   }
 
   /** Describe the active binary session. */
@@ -1460,7 +1470,7 @@ export class BinarySession
     }
     const closed = await this.#retireClient(run);
     return closed.ok
-      ? ok(null)
+      ? err(started.error)
       : err(sessionCleanupFailure(started.error, closed.error, "open_binary"));
   }
 

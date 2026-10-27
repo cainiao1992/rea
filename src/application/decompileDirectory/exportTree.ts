@@ -14,6 +14,7 @@ import {
   ArtifactFileCleanupFailure,
   bindArtifactFileCleanup,
 } from "../../artifacts/ArtifactFileOperation.js";
+import { ArtifactReaderFailure } from "../../artifacts/ArtifactReader.js";
 import { ArtifactResourceScope } from "../../artifacts/ArtifactResourceScope.js";
 
 import {
@@ -370,7 +371,8 @@ export type FileCommit =
   | { readonly status: "written"; readonly sha256: string }
   | { readonly status: "matched"; readonly sha256: string }
   | { readonly status: "conflict" }
-  | { readonly status: "io" };
+  | { readonly status: "io" }
+  | { readonly status: "error"; readonly error: AnalysisError };
 
 /**
  * Publish bytes with `link`, which fails when the final name exists.
@@ -391,6 +393,14 @@ const commitFunctionFile = async (
     (cause: unknown) => cause,
   );
   if (linked === true) return { status: "written", sha256: digest };
+  if (linked instanceof ArtifactReaderFailure && linked.cleanup !== undefined)
+    return {
+      status: "error",
+      error: exportPublicationFailure(
+        "decompile function publication cleanup failed",
+        linked,
+      ),
+    };
   if (nodeCode(linked) !== "EEXIST") return { status: "io" };
   const existing = await resources
     .hashFile(finalPath)
@@ -962,13 +972,29 @@ const writeOwnedIndex = async (
     return ok(undefined);
   } catch (cause: unknown) {
     return err(
-      new AnalysisOutputError(
-        "decompile_all",
-        "decompile index could not be written",
-        { cause },
+      exportPublicationFailure(
+        cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined
+          ? "decompile index publication cleanup failed"
+          : "decompile index could not be written",
+        cause,
       ),
     );
   }
+};
+
+/** Preserve the publisher's parsed failure and exact cleanup authority. */
+const exportPublicationFailure = (
+  message: string,
+  cause: unknown,
+): AnalysisOutputError => {
+  const error = new AnalysisOutputError("decompile_all", message, {
+    cause,
+    ...(cause instanceof ArtifactReaderFailure && cause.cleanup !== undefined
+      ? { cleanup: cause.cleanup }
+      : {}),
+  });
+  bindArtifactFileCleanup(cause, error);
+  return error;
 };
 
 export const sha256 = (bytes: Buffer): string =>

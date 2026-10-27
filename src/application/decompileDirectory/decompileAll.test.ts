@@ -12,6 +12,8 @@ import {
 import { AnalysisCleanupLease } from "../../artifacts/AnalysisCleanupLease.js";
 import { EnhancedTools } from "../EnhancedTools.js";
 import { DecompileExport } from "./exportTree.js";
+import { ExportResources } from "./exportResources.js";
+import { OwnedStagedOutput } from "../../filesystem/OwnedStagedOutput.js";
 import {
   composedLimitationBudget,
   createWorkflowEvidence,
@@ -1865,4 +1867,66 @@ describe("decompile_all mixed cleanup ownership", () => {
     await providerLease.release();
     expect(result.error.cleanupIncomplete).toBe(false);
   });
+});
+
+describe("decompile_all publication cleanup", () => {
+  const directory = useOutputDirectory();
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(["function", "index"])(
+    "retains a %s publication cleanup failure after final cleanup succeeds",
+    async (publication) => {
+      const cleanupFailure = new Error("staging removal denied");
+      const originalPublish = ExportResources.prototype.publish;
+      const originalClose = OwnedStagedOutput.prototype.close;
+      const destination = join(
+        directory(),
+        publication === "function"
+          ? "functions/0x1000.c"
+          : DECOMPILE_DIRECTORY_INDEX_NAME,
+      );
+      let selected = false;
+      let failed = false;
+      vi.spyOn(ExportResources.prototype, "publish").mockImplementation(
+        async function (this: ExportResources, bytes, path, mode) {
+          selected = path === destination;
+          return originalPublish.call(this, bytes, path, mode);
+        },
+      );
+      vi.spyOn(OwnedStagedOutput.prototype, "close").mockImplementation(
+        async function (this: OwnedStagedOutput) {
+          if (selected && !failed) {
+            failed = true;
+            throw cleanupFailure;
+          }
+          return originalClose.call(this);
+        },
+      );
+      const { tools } = harness();
+      const result = await run(tools, directory());
+      expect(failed).toBe(true);
+      expect(
+        await readFile(join(directory(), "functions/0x1000.c"), "utf8"),
+      ).toContain(sentinel);
+      if (publication === "index")
+        expect(
+          JSON.parse(
+            await readFile(
+              join(directory(), DECOMPILE_DIRECTORY_INDEX_NAME),
+              "utf8",
+            ),
+          ),
+        ).toMatchObject({ functions: expect.any(Array) });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toBeInstanceOf(AnalysisOutputError);
+      expect(result.error.message).toContain(
+        `decompile ${publication} publication cleanup failed`,
+      );
+      expect(result.error.cause).toMatchObject({
+        message: "staging removal denied",
+      });
+      expect(result.error.cleanupIncomplete).toBe(false);
+    },
+  );
 });

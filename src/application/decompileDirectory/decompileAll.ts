@@ -558,6 +558,8 @@ const publishOne = async (input: {
     "utf8",
   );
   const committed = await input.session.commitFunctionFile(relativePath, bytes);
+  if (committed.status === "error")
+    return { result: err(committed.error), bodySupport: body.support };
   if (committed.status === "conflict" || committed.status === "io") {
     const reason =
       committed.status === "conflict"

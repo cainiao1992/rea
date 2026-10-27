@@ -20,6 +20,7 @@ import { AnalysisInputError } from "../domain/analysisErrorCore.js";
 import { parseAnalysisInput } from "../application/AnalysisInput.js";
 import { androidJniSelectionSchema } from "../domain/android/androidJniBindings.js";
 import { androidJniDeliverySchema } from "../domain/android/androidJniQuery.js";
+import { cliIntegerArgument } from "./options.js";
 
 /** Expose the same explicit APK requests through one-shot CLI commands. */
 export const registerAndroidCommands = (
@@ -225,10 +226,7 @@ export const registerAndroidCommands = (
       methodName: z.string().describe("Exact declared method name"),
     }),
     options: z.object({
-      overloadIndex: z
-        .number()
-        .int()
-        .nonnegative()
+      overloadIndex: cliIntegerArgument(0)
         .optional()
         .describe(
           "Explicit zero-based index among same-name methods; required when ambiguous",
@@ -261,10 +259,7 @@ export const registerAndroidCommands = (
         .string()
         .optional()
         .describe("Declared method name; omit for class references"),
-      overloadIndex: z
-        .number()
-        .int()
-        .nonnegative()
+      overloadIndex: cliIntegerArgument(0)
         .optional()
         .describe("Index among same-name methods from inspect-android-class"),
     }),

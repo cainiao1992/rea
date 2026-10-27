@@ -75,6 +75,82 @@ describe("CLI integer arguments", () => {
     },
   );
 
+  cliTest.for(NON_INTEGER_OPTION_TEXT)(
+    "rejects %j as an Android method overload index",
+    async (value, { cli }) => {
+      const result = await cli.run({
+        arguments: [
+          "inspect-android-method",
+          "/nonexistent/missing.apk",
+          "com.example.Main",
+          "run",
+          `--overload-index=${value}`,
+          "--json",
+        ],
+      });
+
+      expectCliValidationError(result, "overloadIndex");
+    },
+  );
+
+  cliTest.for(NON_INTEGER_OPTION_TEXT)(
+    "rejects %j as an Android reference overload index",
+    async (value, { cli }) => {
+      const result = await cli.run({
+        arguments: [
+          "trace-android-references",
+          "/nonexistent/missing.apk",
+          "com.example.Main",
+          `--overload-index=${value}`,
+          "--json",
+        ],
+      });
+
+      expectCliValidationError(result, "overloadIndex");
+    },
+  );
+
+  cliTest(
+    "keeps an explicit decimal zero as an Android method overload index",
+    async ({ cli }) => {
+      const result = await cli.run({
+        arguments: [
+          "inspect-android-method",
+          "/nonexistent/missing.apk",
+          "com.example.Main",
+          "run",
+          "--overload-index=0",
+          "--json",
+        ],
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        code: "target_unavailable",
+      });
+    },
+  );
+
+  cliTest(
+    "keeps an explicit decimal zero as an Android reference overload index",
+    async ({ cli }) => {
+      const result = await cli.run({
+        arguments: [
+          "trace-android-references",
+          "/nonexistent/missing.apk",
+          "com.example.Main",
+          "--overload-index=0",
+          "--json",
+        ],
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        code: "target_unavailable",
+      });
+    },
+  );
+
   cliTest(
     "keeps the one-based source line lower bound at the CLI boundary",
     async ({ cli }) => {

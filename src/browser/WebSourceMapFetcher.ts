@@ -17,8 +17,7 @@ import { analyzeParsedJavaScriptReferences } from "../domain/javascript/javascri
 import { traverseJavaScriptAst } from "../domain/javascript/javascriptSemanticTraversal.js";
 import { parseJavaScriptSource } from "../domain/javascript/javascriptSourceParser.js";
 import {
-  isTypeOnlyExportDeclaration,
-  isTypeOnlyImportDeclaration,
+  semanticStaticModuleSource,
   semanticImportEqualsSpecifier,
 } from "../domain/javascript/javascriptModuleDeclaration.js";
 import { stringValue } from "../domain/javascript/javascriptStaticAnalysisHelpers.js";
@@ -1234,18 +1233,9 @@ const originalDependency = (
   readonly specifier: string;
   readonly requireCallee?: t.Identifier;
 } | null => {
-  if (
-    t.isImportDeclaration(node) ||
-    t.isExportAllDeclaration(node) ||
-    t.isExportNamedDeclaration(node)
-  )
-    return node.source === null ||
-      node.source === undefined ||
-      (t.isImportDeclaration(node)
-        ? isTypeOnlyImportDeclaration(node)
-        : isTypeOnlyExportDeclaration(node))
-      ? null
-      : { kind: "static_import", specifier: node.source.value };
+  const moduleSource = semanticStaticModuleSource(node);
+  if (moduleSource !== null)
+    return { kind: "static_import", specifier: moduleSource.value };
   if (t.isImportExpression(node)) {
     const specifier = stringValue(node.source);
     return specifier === undefined

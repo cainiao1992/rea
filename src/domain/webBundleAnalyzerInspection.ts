@@ -9,9 +9,11 @@ import type { JavaScriptRouteSourceFacts } from "./javascript/javascriptRouteFac
 import { sanitizeEndpointCandidate } from "./browserObservation.js";
 import { compositeKey } from "./unicodeCodePointOrder.js";
 import type { WebBundleAnalysis } from "./webBundleAnalysis.js";
-import { traverseJavaScriptAst } from "./javascript/javascriptSemanticTraversal.js";
+import {
+  traverseJavaScriptAst,
+  completeSemanticSteps,
+} from "./javascript/javascriptSemanticTraversal.js";
 import { indexJavaScriptBindingsWithReceiversSteps } from "./javascript/javascriptSemanticAnalysis.js";
-import { completeSemanticSteps } from "./javascript/javascriptSemanticTraversal.js";
 import type { JavaScriptOpenReceiverFact } from "./javascript/javascriptSemanticAnalysis.js";
 import { isIntrinsicMapLookup } from "./javascript/javascriptSemanticMapOperations.js";
 import {
@@ -36,6 +38,7 @@ import {
   isUrlLikeModuleSpecifier,
 } from "./webBundleAnalyzerAst.js";
 import { createJavaScriptRpcScan } from "./javascript/javascriptRpcEndpoints.js";
+import { semanticStaticModuleSource } from "./javascript/javascriptModuleDeclaration.js";
 import { parseJavaScriptSource } from "./javascript/javascriptSourceParser.js";
 
 type BundleObservations = WebBundleAnalysis["observations"];
@@ -132,21 +135,11 @@ const inspectNode = (
     node: t.CallExpression | t.OptionalCallExpression | t.NewExpression,
   ) => boolean,
 ): void => {
-  if (
-    (t.isImportDeclaration(node) || t.isExportAllDeclaration(node)) &&
-    node.source !== undefined
-  )
+  const moduleSource = semanticStaticModuleSource(node);
+  if (moduleSource !== null)
     addEdge({
       script,
-      specifier: node.source.value,
-      kind: "static_import",
-      node,
-      accumulator,
-    });
-  else if (t.isExportNamedDeclaration(node) && node.source != null)
-    addEdge({
-      script,
-      specifier: node.source.value,
+      specifier: moduleSource.value,
       kind: "static_import",
       node,
       accumulator,

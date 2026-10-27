@@ -16,6 +16,30 @@ import { createWebTextArtifact } from "./webContentArtifact.js";
 
 const origin = "https://app.example.test";
 
+it("shares runtime module declarations with source analysis while retaining inline type side effects", () => {
+  const source = `
+    import type {T} from "./erased-import";
+    export type {T} from "./erased-export";
+    export type * from "./erased-all";
+    import {type X} from "./inline-import";
+    export {type Y} from "./inline-export";
+    import "";
+    export * from "./runtime";
+    export const local = 1;
+  `;
+  const expected = ["./inline-import", "./inline-export", "", "./runtime"];
+  const result = analyzeWebBundleFixture(inspection(source));
+  expect(result.completeness.parse_failures).toBe(0);
+  expect(
+    result.observations.chunks.edges.map(({ specifier }) => specifier),
+  ).toEqual(expected);
+  expect(
+    analyzeJavaScriptStaticSource(source)
+      .references.filter(({ kind }) => kind === "static-import")
+      .map(({ specifier }) => specifier),
+  ).toEqual(expected);
+});
+
 it("retains standalone GraphQL Source operations in captured scripts", () => {
   const result = analyzeWebBundleFixture(
     inspection(`

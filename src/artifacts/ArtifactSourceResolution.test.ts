@@ -7,6 +7,44 @@ import { openRegularFile } from "../filesystem/RegularFile.js";
 import { assertArtifactFileSelectedSource } from "./ArtifactFileSource.js";
 import { assertArtifactSelectedSource } from "./ArtifactSelectedSource.js";
 import { readStableArtifact } from "./readStableArtifact.js";
+import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
+
+it.skipIf(process.platform === "win32")(
+  "admits a caller-selected directory symlink without changing its target identity",
+  async () => {
+    const root = await createTestTempDirectory("rea-directory-selection-");
+    const directory = join(root, "directory");
+    const selected = join(root, "selected");
+    await mkdir(directory);
+    await symlink(directory, selected);
+    const reader = new DirectoryArtifactReader(selected);
+    try {
+      const metadata = await lstat(directory, { bigint: true });
+      await expect(reader.rootObservation()).resolves.toMatchObject({
+        identity: { dev: metadata.dev, ino: metadata.ino },
+      });
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "rejects a directory selection that traverses through a regular file",
+  async () => {
+    const root = await createTestTempDirectory("rea-directory-resolution-");
+    await writeFile(join(root, "file"), "carrier");
+    const reader = new DirectoryArtifactReader(`${root}/file/..`);
+    try {
+      await expect(reader.rootObservation()).rejects.toMatchObject({
+        reason: "io",
+        cause: { code: "ENOTDIR" },
+      });
+    } finally {
+      await reader.close();
+    }
+  },
+);
 
 it.skipIf(process.platform === "win32")(
   "reports a replaced ancestor symlink loop as a changed admitted source",

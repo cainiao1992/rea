@@ -1,9 +1,7 @@
 import {
-  classifyFatContainerEvidence,
-  readFatContainerHeader,
-  readMachoHeaderPrefixFacts,
-  validateFatSlice,
-} from "../domain/apple/machoContainer.js";
+  readUniversalMachoImage,
+  readUniversalMachoSlice,
+} from "../domain/apple/machoImageSelection.js";
 import { binaryMetadataArchitecture } from "../domain/binaryMetadataArchitecture.js";
 import {
   BinaryFormatFailure,
@@ -35,17 +33,14 @@ const selectImage = (
   bytes: Buffer,
   architecture: string | undefined,
 ): Buffer => {
-  const fat = readFatContainerHeader(bytes, bytes.length);
-  const identity =
-    fat.state === "parsed"
-      ? classifyFatContainerEvidence(fat, bytes)
-      : undefined;
-  if (identity?.state === "malformed")
-    throw new Il2cppBinaryFormatFailure("malformed-container", identity.reason);
-  if (
-    fat.state === "not-fat" ||
-    (fat.state === "parsed" && identity?.state !== "mach-o")
-  ) {
+  const container = readUniversalMachoImage(bytes);
+  if (!container.ok)
+    throw new Il2cppBinaryFormatFailure(
+      "malformed-container",
+      container.error.message,
+    );
+  const fat = container.value;
+  if (fat === null) {
     if (architecture !== undefined)
       throw new Il2cppBinaryFormatFailure(
         "slice-not-found",
@@ -53,11 +48,6 @@ const selectImage = (
       );
     return bytes;
   }
-  if (fat.state !== "parsed")
-    throw new Il2cppBinaryFormatFailure(
-      "malformed-container",
-      fat.state === "malformed" ? fat.reason : "universal header is truncated",
-    );
   const available = fat.slices.map(
     (slice) => MACHO_CPU.get(slice.cpuType) ?? `macho-cpu-${slice.cpuType}`,
   );
@@ -78,15 +68,13 @@ const selectImage = (
       "slice-not-found",
       `universal Mach-O holds ${available.join(", ")}, not ${architecture}`,
     );
-  const image = bytes.subarray(slice.offset, slice.offset + slice.size);
-  const embedded = readMachoHeaderPrefixFacts(image).identity;
-  const issue =
-    embedded === null
-      ? `FAT architecture ${slice.index} has a truncated Mach-O identity`
-      : validateFatSlice(slice, bytes.length, fat.tableEnd, embedded);
-  if (issue !== null)
-    throw new Il2cppBinaryFormatFailure("malformed-container", issue);
-  return image;
+  const selected = readUniversalMachoSlice(bytes, fat, slice);
+  if (!selected.ok)
+    throw new Il2cppBinaryFormatFailure(
+      "malformed-container",
+      selected.error.message,
+    );
+  return selected.value;
 };
 
 export interface NativeImage {

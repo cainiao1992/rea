@@ -172,6 +172,76 @@ describe("Hermes configuration paths", () => {
   });
 });
 
+describe("Hermes unresolved home identity", () => {
+  it.skipIf(process.platform === "win32")(
+    "keeps a new custom home reached through a native-home symlink outside native sticky selection",
+    async () => {
+      const home = await createTestTempDirectory("rea-hermes-new-alias-");
+      const native = join(home, ".hermes");
+      const profile = join(native, "profiles", "coder");
+      const external = join(home, "external");
+      await mkdir(profile, { recursive: true });
+      await mkdir(external);
+      await writeFile(join(profile, "config.yaml"), "model: native-profile\n");
+      await writeFile(join(native, "active_profile"), "coder\n");
+      await symlink(external, join(native, "alias"));
+      const selected = join(native, "alias", "new-home");
+      const environment = { HERMES_HOME: selected };
+      const client = supportedClients(home, process.platform, environment).find(
+        ({ name }) => name === "hermes",
+      );
+      if (client === undefined) throw new Error("missing Hermes client");
+      expect(client.markerPath).toBe(selected);
+      expect(
+        clientSkillDirectories(home, ["hermes"], environment).directories,
+      ).toEqual([{ client: "hermes", directory: join(selected, "skills") }]);
+      expect(
+        await configureClientConfiguration(client, {}, command),
+      ).toMatchObject({
+        status: "configured",
+      });
+      expect(
+        await readFile(join(external, "new-home", "config.yaml"), "utf8"),
+      ).toContain("mcp_servers:");
+      expect(await readFile(join(profile, "config.yaml"), "utf8")).toBe(
+        "model: native-profile\n",
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "keeps a dangling home alias unresolved instead of selecting a native profile",
+    async () => {
+      const home = await createTestTempDirectory("rea-hermes-dangling-home-");
+      const native = join(home, ".hermes");
+      const profile = join(native, "profiles", "coder");
+      await mkdir(profile, { recursive: true });
+      await writeFile(join(profile, "config.yaml"), "model: native-profile\n");
+      await writeFile(join(native, "active_profile"), "coder\n");
+      await symlink(join(home, "missing-external"), join(native, "alias"));
+      const selected = join(native, "alias", "new-home");
+      const environment = { HERMES_HOME: selected };
+      const client = supportedClients(home, process.platform, environment).find(
+        ({ name }) => name === "hermes",
+      );
+      expect(client).toMatchObject({
+        configPath: selected,
+        configPathError: expect.stringContaining("Cannot resolve"),
+      });
+      expect(client).not.toHaveProperty("markerPath");
+      expect(
+        clientSkillDirectories(home, ["hermes"], environment),
+      ).toMatchObject({
+        directories: [],
+        unresolved: [{ client: "hermes", path: selected }],
+      });
+      expect(await readFile(join(profile, "config.yaml"), "utf8")).toBe(
+        "model: native-profile\n",
+      );
+    },
+  );
+});
+
 const hermesClient = async () => {
   const home = await createTestTempDirectory("rea-hermes-");
   const client = supportedClients(home, process.platform, {}).find(

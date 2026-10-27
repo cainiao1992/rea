@@ -91,11 +91,37 @@ const expandedDirectory = (
   // preserve POSIX symlink/.. traversal when making a relative override absolute.
   return absoluteCallerPath(expanded);
 };
+// Resolve existing directory aliases even when setup will create the final home.
+// An unreadable path or dangling alias cannot prove root identity.
 const physicalPath = (path: string): string => {
+  let ancestor = absoluteCallerPath(path);
+  const missing: string[] = [];
   try {
-    return realpathSync(path);
+    while (true) {
+      try {
+        return join(realpathSync(ancestor), ...missing);
+      } catch (cause: unknown) {
+        if (
+          !(cause instanceof Error) ||
+          !("code" in cause) ||
+          cause.code !== "ENOENT" ||
+          dirname(ancestor) === ancestor ||
+          basename(ancestor) === ".."
+        )
+          throw cause;
+        // ENOENT may mean a dangling symlink rather than an absent entry. Do
+        // not reclassify such an alias as a literal child of its lexical parent.
+        if (lstatSync(ancestor, { throwIfNoEntry: false })?.isSymbolicLink())
+          throw cause;
+        missing.unshift(basename(ancestor));
+        ancestor = dirname(ancestor);
+      }
+    }
   } catch {
-    return absoluteCallerPath(path);
+    throw new HermesClientPathError(
+      path,
+      "Cannot resolve the Hermes home root. Restore access to this path before configuring Hermes.",
+    );
   }
 };
 const within = (root: string, path: string): boolean => {

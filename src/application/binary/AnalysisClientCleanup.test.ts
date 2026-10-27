@@ -88,3 +88,56 @@ it("preserves the original explanation and collected output alongside cleanup un
     errors: [primary, cleanup],
   });
 });
+
+it.each(["return", "reject"] as const)(
+  "reports a nested owner's failure once when close also %ss it",
+  async (outcome) => {
+    const failure = new ProviderCleanupError("fixture", ["owned-process"], {});
+    const notifications: unknown[] = [];
+    const child: AnalysisClient = {
+      execute: clientClosingWith(failure).execute,
+      close: (options) => {
+        options?.onCleanupFailure?.(failure);
+        return outcome === "return"
+          ? Promise.resolve(err(failure))
+          : Promise.reject(failure);
+      },
+    };
+    const parent: AnalysisClient = {
+      execute: child.execute,
+      close: (options) => closeAnalysisClient(child, "fixture", options),
+    };
+
+    const closed = await closeAnalysisClient(parent, "composite", {
+      onCleanupFailure: (error) => notifications.push(error),
+    });
+
+    expect(closed).toEqual(err(failure));
+    expect(notifications).toEqual([failure]);
+  },
+);
+
+it("reports distinct failures during final cleanup and reports again on retry", async () => {
+  const first = new ProviderCleanupError("first", ["first-resource"], {});
+  const final = new ProviderCleanupError("second", ["second-resource"], {});
+  const notifications: unknown[] = [];
+  const client: AnalysisClient = {
+    execute: clientClosingWith(first).execute,
+    close: (options) => {
+      options?.onCleanupFailure?.(first);
+      return Promise.resolve(err(final));
+    },
+  };
+  const options = {
+    onCleanupFailure: (error: unknown) => notifications.push(error),
+  };
+
+  expect(await closeAnalysisClient(client, "composite", options)).toEqual(
+    err(final),
+  );
+  expect(notifications).toEqual([first, final]);
+  expect(await closeAnalysisClient(client, "composite", options)).toEqual(
+    err(final),
+  );
+  expect(notifications).toEqual([first, final, first, final]);
+});

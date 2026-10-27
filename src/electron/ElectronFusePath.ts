@@ -360,8 +360,10 @@ const isMissing = (cause: unknown): boolean =>
   "code" in cause &&
   ["ENOENT", "ENOTDIR"].includes(String(cause.code));
 
-/** Split a relative link target using the local filesystem's separator rules. */
-const symlinkTargetSegments = (target: string): readonly string[] =>
-  target
-    .split(process.platform === "win32" ? /[\\/]/u : "/")
-    .filter((part) => part !== "");
+/** Preserve a link target's terminal separator as a directory requirement. */
+const symlinkTargetSegments = (target: string): readonly string[] => {
+  const separator = process.platform === "win32" ? /[\\/]/u : /\//u;
+  const parts = target.split(separator).filter((part) => part !== "");
+  if (separator.test(target.slice(-1))) parts.push(".");
+  return parts;
+};

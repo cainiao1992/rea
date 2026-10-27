@@ -1,6 +1,13 @@
 import { resolveElectronFuseTarget } from "./ElectronFusePath.js";
 import { RegularFileChangedError } from "../filesystem/RegularFile.js";
-import { mkdir, symlink, writeFile, truncate, rename } from "node:fs/promises";
+import {
+  mkdir,
+  symlink,
+  writeFile,
+  truncate,
+  rename,
+  stat,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -33,6 +40,31 @@ const inspect = async (path: string) => {
   if (!result.ok) throw result.error;
   return result.value;
 };
+
+it.skipIf(process.platform === "win32")(
+  "rejects framework links whose terminal separator requires a directory",
+  async () => {
+    const root = await createTestTempDirectory("rea-electron-link-directory-");
+    const framework = join(root, "Electron Framework.framework");
+    await mkdir(join(framework, "Versions", "A"), { recursive: true });
+    await writeFile(
+      join(framework, "Versions", "A", "Electron Framework"),
+      thinFuseImage([0x31]).bytes,
+    );
+    for (const suffix of ["/", "/."]) {
+      const alias = join(framework, `alias${suffix.length}`);
+      await symlink(`Versions/A/Electron Framework${suffix}`, alias);
+      await expect(stat(alias)).rejects.toMatchObject({ code: "ENOTDIR" });
+      const result = await provider.inspect({ path: alias });
+      expect(result.ok).toBe(false);
+    }
+    await symlink("A/", join(framework, "Versions", "Current"));
+    const validAlias = join(framework, "Electron Framework");
+    await symlink("Versions/Current/Electron Framework", validAlias);
+    const report = await inspect(validAlias);
+    expect(report.slices[0]?.sentinels[0]?.fuses[0]?.state).toBe("enabled");
+  },
+);
 
 it("preserves the hidden ARM64 marker through fuse scanning and reporting", async () => {
   const root = await createTestTempDirectory(

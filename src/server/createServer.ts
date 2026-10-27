@@ -792,8 +792,12 @@ export const createServer = (
   const closeServer = server.close.bind(server);
   server.close = async () => {
     const results = await Promise.allSettled([closeServer(), closeProviders()]);
-    for (const result of results)
-      if (result.status === "rejected") throw result.reason;
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    );
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, "REA server cleanup failed");
   };
   registerCaptureTools(
     server,

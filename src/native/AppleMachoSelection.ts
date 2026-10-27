@@ -11,7 +11,7 @@ import {
 import { createHash } from "node:crypto";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
-import { decodeMachoName } from "./AppleMachoNames.js";
+import { decodeMachoFixedName, decodeMachoName } from "./AppleMachoNames.js";
 import {
   MACHO_ARCHITECTURE_POLICIES,
   machoSubtypeRank,
@@ -319,10 +319,7 @@ const collectSegment = (
     if (sectionSize > BigInt(Number.MAX_SAFE_INTEGER))
       throw new RangeError("Section size exceeds exact numeric range");
     state.sections.push({
-      name: nameBytes
-        // ASCII decoding masks high bits and can fabricate known metadata names.
-        .toString("latin1")
-        .replace(/\0.*$/u, ""),
+      name: decodeMachoFixedName(nameBytes),
       address,
       size: Number(sectionSize),
     });

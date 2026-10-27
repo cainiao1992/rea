@@ -11,6 +11,7 @@ import {
   machoImageWithUnknownCommand,
 } from "../artifacts/apple/MachoImage.fixture.js";
 import { readMachoImage } from "../artifacts/apple/MachoLoadCommandReader.js";
+import { readMachoImage as readMachoMetadataImage } from "./metadata/MachoImage.js";
 import {
   parseMachoLayout,
   selectMachoSlice,
@@ -104,6 +105,30 @@ it.each([false, true])(
       alignmentExponent: 12,
       reserved: wide ? 0x89abcdef : null,
       tableEnd: 8 + (wide ? 32 : 20),
+    });
+  },
+);
+
+it.each([
+  { source: "__objc_const\0\nxx", expected: "__objc_const" },
+  { source: "abcdefghijklmnop", expected: "abcdefghijklmnop" },
+  { source: "\0\nignored", expected: "" },
+  { source: "before\nafter\0xx", expected: "before\nafter" },
+])(
+  "reads fixed-width section names from bytes: $source",
+  ({ source, expected }) => {
+    const segment = Buffer.alloc(152);
+    segment.writeUInt32LE(0x19, 0);
+    segment.writeUInt32LE(segment.length, 4);
+    segment.writeUInt32LE(1, 64);
+    Buffer.from(source, "latin1").copy(segment, 72, 0, 16);
+    Buffer.from("__DATA\0\npadding", "latin1").copy(segment, 72 + 16);
+    const bytes = Buffer.from(machoImage({ commands: [segment] }));
+
+    expect(parseMachoLayout(bytes, "arm64").sections[0]?.name).toBe(expected);
+    expect(readMachoMetadataImage(bytes).sections[0]).toMatchObject({
+      name: `__DATA,${expected}`,
+      section_name: expected,
     });
   },
 );

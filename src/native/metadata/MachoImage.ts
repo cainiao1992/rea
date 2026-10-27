@@ -1,3 +1,4 @@
+import { decodeMachoFixedName } from "../AppleMachoNames.js";
 import {
   readMachoSectionHeader,
   type MachoSectionHeader,
@@ -98,7 +99,7 @@ export const readMachoImage = (bytes: Buffer): BinaryContainer => {
         unmapped || fileRange === undefined
           ? undefined
           : { ...fileRange, address };
-      const name = fixedName(nameBytes);
+      const name = decodeMachoFixedName(nameBytes);
       if (mapping !== undefined && name !== "__PAGEZERO") {
         mappings.push(mapping);
         loadRegions.push({
@@ -199,8 +200,8 @@ const machoImageSection = ({
 }): ImageSection => {
   const { flags, address: sectionAddress, size: sectionSize } = section;
   const sectionOffset = BigInt(section.offset);
-  const sectionName = fixedName(section.nameBytes);
-  const name = `${fixedName(section.segmentNameBytes)},${sectionName}`;
+  const sectionName = decodeMachoFixedName(section.nameBytes);
+  const name = `${decodeMachoFixedName(section.segmentNameBytes)},${sectionName}`;
   const zeroFill = [1, 0xc, 0x12].includes(flags & 0xff);
   const addressDelta = sectionAddress - segmentAddress;
   const fileDelta = sectionOffset - segmentFileOffset;
@@ -236,9 +237,4 @@ const machoImageSection = ({
     read_only: readOnly,
     compressed: false,
   };
-};
-
-const fixedName = (bytes: Buffer): string => {
-  const nul = bytes.indexOf(0);
-  return bytes.subarray(0, nul < 0 ? bytes.length : nul).toString("latin1");
 };

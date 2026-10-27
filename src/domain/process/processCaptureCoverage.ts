@@ -28,15 +28,24 @@ export const filesystemCoverageSchema = z.strictObject({
     z.enum([
       "files_limit",
       "depth_limit",
+      "unrepresentable_name",
       ...enumerationOmissionReasonSchema.options,
     ]),
   ),
   enumeration_omissions: z.array(
-    z.strictObject({
-      path: z.string(),
-      reason: enumerationOmissionReasonSchema,
-      system_code: z.string().nullable(),
-    }),
+    z.union([
+      z.strictObject({
+        path: z.string(),
+        reason: enumerationOmissionReasonSchema,
+        system_code: z.string().nullable(),
+      }),
+      z.strictObject({
+        path: z.string(),
+        reason: z.literal("unrepresentable_name"),
+        system_code: z.null(),
+        raw_name_hex: z.string().regex(/^(?:[0-9a-f]{2})+$/u),
+      }),
+    ]),
   ),
   unobserved_subtrees: z
     .array(

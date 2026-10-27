@@ -5,6 +5,7 @@ import { lstat, open, opendir, readlink, realpath } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import type { FileHandle } from "node:fs/promises";
 import { appendCallerPath } from "../../filesystem/callerPath.js";
+import { decodeDirectoryEntryName } from "../../filesystem/decodeDirectoryEntryName.js";
 import { sameRegularFileState } from "../../filesystem/RegularFile.js";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
@@ -387,6 +388,7 @@ export const snapshotRoots = async (
   const completeRoots: string[] = [];
   let remainingBytes = scenario.limits.file_bytes;
   let pendingNames = 0;
+  let unrepresentableNames = 0;
   let truncated = false;
   const enumerationReasons = new Set<
     FilesystemCoverage["enumeration_reasons"][number]
@@ -472,11 +474,11 @@ export const snapshotRoots = async (
     signal?.throwIfAborted();
     if (await omitObserverPath(root, rootAlias, path)) return true;
     if (
-      entries.length >= scenario.limits.files ||
+      entries.length + unrepresentableNames >= scenario.limits.files ||
       depth > scenario.limits.filesystem_depth
     ) {
       truncated = true;
-      if (entries.length >= scenario.limits.files)
+      if (entries.length + unrepresentableNames >= scenario.limits.files)
         enumerationReasons.add("files_limit");
       if (depth > scenario.limits.filesystem_depth)
         enumerationReasons.add("depth_limit");
@@ -579,11 +581,16 @@ export const snapshotRoots = async (
     if (type !== "directory") return true;
     const children: string[] = [];
     let complete = true;
-    const remainingEntries =
-      scenario.limits.files - entries.length - pendingNames;
+    let remainingEntries =
+      scenario.limits.files -
+      entries.length -
+      pendingNames -
+      unrepresentableNames;
     let directory;
     try {
-      directory = await opendir(path);
+      directory = await opendir(path, {
+        encoding: "buffer" as BufferEncoding,
+      });
     } catch (cause: unknown) {
       const systemCode = fileUnavailableSystemCode(cause);
       if (systemCode === undefined) throw cause;
@@ -609,12 +616,14 @@ export const snapshotRoots = async (
             signal?.throwIfAborted();
             const child = await ownedDirectory.read();
             if (child === null) break;
+            const decoded = decodeDirectoryEntryName(child.name);
             if (
-              await omitObserverPath(
+              decoded.kind === "decoded" &&
+              (await omitObserverPath(
                 root,
                 rootAlias,
-                appendCallerPath(path, child.name),
-              )
+                appendCallerPath(path, decoded.name),
+              ))
             )
               continue;
             if (
@@ -629,7 +638,21 @@ export const snapshotRoots = async (
                 enumerationReasons.add("depth_limit");
               break;
             }
-            children.push(child.name);
+            if (decoded.kind === "unrepresentable") {
+              unrepresentableNames += 1;
+              remainingEntries -= 1;
+              truncated = true;
+              complete = false;
+              enumerationReasons.add("unrepresentable_name");
+              enumerationOmissions.push({
+                path: `${rootAlias}:${relativePath}`,
+                reason: "unrepresentable_name",
+                system_code: null,
+                raw_name_hex: decoded.rawHex,
+              });
+              continue;
+            }
+            children.push(decoded.name);
             pendingNames += 1;
           }
         },

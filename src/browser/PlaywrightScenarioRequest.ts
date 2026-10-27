@@ -15,6 +15,7 @@ import type { Page, Request, Route } from "playwright-core";
 import {
   HEADER_FIELD_VALUE,
   SAVED_PLACEHOLDER,
+  validBasicCredentialUsername,
   type BrowserScenarioAction,
   type BrowserScenarioCredentialPart,
   type BrowserScenarioRequestHeader,
@@ -150,7 +151,7 @@ const headerValue = async (
   if (value.source === "basic_credentials") {
     const [username, password] = value.parts;
     const user = await credentialPart(step, username!, `${label}.username`);
-    if (user.includes(":"))
+    if (!validBasicCredentialUsername(user))
       throw new ScenarioRequestError(
         `Request step ${stepId} has a Basic username with a colon, which the server would read as the end of the username.`,
       );

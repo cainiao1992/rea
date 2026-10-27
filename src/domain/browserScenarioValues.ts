@@ -193,6 +193,10 @@ export type BrowserScenarioCredentialPart = z.infer<
   typeof basicCredentialPartSchema
 >;
 
+/** Basic auth uses the first colon as the username/password separator. */
+export const validBasicCredentialUsername = (username: string): boolean =>
+  !username.includes(":");
+
 /** A username and password sent as the base64 of `username:password`, as HTTP Basic auth spells them; redacted like a declared secret. */
 const basicCredentialsSchema = z.strictObject({
   source: z.literal("basic_credentials"),

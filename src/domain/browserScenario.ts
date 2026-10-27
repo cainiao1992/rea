@@ -16,6 +16,7 @@ import {
   type BrowserScenarioValue,
   SAVED_URL_PLACEHOLDER,
   savedPlaceholderNames,
+  validBasicCredentialUsername,
 } from "./browserScenarioValues.js";
 import type { JsonValue } from "./jsonValue.js";
 
@@ -193,6 +194,19 @@ const validateRequestSteps = (
           context,
           ["actions", index, "headers", position, "value", "value"],
           "A header value cannot carry line breaks or control characters",
+        );
+      const username =
+        header.value.source === "basic_credentials"
+          ? header.value.parts[0]
+          : undefined;
+      if (
+        username?.source === "literal" &&
+        !validBasicCredentialUsername(username.value)
+      )
+        addIssue(
+          context,
+          ["actions", index, "headers", position, "value", "parts", 0, "value"],
+          "A Basic username cannot contain a colon, which separates the username from the password",
         );
       // Evidence records literals as written, so a password must come from a reference.
       const password =

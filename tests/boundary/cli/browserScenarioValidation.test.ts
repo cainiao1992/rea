@@ -62,6 +62,48 @@ it("accepts a valid scenario without launching or attaching to a browser", async
   expect(output).toEqual({ valid: true, actions: 1, secrets: 0 });
 });
 
+it.each(["validate-browser-scenario", "capture-browser-scenario"])(
+  "%s rejects a literal Basic username containing a colon before creating a provider",
+  async (command) => {
+    const output = await serveJson(registerValidatingCli(), command, {
+      ...launchScenario,
+      actions: [
+        {
+          step_id: "authenticate",
+          action: "request",
+          method: "GET",
+          path: "/api",
+          headers: [
+            {
+              name: "Authorization",
+              value: {
+                source: "basic_credentials",
+                parts: [
+                  { source: "literal", value: "ops:admin" },
+                  { source: "literal", value: "" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(output).toMatchObject({
+      code: "invalid_request",
+      details: {
+        issues: [
+          expect.objectContaining({
+            path: ["actions", 0, "headers", 0, "value", "parts", 0, "value"],
+            message: expect.stringContaining(
+              "Basic username cannot contain a colon",
+            ),
+          }),
+        ],
+      },
+    });
+  },
+);
+
 it("counts declared secrets without resolving their environment values", async () => {
   const cli = registerValidatingCli();
   const output = await serveJson(cli, "validate-browser-scenario", {

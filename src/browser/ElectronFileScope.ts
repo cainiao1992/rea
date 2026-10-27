@@ -324,7 +324,11 @@ const isAsarRegularFile = (
 ): boolean => {
   let node: unknown = { files };
   for (const part of member) {
-    const children = isRecord(node) ? node.files : undefined;
+    // Electron follows a directory link before looking up its child. Its
+    // co-declared file tree cannot establish the requested member's identity;
+    // link resolution is outside this authorization boundary.
+    if (!isRecord(node) || Object.hasOwn(node, "link")) return false;
+    const children = node.files;
     if (!isRecord(children) || !Object.hasOwn(children, part)) return false;
     node = children[part];
   }

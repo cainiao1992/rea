@@ -23,8 +23,25 @@ it("lists only ASAR members with regular-file declarations while preserving unre
     "null.html": { size: null },
     "directory.html": { size: 0, files: {} },
     "symlink.html": { size: 0, link: "empty.html" },
+    directory: {
+      size: 0,
+      files: { "nested.html": { size: 0, offset: "0" } },
+    },
+    linked: {
+      link: "elsewhere",
+      files: { "nested.html": { size: 0, offset: "0" } },
+    },
+    malformedLink: {
+      link: null,
+      files: { "nested.html": { size: 0, offset: "0" } },
+    },
   };
-  const names = Object.keys(files);
+  const names = [
+    ...Object.keys(files),
+    "directory/nested.html",
+    "linked/nested.html",
+    "malformedLink/nested.html",
+  ];
   let endpoint = "";
   const server = createServer((request, response) => {
     response.setHeader("Content-Type", "application/json");
@@ -63,11 +80,13 @@ it("lists only ASAR members with regular-file declarations while preserving unre
     const result = await provider.listTargets({ cdp_endpoint: endpoint }, {});
     if (!result.ok) throw result.error;
     expect(result.value.targets.map(({ target_id }) => target_id)).toEqual([
+      "directory/nested.html",
       "empty.html",
       "metadata.html",
       "unpacked.html",
     ]);
     expect(result.value.targets.map(({ file_path }) => file_path)).toEqual([
+      join(archive, "directory", "nested.html"),
       join(archive, "empty.html"),
       join(archive, "metadata.html"),
       join(archive, "unpacked.html"),

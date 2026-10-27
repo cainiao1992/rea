@@ -123,6 +123,11 @@ export class ExportResources {
       output: staging,
     };
     this.#files.retain(owner);
+    let outcome:
+      | { readonly kind: "completed" }
+      | { readonly kind: "failed"; readonly cause: unknown } = {
+      kind: "completed",
+    };
     try {
       const path = join(directory, "content");
       const handle = await open(path, "wx", 0o600);
@@ -136,10 +141,13 @@ export class ExportResources {
         await rename(path, destination);
         staging.recordPublishedRename();
       }
-    } finally {
-      const released = await this.#files.release(owner);
-      if (released.kind === "failed") throw released.cause;
+    } catch (cause: unknown) {
+      outcome = { kind: "failed", cause };
     }
+    const released = await this.#files.release(owner);
+    if (released.kind === "failed")
+      throw this.#files.cleanupFailure(outcome, [released]);
+    if (outcome.kind === "failed") throw outcome.cause;
   }
 
   /** Keep the lease through all initialization cleanup, including any retry. */

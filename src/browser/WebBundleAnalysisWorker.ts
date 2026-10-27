@@ -281,7 +281,12 @@ export class WebBundleAnalysisWorker {
       error: AnalysisError,
     ): Result<WebBundleScriptAnalysis, WebBundleScriptAnalysisFailure> =>
       err({
-        error,
+        error: signal?.aborted
+          ? analysisErrorWithCancellation(
+              error,
+              new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
+            )
+          : error,
         completed,
         ...(continuation === undefined ? {} : { continuation }),
       });
@@ -475,10 +480,9 @@ export class WebBundleAnalysisWorker {
     }
     if (signal?.aborted)
       return failed(
-        analysisErrorWithCancellation(
-          result.ok ? undefined : result.error,
-          new AnalysisCancelledError(OPERATION, { cause: signal.reason }),
-        ),
+        result.ok
+          ? new AnalysisCancelledError(OPERATION, { cause: signal.reason })
+          : result.error,
       );
     return result.ok ? result : failed(result.error);
   }

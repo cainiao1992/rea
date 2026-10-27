@@ -4,13 +4,14 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 
 it.each([
-  [false, false],
-  [true, false],
-  [false, true],
-  [true, true],
+  [false, false, false],
+  [true, false, false],
+  [false, true, false],
+  [true, true, false],
+  [false, true, true],
 ])(
-  "retains completed web worker facts when cancellation arrives during final job cleanup (cleanup failure: %s; prior failure: %s)",
-  async (failCleanup, priorFailure) => {
+  "retains completed web worker facts when cancellation arrives during final job cleanup (cleanup failure: %s; prior failure: %s; stop cleanup failure: %s)",
+  async (failCleanup, priorFailure, stopCleanupFailure) => {
     const loaderUrl = new URL(
       "../../../scripts/lib/verifier-source-loader.mjs",
       import.meta.url,
@@ -68,7 +69,17 @@ it.each([
       } : request);
       child = spawned.process;
       launches += 1;
-      return spawned;
+      return {
+        ...spawned,
+        cleanup: async () => {
+          if (cancelOnCleanup && ${JSON.stringify(stopCleanupFailure)}) {
+            controller.abort(reason);
+            return { cleaned: false, reason: 'fixture process cleanup denied' };
+          }
+          const { cleanupOwnedProcessGroup } = await importVerifierSource(new URL('../../../src/process/ProcessOwnership.ts', ${JSON.stringify(import.meta.url)}));
+          return spawned.cleanup ? spawned.cleanup() : cleanupOwnedProcessGroup(spawned.ownership);
+        },
+      };
     });
     let observed;
     try {
@@ -85,6 +96,7 @@ it.each([
         cleanupIncomplete: !cancelled.ok && cancelled.error.error.cleanupIncomplete,
         hasFacts: facts.status === 'analyzed' || facts.completed?.status === 'analyzed' };
     } finally {
+      cancelOnCleanup = false;
       fs.promises.rm = nativeRm;
       syncBuiltinESMExports();
       await worker.close();
@@ -106,11 +118,11 @@ it.each([
       primaryOutput: priorFailure,
       secondaryCount: priorFailure ? 1 : 0,
       controlOk: !priorFailure,
-      completedRemovals: failCleanup ? 1 : 2,
+      completedRemovals: failCleanup || stopCleanupFailure ? 1 : 2,
       launches: priorFailure ? 2 : 1,
       cancelled: true,
       exactReason: true,
-      cleanupIncomplete: failCleanup,
+      cleanupIncomplete: failCleanup || stopCleanupFailure,
       hasFacts: !priorFailure,
       rootRemoved: true,
       childExited: true,

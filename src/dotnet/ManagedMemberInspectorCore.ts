@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { err, ok, type Result } from "../domain/result.js";
+
 import {
   appendManagedParseIssues,
   managedFailure,
@@ -575,11 +577,14 @@ const readTypeSignature = (
   {
     layout,
     operands,
+    onElement,
   }: {
     /** Validate each type operand against these tables, as specs require. */
     readonly layout?: ManagedMetadataLayout;
     /** Collect each type operand, to resolve it by name. */
     readonly operands?: TypeOperand[];
+    /** Observe parsed element kinds without reinterpreting signature bytes. */
+    readonly onElement?: (kind: number) => void;
   } = {},
 ): {
   readonly value: string;
@@ -595,6 +600,7 @@ const readTypeSignature = (
     const kind = blob[cursor];
     if (kind === undefined)
       return malformedSignature("truncated type signature", cursor);
+    onElement?.(kind);
     if (kind === 0x41) {
       const signature = stack.at(-1);
       if (signature?.kind !== "list" || !signature.signatureItems)
@@ -787,8 +793,8 @@ const readTypeSignature = (
   }
 };
 
-/** Validate a StandAloneSig LocalVarSig without projecting local type identities. */
-export const validateLocalSignature = (
+/** Read validated LocalVarSig identity facts without projecting local type identities. */
+export const readLocalSignatureFacts = (
   layout: ManagedMetadataLayout,
   blob: Buffer,
   {
@@ -796,7 +802,10 @@ export const validateLocalSignature = (
     blobOffset,
   }: { readonly scope: string; readonly blobOffset: number },
   budget: ManagedDecodeBudget,
-): ManagedParseIssue | null => {
+): Result<
+  NonNullable<ManagedMethodBody["local_var_signature"]>,
+  ManagedParseIssue
+> => {
   budget.admitTransient(blob.length * 256, blobOffset);
   try {
     if (blob[0] !== 0x07)
@@ -808,13 +817,24 @@ export const validateLocalSignature = (
         1,
       );
     let cursor = count.next;
+    let contextDependent = false;
     for (let index = 0; index < count.value; index += 1) {
-      const local = readTypeSignature(blob, cursor, "local", { layout });
+      const local = readTypeSignature(blob, cursor, "local", {
+        layout,
+        onElement: (kind) => {
+          // Named types, generic variables and modifiers require metadata or declaring context.
+          if ([0x11, 0x12, 0x13, 0x15, 0x1e, 0x1f, 0x20].includes(kind))
+            contextDependent = true;
+        },
+      });
       cursor = local.next;
     }
     if (cursor !== blob.length)
       malformedSignature("Trailing LocalVarSig data", cursor);
-    return null;
+    return ok({
+      raw_sha256: sha256Bytes(blob),
+      has_context_dependent_types: contextDependent,
+    });
   } catch (cause: unknown) {
     if (
       !(cause instanceof ManagedReaderFailure) ||
@@ -823,14 +843,14 @@ export const validateLocalSignature = (
         cause.issue.code !== "unsupported-signature")
     )
       throw cause;
-    return {
+    return err({
       ...cause.issue,
       scope,
       offset:
         cause.issue.offset === null
           ? blobOffset
           : blobOffset + cause.issue.offset,
-    };
+    });
   }
 };
 

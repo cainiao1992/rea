@@ -21,7 +21,7 @@ import {
   sha256Bytes,
 } from "./ManagedMetadataHeaps.js";
 import {
-  validateLocalSignature,
+  readLocalSignatureFacts,
   isParsedTokenInstruction,
 } from "./ManagedMemberInspectorCore.js";
 import { ManagedReaderFailure } from "./ManagedReaderFailure.js";
@@ -197,6 +197,7 @@ export const methodBody = (
             decoded.instructionStarts,
           )
         : null;
+    let localVarSignature: ManagedMethodBody["local_var_signature"] = null;
     let localSigIssue: string | null = null;
     let localSigFailure: "malformed" | "partial" | null = null;
     const localSignature =
@@ -228,7 +229,7 @@ export const methodBody = (
             cursor.readIndex(context.metadataLayout.blobIndexSize),
             context.metadataLayout.blob?.size ?? 0,
           );
-          const signatureIssue = validateLocalSignature(
+          const signatureFacts = readLocalSignatureFacts(
             context.metadataLayout,
             blob,
             {
@@ -237,7 +238,9 @@ export const methodBody = (
             },
             context.budget,
           );
-          if (signatureIssue !== null) {
+          if (signatureFacts.ok) localVarSignature = signatureFacts.value;
+          else {
+            const signatureIssue = signatureFacts.error;
             localSigIssue = signatureIssue.detail;
             localSigFailure =
               signatureIssue.code === "unsupported-signature"
@@ -269,6 +272,7 @@ export const methodBody = (
       max_stack: header.maxStack,
       init_locals: (header.flags & 0x10) !== 0,
       local_var_sig_token: localSignature?.token ?? null,
+      local_var_signature: localVarSignature,
       il_size: header.ilSize,
       il_sha256: sha256Bytes(il),
       normalized_il_sha256:
@@ -352,6 +356,7 @@ const emptyMethodBody = (
   max_stack: null,
   init_locals: null,
   local_var_sig_token: null,
+  local_var_signature: null,
   il_size: 0,
   il_sha256: null,
   normalized_il_sha256: null,

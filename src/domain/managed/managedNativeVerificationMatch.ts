@@ -356,9 +356,14 @@ const matchPinvoke = (
       managed.import_name === lookupSymbolName(symbol) &&
       moduleRelation(symbol) === "match",
   );
-  const unknownModule = candidates.find(
-    (symbol) => moduleRelation(symbol) === "unknown",
+  const exactUnknownModule = candidates.find(
+    (symbol) =>
+      managed.import_name === lookupSymbolName(symbol) &&
+      moduleRelation(symbol) === "unknown",
   );
+  const unknownModule =
+    exactUnknownModule ??
+    candidates.find((symbol) => moduleRelation(symbol) === "unknown");
   const decorated = candidates.find(
     (symbol) => moduleRelation(symbol) === "match",
   );
@@ -382,7 +387,12 @@ const matchPinvoke = (
         candidates,
       },
     };
-  if (unknownModule !== undefined)
+  // Preserve an exact-name candidate's uncertainty, but an unrelated unknown
+  // module must not displace an observed module match for a decorated name.
+  if (
+    unknownModule !== undefined &&
+    (exactUnknownModule !== undefined || decorated === undefined)
+  )
     return {
       match: {
         status: "unresolved",

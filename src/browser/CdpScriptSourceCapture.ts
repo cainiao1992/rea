@@ -25,25 +25,39 @@ export const capturePassiveCdpScriptSource = async (input: {
 }): Promise<
   ReturnType<typeof sourceResult> | ReturnType<typeof sourceExcluded>
 > => {
-  const response = await input.connection.send(
-    "Debugger.getScriptSource",
-    { scriptId: input.scriptId },
-    input.sessionId,
-    input.sourceBudget.signal,
-  );
-  if (input.signal?.aborted === true)
-    throw new AnalysisCancelledError(input.operation, {
-      cause: input.signal.reason,
-    });
-  const text = requiredScriptSource(response, input.operation);
-  const reason = input.sourceBudget.timedOut
-    ? cdpScriptSourceDeadlineOmissionReason(input.sourceBudget.commandTimeoutMs)
-    : !input.sourceBudget.admit(text)
-      ? CDP_SCRIPT_SOURCE_BYTES_OMISSION_REASON
-      : undefined;
-  if (reason !== undefined) {
+  const omitForBudget = () => {
     input.completeness.exclude("script_sources", "resource_budget_exhausted");
-    return sourceExcluded(reason);
+    return sourceExcluded(
+      input.sourceBudget.timedOut
+        ? cdpScriptSourceDeadlineOmissionReason(
+            input.sourceBudget.commandTimeoutMs,
+          )
+        : CDP_SCRIPT_SOURCE_BYTES_OMISSION_REASON,
+    );
+  };
+  const throwIfCancelled = () => {
+    if (input.signal?.aborted === true)
+      throw new AnalysisCancelledError(input.operation, {
+        cause: input.signal.reason,
+      });
+  };
+  throwIfCancelled();
+  if (input.sourceBudget.timedOut) return omitForBudget();
+  try {
+    const response = await input.connection.send(
+      "Debugger.getScriptSource",
+      { scriptId: input.scriptId },
+      input.sessionId,
+      input.sourceBudget.signal,
+    );
+    throwIfCancelled();
+    const text = requiredScriptSource(response, input.operation);
+    if (input.sourceBudget.timedOut || !input.sourceBudget.admit(text))
+      return omitForBudget();
+    return sourceResult(text);
+  } catch (cause: unknown) {
+    throwIfCancelled();
+    if (input.sourceBudget.timedOut) return omitForBudget();
+    throw cause;
   }
-  return sourceResult(text);
 };

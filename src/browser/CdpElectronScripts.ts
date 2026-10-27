@@ -17,10 +17,7 @@ import { authorizedElectronFile } from "./ElectronFileScope.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { selectedCdpCommandTimeoutMs } from "../domain/browserDeadline.js";
-import {
-  cdpScriptSourceDeadlineOmissionReason,
-  CdpScriptSourceBudget,
-} from "./CdpScriptSourceBudget.js";
+import { CdpScriptSourceBudget } from "./CdpScriptSourceBudget.js";
 
 interface ElectronScriptCaptureInput {
   readonly connection: CdpConnection;
@@ -46,8 +43,6 @@ export const captureElectronScripts = async (
   const commandTimeoutMs = selectedCdpCommandTimeoutMs(
     input.request.command_timeout_ms,
   );
-  const deadlineOmission =
-    cdpScriptSourceDeadlineOmissionReason(commandTimeoutMs);
   const sourceBudget =
     input.request.include_script_sources && input.scripts.length > 0
       ? new CdpScriptSourceBudget(input.signal, commandTimeoutMs)
@@ -102,44 +97,21 @@ export const captureElectronScripts = async (
       seen.add(scriptKey);
       metadataBytes += retainedBytes;
       total += 1;
-      let source: ElectronPageInspection["scripts"]["items"][number]["source"] =
-        input.request.include_script_sources
+      const source =
+        sourceBudget === undefined
           ? {
-              included: false,
-              reason: deadlineOmission,
-            }
-          : {
-              included: false,
+              included: false as const,
               reason: "source capture was not selected",
-            };
-      if (
-        input.request.include_script_sources &&
-        isSourceDeadlineExpired(sourceBudget)
-      ) {
-        excludeScriptSource(input.completeness);
-      } else if (
-        input.request.include_script_sources &&
-        sourceBudget !== undefined
-      ) {
-        try {
-          source = await capturePassiveCdpScriptSource({
-            connection: input.connection,
-            sessionId: input.sessionId,
-            signal: input.signal,
-            operation: "inspect_electron_page",
-            scriptId: script.scriptId,
-            sourceBudget,
-            completeness: input.completeness,
-          });
-        } catch (cause: unknown) {
-          throwIfCallerCancelled(input.signal);
-          if (isSourceDeadlineExpired(sourceBudget)) {
-            excludeScriptSource(input.completeness);
-          } else {
-            throw cause;
-          }
-        }
-      }
+            }
+          : await capturePassiveCdpScriptSource({
+              connection: input.connection,
+              sessionId: input.sessionId,
+              signal: input.signal,
+              operation: "inspect_electron_page",
+              scriptId: script.scriptId,
+              sourceBudget,
+              completeness: input.completeness,
+            });
       items.push({ script_key: scriptKey, ...identity, source });
     }
   } finally {
@@ -155,17 +127,9 @@ export const captureElectronScripts = async (
   };
 };
 
-const excludeScriptSource = (completeness: CdpCaptureCompleteness): void => {
-  completeness.exclude("script_sources", "resource_budget_exhausted");
-};
-
 const throwIfCallerCancelled = (signal: AbortSignal | undefined): void => {
   if (signal?.aborted === true)
     throw new AnalysisCancelledError("inspect_electron_page", {
       cause: signal.reason,
     });
 };
-
-const isSourceDeadlineExpired = (
-  sourceBudget: CdpScriptSourceBudget | undefined,
-): boolean => sourceBudget?.timedOut === true;

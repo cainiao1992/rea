@@ -31,10 +31,7 @@ import {
   resolveOccurrenceParents,
   type MutableOccurrence,
 } from "./ArtifactGraphConstruction.js";
-import {
-  STRICT_INTEGRITY_POLICY,
-  type ArtifactIntegrityPolicy,
-} from "./types.js";
+import type { ArtifactIntegrityPolicyName } from "../../domain/artifactIntegrityPolicy.js";
 import { abortIfNeeded, hashReadable } from "../ArtifactHash.js";
 
 export interface PendingIntegrityContradiction {
@@ -56,7 +53,7 @@ const emptyScan = (): {
 interface ScanContext {
   readonly reader: ArtifactReader;
   readonly signal: AbortSignal | undefined;
-  readonly integrity: ArtifactIntegrityPolicy;
+  readonly integrity: ArtifactIntegrityPolicyName;
   readonly asarHeaderAdmission: AsarHeaderAdmission | undefined;
   readonly nodes: Map<string, ArtifactNode>;
   readonly occurrences: MutableOccurrence[];
@@ -72,7 +69,7 @@ export const scanReader = async (
   reader: ArtifactReader | undefined,
   ownedReaders: ArtifactReader[],
   signal?: AbortSignal,
-  integrity: ArtifactIntegrityPolicy = STRICT_INTEGRITY_POLICY,
+  integrity: ArtifactIntegrityPolicyName = "fail",
   asarHeaderAdmission?: AsarHeaderAdmission,
 ): Promise<{
   readonly nodes: Map<string, ArtifactNode>;
@@ -327,7 +324,7 @@ const digestArtifactEntry = async (
     );
   const mismatched = claim !== null && claim.digest !== observed;
   if (mismatched && claim !== null && observed !== undefined) {
-    if (context.integrity.mode === "fail")
+    if (context.integrity === "fail")
       throw new ArtifactReaderFailure(
         "integrity",
         `Artifact integrity metadata disagrees with content: ${logicalPath}`,

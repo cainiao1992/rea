@@ -47,10 +47,7 @@ import {
   scanReader,
   type PendingIntegrityContradiction,
 } from "./scanReader.js";
-import {
-  STRICT_INTEGRITY_POLICY,
-  type ArtifactInventoryOptions,
-} from "./types.js";
+import type { ArtifactInventoryOptions } from "./types.js";
 
 export interface TransferredArtifactInventorySource {
   readonly owner: ArtifactResourceOwner;
@@ -104,7 +101,6 @@ const scanCanonical = async (
   readonly snapshot: ArtifactInventorySnapshot;
   readonly transferredSource: TransferredArtifactInventorySource | undefined;
 }> => {
-  const integrity = options.integrity ?? STRICT_INTEGRITY_POLICY;
   const metadata = await lstat(path);
   const {
     format: rootFormat,
@@ -149,7 +145,7 @@ const scanCanonical = async (
       reader,
       ownedReaders,
       options.signal,
-      integrity,
+      options.integrity,
       options.asarHeaderAdmission,
     );
     outcome = {

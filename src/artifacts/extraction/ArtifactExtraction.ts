@@ -99,7 +99,7 @@ const extractArtifactInScope = async (
         asarHeaderAdmission:
           input.asarHeaderAdmission ??
           resolveAsarHeaderAdmission(input.environment),
-        integrity: { mode: input.integrityPolicy },
+        integrity: input.integrityPolicy,
       },
       admission.probeFacts,
     );

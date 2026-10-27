@@ -112,7 +112,7 @@ export const reconstructJavaScriptArtifact = async (
       {
         resourceScope: scope,
         signal,
-        integrity: { mode: input.integrity_policy },
+        integrity: input.integrity_policy,
         asarHeaderAdmission,
       },
       undefined,

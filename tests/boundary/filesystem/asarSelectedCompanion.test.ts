@@ -98,7 +98,7 @@ it.skipIf(process.platform === "win32")(
     expect(extractFile(selected, "native.node").equals(bytes)).toBe(true);
     const selectedInventory = await inventoryArtifact(selected);
     const canonicalInventory = await inventoryArtifact(canonical, {
-      integrity: { mode: "record-and-continue" },
+      integrity: "record-and-continue",
     });
     expect(selectedInventory.manifest.root_sha256).toBe(
       canonicalInventory.manifest.root_sha256,

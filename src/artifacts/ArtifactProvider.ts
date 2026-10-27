@@ -522,7 +522,7 @@ class ArtifactClient implements AnalysisClient {
         this.settings,
       ),
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
-      integrity: { mode: parsed.integrity_policy },
+      integrity: parsed.integrity_policy,
     });
   }
 }

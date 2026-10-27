@@ -18,6 +18,7 @@ import {
   type WebScriptExportResult,
 } from "../../domain/webScriptExport.js";
 import {
+  isolatedWebScriptPath,
   planWebScriptExport,
   type PlannedWebScript,
 } from "../../domain/webScriptExportPlan.js";
@@ -212,7 +213,7 @@ const publishPlannedScript = async (
       record.content.layout !== "url-path"
     )
       throw cause;
-    const relativePath = isolatedScriptPath(script, index);
+    const relativePath = isolatedWebScriptPath(script.source, index);
     await write(relativePath);
     return {
       ...record,
@@ -225,12 +226,6 @@ const publishPlannedScript = async (
     };
   }
 };
-
-const isolatedScriptPath = (
-  script: PlannedWebScript["script"],
-  index: number,
-): string =>
-  `isolated/source-${index + 1}-${createHash("sha256").update(JSON.stringify(script.source)).digest("hex")}.js`;
 
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : "Unknown publication failure";

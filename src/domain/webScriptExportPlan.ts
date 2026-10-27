@@ -17,6 +17,12 @@ export interface PlannedWebScript {
   readonly record: ExportedWebScript;
 }
 
+/** Stable isolated identity shared by planning and destination collision fallback. */
+export const isolatedWebScriptPath = (
+  source: CapturedWebScript["source"],
+  index: number,
+): string => `isolated/source-${index + 1}-${hash(JSON.stringify(source))}.js`;
+
 /** Preserve safe URL layouts only when every captured path is unambiguous. */
 export const planWebScriptExport = (
   scripts: readonly CapturedWebScript[],
@@ -45,9 +51,7 @@ export const planWebScriptExport = (
         url: script.url,
         content: {
           state: "exported",
-          relative_path:
-            path ??
-            `isolated/source-${index + 1}-${hash(JSON.stringify(script.source))}.js`,
+          relative_path: path ?? isolatedWebScriptPath(script.source, index),
           layout: path === undefined ? "isolated" : "url-path",
           layout_reason: reason,
           sha256: script.content.sha256,

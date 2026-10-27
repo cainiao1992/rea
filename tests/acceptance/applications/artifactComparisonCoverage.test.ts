@@ -240,6 +240,112 @@ const assertMalformedImportsRejected = async (
 };
 
 cliTest(
+  "validates supplied edge commitments on imported partial inventories",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-partial-edge-");
+    const path = join(root, "input.zip");
+    const writer = new ZipWriter(new Uint8ArrayWriter());
+    await writer.add("a.txt", new TextReader("abc"));
+    await writer.add("b.txt", new TextReader("def"));
+    await writeFile(path, await writer.close());
+    const inspected = await cli.run({
+      arguments: ["inspect-artifact", path, "--json"],
+    });
+    expect(inspected.exitCode, inspected.stderr).toBe(0);
+    const source = inventoryEvidence(inspected.json);
+    const inventory = artifactInventoryResultSchema.parse(
+      source.normalized_result,
+    );
+    const edge = inventory.edges[0]!;
+    const occurrence = inventory.occurrences.find(
+      (item) => item.occurrence_id === edge.occurrence_id,
+    )!;
+    const omittedNode = inventory.nodes.find(
+      (node) =>
+        node.artifact_id !== inventory.manifest.root_artifact_id &&
+        node.artifact_id !== occurrence.artifact_id,
+    )!;
+    const partial = {
+      ...inventory,
+      nodes: inventory.nodes.filter(
+        (node) => node.artifact_id !== omittedNode.artifact_id,
+      ),
+    };
+    const derive = (result: unknown) =>
+      createEvidence(
+        {
+          path,
+          sha256: inventory.manifest.root_sha256,
+          format: inventory.manifest.root_format,
+        },
+        source.provider,
+        {
+          operation: "inventory_artifact",
+          parameters: {},
+          result,
+          confidence: "derived",
+          authority: "shipped-artifact",
+        },
+      );
+    const { call } = await connectLocalToolsMcp();
+    const valid = await call("compare_artifacts", {
+      left: derive(partial),
+      right: derive(partial),
+    });
+    expect(valid.isError, JSON.stringify(valid)).not.toBe(true);
+    expect(
+      parseEvidence(valid.structuredContent).normalized_result,
+    ).toMatchObject({
+      status: "truncated",
+      summary: { changed: 0 },
+    });
+    const tampered = {
+      ...partial,
+      edges: partial.edges.map((item) =>
+        item === edge ? { ...item, relation: "loads" } : item,
+      ),
+    };
+    const rejected = await call("compare_artifacts", {
+      left: derive(partial),
+      right: derive(tampered),
+    });
+    expect(rejected.isError, JSON.stringify(rejected)).toBe(true);
+    expect(parseMcpToolError(rejected)).toMatchObject({
+      error: { code: "evidence_integrity_mismatch" },
+    });
+    const nullChild = await call("compare_artifacts", {
+      left: derive(partial),
+      right: derive({
+        ...partial,
+        occurrences: partial.occurrences.map((item) =>
+          item === occurrence ? { ...item, artifact_id: null } : item,
+        ),
+      }),
+    });
+    expect(nullChild.isError, JSON.stringify(nullChild)).toBe(true);
+    expect(parseMcpToolError(nullChild)).toMatchObject({
+      error: { code: "evidence_integrity_mismatch" },
+    });
+    // Without the referenced occurrence, the digest cannot yet be checked.
+    const unresolved = await call("compare_artifacts", {
+      left: derive(partial),
+      right: derive({
+        ...tampered,
+        occurrences: tampered.occurrences.filter(
+          (item) => item.occurrence_id !== edge.occurrence_id,
+        ),
+      }),
+    });
+    expect(unresolved.isError, JSON.stringify(unresolved)).not.toBe(true);
+    expect(
+      parseEvidence(unresolved.structuredContent).normalized_result,
+    ).toMatchObject({
+      status: "truncated",
+    });
+  },
+);
+
+cliTest(
   "compares fully observed roots without inventing coverage gaps through CLI and MCP",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-artifact-coverage-");

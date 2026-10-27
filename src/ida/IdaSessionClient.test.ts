@@ -95,6 +95,49 @@ const fixture = async (
   return { root, target, producer, client };
 };
 
+it.each(["initialize", "transport"])(
+  "preserves producer outcome facts when attributing a cached %s failure",
+  async (operation) => {
+    const { producer, client } = await fixture();
+    const primary = new AnalysisCancelledError("provider_startup");
+    const source = new ProviderAdapterError("ida", operation, {
+      cleanupPrimary: primary,
+      limit: {
+        setting: "regex.matching_deadline_ms",
+        effective_value: 100,
+        unit: "ms",
+        minimum: 1,
+        maximum: 1000,
+        applies_at: "next_operation",
+        agent_editable: true,
+        scope: "rea-runtime",
+        rea_restart_required: false,
+      },
+      diagnostics: { producer_fact: "retained" },
+    });
+    const connect = vi.spyOn(producer, "connect").mockRejectedValue(source);
+    for (const requested of ["list_procedures", "list_strings"] as const) {
+      const result = await client.execute(requested, {});
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected startup failure");
+      expect(result.error).toBeInstanceOf(ProviderAdapterError);
+      expect(result.error).toMatchObject({
+        operation: requested,
+        limit: source.limit,
+        cleanupPrimary: { operation: requested },
+        diagnostics: { producer_fact: "retained" },
+      });
+      expect(result.error.cleanupPrimary).toBeInstanceOf(
+        AnalysisCancelledError,
+      );
+    }
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(source.operation).toBe(operation);
+    expect(source.cleanupPrimary).toBe(primary);
+    await client.close();
+  },
+);
+
 describe("headless IDA producer pagination", () => {
   it("follows reported cursors for modern inventories, pseudocode, and bare-hex assembly without losing pages", async () => {
     const { producer, client } = await fixture("headless");

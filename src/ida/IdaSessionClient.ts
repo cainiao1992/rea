@@ -15,7 +15,6 @@ import {
   AnalysisInputError,
   AnalysisTimeoutError,
   AnalysisResourceConstraintError,
-  resourceConstraintRecovery,
 } from "../domain/analysisErrorCore.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
@@ -61,6 +60,7 @@ import {
 } from "../artifacts/ArtifactFileOperation.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
+import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 
 const legacyTools = [
   "get_metadata",
@@ -489,36 +489,19 @@ export class IdaSessionClient implements AnalysisClient {
       cause instanceof AnalysisTimeoutError &&
       cause.operation !== operation
     ) {
-      failure = new AnalysisTimeoutError(operation, cause.timeoutMs, {
+      failure = analysisClientFailureForOperation(
         cause,
-        capturedOutput: cause.capturedOutput,
-        diagnostics: cause.diagnostics,
-        partialObservation: cause.partialObservation,
-        cleanup: cause.cleanup,
-        ...(cause.userMessage === undefined
-          ? {}
-          : { userMessage: cause.userMessage }),
-        ...(cause.remediationAction === undefined
-          ? {}
-          : { remediationAction: cause.remediationAction }),
-      })
-        .bindCleanupDependencies([cause])
-        .bindCleanupResourceOwner(cause);
+        "ida",
+        operation,
+      ).bindCleanupResourceOwner(cause);
     } else if (
       cause instanceof ProviderAdapterError &&
       cause.operation === "transport"
     )
-      failure = new ProviderAdapterError("ida", operation, {
-        cause,
-        capturedOutput: cause.capturedOutput,
-        partialObservation: cause.partialObservation,
-        cleanup: cause.cleanup,
-        diagnostics: {
-          ...cause.diagnostics,
-          recovery:
-            "Check the configured upstream MCP registration and selected target; see docs/ida-provider.md.",
-        },
-      });
+      failure = analysisClientFailureForOperation(cause, "ida", operation, {
+        recovery:
+          "Check the configured upstream MCP registration and selected target; see docs/ida-provider.md.",
+      }).bindCleanupResourceOwner(cause);
     else if (cause instanceof AnalysisError) failure = cause;
     else if (cause instanceof z.ZodError)
       failure = new AnalysisOutputError(
@@ -633,46 +616,12 @@ export class IdaSessionClient implements AnalysisClient {
         cause.operation === "transport"
       )
         throw cause;
-      const options = {
-        cause,
-        capturedOutput: cause.capturedOutput,
-        partialObservation: cause.partialObservation,
-        cleanup: cause.cleanup,
-        ...(cause.userMessage === undefined
-          ? {}
-          : { userMessage: cause.userMessage }),
-        diagnostics: {
-          ...cause.diagnostics,
-          startup_operation: cause.operation,
-        },
-      };
-      const action =
-        cause.remediationAction === undefined
-          ? {}
-          : { remediationAction: cause.remediationAction };
       // Startup is shared, but each accepted operation owns its attribution.
-      // Keep the original cached failure unchanged for later callers.
-      const failure =
-        cause instanceof AnalysisTimeoutError
-          ? new AnalysisTimeoutError(operation, cause.timeoutMs, {
-              ...options,
-              ...action,
-            })
-          : cause instanceof AnalysisResourceConstraintError
-            ? new AnalysisResourceConstraintError(
-                operation,
-                cause.resource,
-                cause.reason,
-                cause.reportedLimits,
-                { ...options, ...resourceConstraintRecovery(cause) },
-              )
-            : new ProviderAdapterError(cause.providerId, operation, {
-                ...options,
-                ...action,
-              });
-      throw failure
-        .bindCleanupDependencies([cause])
-        .bindCleanupResourceOwner(cause);
+      // The shared boundary preserves typed outcome and cleanup facts without
+      // mutating the cached startup failure.
+      throw analysisClientFailureForOperation(cause, "ida", operation, {
+        startup_operation: cause.operation,
+      }).bindCleanupResourceOwner(cause);
     }
   }
 

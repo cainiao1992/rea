@@ -282,7 +282,7 @@ const derive = (
     if (rule.rule === "slug") {
       const from = ownMember(sent, rule.from);
       if (typeof from === "string")
-        setOwnMember(written, rule.field, slugOf(from));
+        setOwnMember(written, rule.field, slugOf(from, rule.ampersand));
     } else if (rule.rule === "template") {
       const value = templated(observed, written, rule);
       if (value !== undefined) setOwnMember(written, rule.field, value);

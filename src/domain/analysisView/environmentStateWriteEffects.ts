@@ -51,6 +51,12 @@ import {
 } from "./environmentStateWriteObserve.js";
 import { plannedBody, restampedFields } from "./environmentStateWriteStamps.js";
 import { readClock } from "./environmentStateWriteValues.js";
+import type { CreateEvidence } from "./environmentStateWriteExplain.js";
+import {
+  noteAmpersands,
+  noteHeldAmpersands,
+  type AmpersandSpelling,
+} from "./environmentStateWriteCreateCalls.js";
 import {
   fittedClockFormat,
   matchesClockFormat,
@@ -98,6 +104,10 @@ export interface WriteDraft {
   readonly kept: Set<string>;
   /** A value a held entity or an accepted call showed each clock field at a fixed width in, which keeps it untrimmed. */
   readonly fixedWidth: Map<string, JsonValue>;
+  /** What explained a create's exemplar, kept until a later call widens the plan, which it may then explain again. */
+  exemplarInput?: CreateEvidence | undefined;
+  /** How the calls a create plan accepted and the entities its type held spelled `&` in each slugged field. */
+  readonly ampersands: Map<string, AmpersandSpelling>;
 }
 
 /** The value a draft fits a clock field against: one showing it at a fixed width, else the exemplar's. */
@@ -399,7 +409,10 @@ const refineUpdate = (
       const shown = later.get(rule.field);
       return shown === undefined
         ? rule
-        : (reconciledUpdateRule(rule, shown, draft.kept) ?? rule);
+        : (reconciledUpdateRule(rule, shown, draft.kept, {
+            entity: evidence.after.object,
+            ampersands: draft.ampersands,
+          }) ?? rule);
     }),
     ...evidence.explained.rules.filter((rule) => !ruled.has(rule.field)),
   ];
@@ -411,6 +424,40 @@ export const retainFixed = (
   fixed: readonly { readonly sent: JsonValue }[],
 ): void => {
   if (fixed.length > 0) context.io.retain(64 + jsonTextCodeUnits(fixed) * 2);
+};
+
+/** Retain only exemplars that may acquire a composed rule; state already owns and charges their entity facts. */
+export const retainCreateExemplar = (
+  context: EffectContext,
+  input: CreateEvidence,
+  rules: readonly FieldRule[],
+): CreateEvidence | undefined => {
+  if (
+    !Object.entries(input.entity).some(
+      ([field, value]) =>
+        typeof value === "string" &&
+        !rules.some((rule) => rule.field === field),
+    )
+  )
+    return undefined;
+  // Snapshot arrays borrow immutable entity fields whose state charges last
+  // throughout simulation. Their containers and the request reader's temporary
+  // facts need their own retained charge before the draft adopts them.
+  const references = [...new Set([input.collection, input.type])].reduce(
+    (count, items) => count + items.length,
+    0,
+  );
+  context.io.retain(
+    192 +
+      references * 8 +
+      jsonTextCodeUnits(input.call.body) * 2 +
+      input.call.path.length * 2 +
+      [...input.call.pathValues].reduce(
+        (bytes, [key, value]) => bytes + 64 + (key.length + value.length) * 2,
+        0,
+      ),
+  );
+  return input;
 };
 
 /** An update's targets, and its recorded outcome: the entity takes what its observation shows, attributed to no tool. */
@@ -476,8 +523,13 @@ const buildUpdate = (
     rules: evidence.explained.rules,
   });
   draft.observed = evidence.after.object;
-  for (const entity of context.state.ofType(draft.plan.target!))
-    noteFixedWidths(draft.fixedWidth, entity.fields);
+  const held = context.state.ofType(draft.plan.target!);
+  for (const entity of held) noteFixedWidths(draft.fixedWidth, entity.fields);
+  noteHeldAmpersands(
+    draft.ampersands,
+    evidence.explained.rules,
+    held.map((entity) => entity.fields),
+  );
 };
 
 /**
@@ -596,6 +648,7 @@ export const updateEntity = (
   draft.plan.rules = rules;
   noteFixedWidths(draft.fixedWidth, after.object);
   buildUpdate(context, draft, step, { after, explained, idField });
+  noteAmpersands(draft.ampersands, explained.rules, after.object);
   // Serving reads the plan's observation, so the gate does too; generated values are this call's.
   const written = updatedFields(
     draft.plan,
@@ -740,4 +793,7 @@ const contradictsPlan = (
 ): boolean =>
   contradictsEarlierCalls(draft, explained.rules) ||
   contradictsGeneratedClock(before, after, draft.plan.rules, explained) ||
-  conflictsWithPlan(draft.plan, explained, draft.kept);
+  conflictsWithPlan(draft.plan, explained, draft.kept, {
+    entity: after,
+    ampersands: draft.ampersands,
+  });

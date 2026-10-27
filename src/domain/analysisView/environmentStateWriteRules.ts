@@ -11,6 +11,7 @@ import {
 } from "./environmentStateRules.js";
 import {
   sortedStrings,
+  type Ampersand,
   type ClockFormat,
 } from "./environmentStateWriteValues.js";
 import {
@@ -89,7 +90,13 @@ export type FieldRule =
   | { readonly field: string; readonly rule: "echo"; readonly sorted?: true }
   | { readonly field: string; readonly rule: "copy"; readonly from: string }
   | { readonly field: string; readonly rule: "path"; readonly from: string }
-  | { readonly field: string; readonly rule: "slug"; readonly from: string }
+  /** A slug of the sent member, spelling `&` as the word when `ampersand` says so. */
+  | {
+      readonly field: string;
+      readonly rule: "slug";
+      readonly from: string;
+      readonly ampersand?: Ampersand;
+    }
   | { readonly field: string; readonly rule: "template"; readonly from: string }
   /** A string rebuilt from literal text and other written fields, in order. */
   | {
@@ -195,7 +202,12 @@ export const keptOrders = (body: JsonObject, stored: JsonObject): string[] =>
 /** One part of a composed string: literal text, or another written field as written, slugged, or as a clock's calendar digits. */
 export type ComposedPart =
   | { readonly text: string }
-  | { readonly from: string; readonly as: "value" | "slug" }
+  | { readonly from: string; readonly as: "value" }
+  | {
+      readonly from: string;
+      readonly as: "slug";
+      readonly ampersand?: Ampersand;
+    }
   | {
       readonly from: string;
       readonly as: "clock";

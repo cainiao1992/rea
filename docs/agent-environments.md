@@ -205,7 +205,10 @@ attached and a transaction no record represents, and each transaction URL's
 query once. Bodies larger than 4 MiB of UTF-8 text are not
 scanned; `credential-scan-incomplete` counts them and lists up to 20 record or
 event pointers, including base64 bodies whose decoded scan was cut. An empty name
-warning does not establish that these bodies were checked. Names do not establish sensitivity,
+warning does not establish that these bodies were checked. A browser scenario's
+saved values (`save` and `save_response`) named like credentials but not marked
+`secret: true` are recorded unredacted; `credential-named-saved-values` lists up
+to 20 of them by parameter pointer. Names do not establish sensitivity,
 so the build never refuses on them. Capture
 
 Evidence also records the capture file's absolute path (`subject.local_path`,

@@ -771,17 +771,39 @@ sorted stays sorted, unless a call stored its strings out of order as sent),
 and a field neither rules holds one value. Members either call sent are accepted, only those every call sent are
 required, and an echoed member a call left out takes the value that call stored
 (`body.defaults`). A clock rule widens to `trimmed` only when no held entity or
-earlier call showed that clock at a fixed width. A later create that disagrees
-leaves the plan as it was. A create whose observed reference differs from the
+earlier call showed that clock at a fixed width, and a slug to spelling `&` as
+the word (`ampersand: "and"`) only when no call the plan accepted nor entity the
+type held dropped one. A later
+create that disagrees leaves the plan as it was. A field the first create left
+unexplained, such as an address whose two parts were the same text, takes the
+`composed` rule a later create learns for it when that rule spells the first
+create's value too, and the first create's body contract is learned again with
+it. A `composed` string or `template` a later create's answer shows otherwise
+or leaves out is `unexplained-change`. A create whose observed reference
+differs from the
 entity the plan rebuilds, whether or not it sent the reference member, is
 `unexplained-change`. So is a create that left out an echoed member yet shows a
 value different from the learned default.
 A `composed` string is literal text and parts read from the fields other rules
 write: a field's value, its slug, or a clock's calendar digits
 (`YYYYMMDDhhmmss`, `YYYYMMDD`, `YYYY-MM-DD` or `YYYY/MM/DD`, in the clock's
-zone). A create composes a string only when at least one other entity of the
-type spells it with the same parts and none spells it otherwise, and never when
-one text could come from two sources serving could tell apart. A clock format
+zone). A slug drops `&` unless the application spells it as the word, as Go's
+gosimple/slug and JavaScript's slugify do (`ampersand: "and"`, on a `slug` rule
+or part). When a create slugs no `&`, the entities the type holds show which,
+and no `slug` rule is learned when they spell it both ways; a create whose slug
+spells `&` otherwise than they do, or alongside one whose
+slug neither spelling gives, has no `slug` rule; such a held slug also keeps a
+later create from widening the spelling. An update learns the spelling the same way: a later update whose slug spells
+`&` as the word refines a rule an earlier update learned from a name without
+`&`, unless an accepted call or a held entity dropped it, and every earlier
+update must still replay. An update whose slug spells no `&` takes the spelling the
+entity's earlier value and the type's other entities show, as a create does,
+and learns no slug rule when they spell it both ways. A create composes a string only when at least one other entity of the
+type spells it with the same parts and none spells it otherwise. Where one text
+could come from two sources serving could tell apart, such as an id that equals
+the title's slug, the entities the type holds must leave exactly one reading. A
+`composed` string that reads a field besides the generated value a `template`
+would rebuild it around replaces the template. A clock format
 is `trimmed` when the field's values differ only in how many fraction digits
 they show and none ends a fraction in a zero, as Go spells nanoseconds: its
 `fraction` is the most it shows, and serving drops trailing zeros and the point

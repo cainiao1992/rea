@@ -224,6 +224,7 @@ export class EnvironmentStateWriteSimulation {
         unstamped: new Set(),
         kept: new Set(),
         fixedWidth: new Map(),
+        ampersands: new Map(),
         linked: link.collection,
       });
     }

@@ -262,7 +262,12 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
   }),
   z.strictObject({ ...ruled, rule: z.literal("copy"), from: z.string() }),
   z.strictObject({ ...ruled, rule: z.literal("path"), from: z.string() }),
-  z.strictObject({ ...ruled, rule: z.literal("slug"), from: z.string() }),
+  z.strictObject({
+    ...ruled,
+    rule: z.literal("slug"),
+    from: z.string(),
+    ampersand: z.literal("and").exactOptional(),
+  }),
   z.strictObject({ ...ruled, rule: z.literal("template"), from: z.string() }),
   z.strictObject({
     ...ruled,
@@ -271,9 +276,11 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
       .array(
         z.union([
           z.strictObject({ text: z.string().min(1) }),
+          z.strictObject({ from: z.string(), as: z.literal("value") }),
           z.strictObject({
             from: z.string(),
-            as: z.enum(["value", "slug"]),
+            as: z.literal("slug"),
+            ampersand: z.literal("and").exactOptional(),
           }),
           z.strictObject({
             from: z.string(),

@@ -1705,3 +1705,48 @@ it("keeps declared secrets out of final cleanup and retry failure diagnostics", 
     await provider.close();
   }
 });
+
+it("projects both request and route cleanup failures with declared secrets redacted", async () => {
+  const { page } = fixture();
+  const secret = "private-request-diagnostic-value";
+  const route = vi.fn(async () => undefined);
+  const unroute = vi.fn(async () => {
+    throw new Error(`page.unroute: closed ${secret}`);
+  });
+  Object.assign(page, {
+    url: () => "https://app.example.test/",
+    route,
+    unroute,
+  });
+  const input = browserScenarioSchema.parse({
+    ...connectedScenario("allow"),
+    start_url: { url: "https://app.example.test/" },
+    actions: [
+      { step_id: "request", action: "request", method: "POST", path: "/api" },
+    ],
+    secrets: [
+      { secret_id: "credential", environment_variable: "REQUEST_SECRET" },
+    ],
+    capture: { after_each_step: ["url"], at_end: [], events: [] },
+  });
+  const provider = new PlaywrightBrowserScenarioProvider((scenario, options) =>
+    PlaywrightScenarioSession.open(
+      scenario,
+      { REQUEST_SECRET: secret },
+      options,
+    ),
+  );
+  page.evaluate.mockRejectedValue(new Error(`page.evaluate: closed ${secret}`));
+  try {
+    const result = await provider.captureScenario(input, {});
+    if (!result.ok) throw result.error;
+    const step = result.value.steps.find((step) => step.step_id === "request");
+    expect(step).toMatchObject({ status: "failed" });
+    expect(step?.error).toContain("page.evaluate: closed");
+    expect(step?.error).toContain("page.unroute: closed");
+    expect(JSON.stringify(result.value)).not.toContain(secret);
+    expect(unroute).toHaveBeenCalledOnce();
+  } finally {
+    await provider.close();
+  }
+});

@@ -382,6 +382,75 @@ describe("request dispatch boundary", () => {
     expect(sent).not.toHaveBeenCalled();
     expect(unroute).toHaveBeenCalledOnce();
   });
+});
+
+describe("request route cleanup", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("preserves the primary request failure when removing its route also fails", async () => {
+    const parsed = scenario([requestStep({})]);
+    const page = fakePage({});
+    const primary = new Error("page.evaluate: Target page has been closed");
+    const cleanup = new Error("page.unroute: Target page has been closed");
+    vi.spyOn(page, "evaluate").mockRejectedValue(primary);
+    const unroute = vi.spyOn(page, "unroute").mockRejectedValue(cleanup);
+    const failure = await perform(
+      page,
+      parsed.actions[0]!,
+      resolved(parsed),
+    ).catch((cause: unknown) => cause);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).cause).toBe(primary);
+    expect((failure as AggregateError).errors).toEqual([primary, cleanup]);
+    expect(unroute).toHaveBeenCalledOnce();
+  });
+
+  it("preserves an unsuccessful page response when removing its route fails", async () => {
+    stubFetch(503);
+    const parsed = scenario([requestStep({ expected_status: [200] })]);
+    const page = fakePage({});
+    const cleanup = new Error("route cleanup failed");
+    vi.spyOn(page, "unroute").mockRejectedValue(cleanup);
+    const failure = await perform(
+      page,
+      parsed.actions[0]!,
+      resolved(parsed),
+    ).catch((cause: unknown) => cause);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).errors[0].message).toContain(
+      "answered 503",
+    );
+    expect((failure as AggregateError).errors[1]).toBe(cleanup);
+    expect((failure as AggregateError).cause).toBe(
+      (failure as AggregateError).errors[0],
+    );
+  });
+
+  it("publishes no saved values if route cleanup fails after a successful response", async () => {
+    stubFetch(200, [JSON.stringify({ id: "created" })]);
+    const parsed = scenario([
+      requestStep({ save: [{ name: "id", json_pointer: "/id" }] }),
+    ]);
+    const page = fakePage({});
+    const secrets = resolved(parsed);
+    const save = vi.spyOn(secrets, "save");
+    const ready = vi.spyOn(secrets, "markResponseSecretsReady");
+    const cleanup = new Error("route cleanup failed");
+    vi.spyOn(page, "unroute").mockRejectedValue(cleanup);
+    await expect(perform(page, parsed.actions[0]!, secrets)).rejects.toBe(
+      cleanup,
+    );
+    expect(save).not.toHaveBeenCalled();
+    expect(ready).not.toHaveBeenCalled();
+  });
+});
+
+describe("request page boundaries", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it("refuses foreign-origin storage before reading its value", async () => {
     const calls = stubFetch(200);

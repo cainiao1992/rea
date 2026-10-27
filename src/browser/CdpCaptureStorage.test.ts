@@ -140,3 +140,106 @@ it("keeps an omitted IndexedDB remote value unknown", async () => {
   expect(record).toMatchObject({ value_sha256: null, complete: false });
   expect(value.fingerprints_complete).toBe(false);
 });
+
+it.each(["indexed_db", "cache"] as const)(
+  "advances %s pagination past malformed rows without repeating evidence",
+  async (scope) => {
+    const offsets: unknown[] = [];
+    const record = {
+      key: { type: "number", value: 1 },
+      primaryKey: { type: "number", value: 1 },
+      value: { type: "string", value: "first" },
+    };
+    const cacheEntry = {
+      requestURL: "https://example.test/first",
+      requestMethod: "GET",
+      requestHeaders: [],
+    };
+    const replies: Record<string, unknown> = {
+      "Storage.getUsageAndQuota": { usage: 0, quota: 1000 },
+      "DOMStorage.getDOMStorageItems": { entries: [] },
+      "IndexedDB.requestDatabaseNames": {
+        databaseNames: scope === "indexed_db" ? ["db"] : [],
+      },
+      "CacheStorage.requestCacheNames": {
+        caches:
+          scope === "cache" ? [{ cacheName: "cache", cacheId: "id" }] : [],
+      },
+      "Network.getCookies": { cookies: [] },
+      "IndexedDB.requestDatabase": {
+        databaseWithObjectStores: {
+          name: "db",
+          version: 1,
+          objectStores: [
+            {
+              name: "records",
+              keyPath: { type: "string", string: "id" },
+              autoIncrement: false,
+              indexes: [],
+            },
+          ],
+        },
+      },
+      "CacheStorage.requestCachedResponse": { response: { body: "" } },
+    };
+    const connection = {
+      async send(
+        method: string,
+        params: Record<string, unknown>,
+      ): Promise<unknown> {
+        if (
+          method === "IndexedDB.requestData" ||
+          method === "CacheStorage.requestEntries"
+        ) {
+          offsets.push(params.skipCount);
+          // The first page includes a malformed row; offset 1 repeats valid evidence.
+          const rows =
+            params.skipCount === 0
+              ? [null, scope === "indexed_db" ? record : cacheEntry]
+              : params.skipCount === 1
+                ? [scope === "indexed_db" ? record : cacheEntry]
+                : [
+                    scope === "indexed_db"
+                      ? {
+                          ...record,
+                          key: { type: "number", value: 2 },
+                          primaryKey: { type: "number", value: 2 },
+                        }
+                      : {
+                          ...cacheEntry,
+                          requestURL: "https://example.test/second",
+                        },
+                  ];
+          return method === "IndexedDB.requestData"
+            ? { objectStoreDataEntries: rows, hasMore: params.skipCount === 0 }
+            : { cacheDataEntries: rows, returnCount: 3 };
+        }
+        if (!(method in replies)) throw new Error(method);
+        return replies[method];
+      },
+    } as unknown as CdpConnection;
+    const { value } = await captureStorage(
+      {
+        connection,
+        sessionId: undefined,
+        input: inspectWebPageInputSchema.parse({
+          cdp_endpoint: "http://127.0.0.1:9222",
+          target_id: "page",
+          include_storage_keys: true,
+          include_storage_fingerprints: true,
+        }),
+      },
+      "https://example.test/",
+      [],
+    );
+    expect(offsets).toEqual([0, 2]);
+    expect(
+      value.content_fingerprints.filter(
+        (item) =>
+          item.scope ===
+          (scope === "indexed_db" ? "indexed_db_record" : "cache_entry"),
+      ),
+    ).toHaveLength(2);
+    expect(value.fingerprints_complete).toBe(false);
+  },
+);

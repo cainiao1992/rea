@@ -4,7 +4,12 @@ import {
   androidPackageInspectionInputSchema,
   androidResultSchemas,
 } from "../../domain/android/androidAnalysis.js";
-import { androidPackageSummaryViewResultSchema } from "../../domain/analysisView/analysisView.js";
+import {
+  androidPackageSummaryViewResultSchema,
+  androidManifestViewResultSchema,
+  androidComponentsViewResultSchema,
+  androidComponentSummaryViewResultSchema,
+} from "../../domain/analysisView/analysisView.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
 import { toolContractMetadata } from "../toolEffects.js";
@@ -15,13 +20,16 @@ export const ANDROID_TOOL_CONTRACTS = [
     name: "inspect_android_package",
     ...toolContractMetadata("inspect_android_package"),
     description:
-      'Inspect a local APK\'s package, SDK and permission declarations, decoded manifest and class/resource counts, with a bounded static component projection. Omitted or complete detail preserves the complete result. Select detail: "summary" for all declarations, engine identity and counts without decoded manifest text or duplicate raw calls; retains the complete source and returns a distinct linked inspect_analysis_view summary. Read the exact retained manifest with view kind android, facet manifest, offset and limit (UTF-16 code units), using normalized_result.parent_evidence_id. Does not execute the APK or verify signatures. Requires a caller-supplied JADX MCP JAR and JDK; uses one worker in an isolated temporary workspace.',
+      'Inspect a local APK\'s package, SDK and permission declarations, decoded manifest and class/resource counts, with a bounded static component projection. Omitted or complete detail preserves the complete result. Select detail: "summary" for all declarations, engine identity and counts without decoded manifest text or duplicate raw calls; retains the complete source and returns a distinct linked inspect_analysis_view summary. With summary detail, optionally select view kind android: facet components supports offset/limit, fields and exact kinds/names/actions/exported filters; source_index preserves the retained parent array ordinal and declaration_coverage preserves historical unknowns. Facet component-summary counts selected kinds and exported declarations separately from defaults. Facet manifest pages exact UTF-16 text. Reuse the same views with inspect_analysis_view and normalized_result.parent_evidence_id; complete detail rejects view selection. Does not execute the APK or verify signatures. Requires a caller-supplied JADX MCP JAR and JDK; uses one worker in an isolated temporary workspace.',
     kind: "android-provider",
     inputSchema: androidPackageInspectionInputSchema,
     outputSchema: evidenceResultOf(
       z.union([
         androidResultSchemas.inspect_android_package,
         androidPackageSummaryViewResultSchema,
+        androidManifestViewResultSchema,
+        androidComponentsViewResultSchema,
+        androidComponentSummaryViewResultSchema,
       ]),
     ),
     examples: [
@@ -29,6 +37,28 @@ export const ANDROID_TOOL_CONTRACTS = [
       {
         title: "Inspect APK declarations with retained manifest",
         input: { path: "/tmp/Example.apk", detail: "summary" },
+      },
+      {
+        title: "Read selected VIEW handlers with retained complete Evidence",
+        input: {
+          path: "/tmp/Example.apk",
+          detail: "summary",
+          view: {
+            kind: "android",
+            facet: "components",
+            offset: 0,
+            limit: 20,
+            actions: ["android.intent.action.VIEW"],
+            fields: [
+              "kind",
+              "name",
+              "enabled",
+              "process",
+              "intent_filters",
+              "location",
+            ],
+          },
+        },
       },
     ],
   },

@@ -1,5 +1,9 @@
 # Analysis efficiency measurements
 
+The [Android component checkpoint](android-components.md) records exact selected
+declaration views, real JADX verification and completed-task token estimates,
+including increased schema cost and no demonstrated speed or memory gain.
+
 The [2026-10-21 coverage reconciliation](coverage-review-20261021.md) maps all
 46 source directories to concrete workflow evidence, including original feature
 PRs, historical no-benefit results and remaining verification boundaries.

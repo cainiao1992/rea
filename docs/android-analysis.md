@@ -30,8 +30,9 @@ code units; follow `coverage.next_offset`. The page preserves `source_status` an
 `reported_total_bytes`: exhausting retained text does not make a partial decoded
 manifest complete. Complete source Evidence remains exportable under the existing
 session lifetime. Servers without retention reject summary before starting JADX.
-One-shot CLI output remains complete. Older servers require the existing complete
-request after schema discovery. APK authenticity and runtime behavior remain
+One-shot CLI output remains complete by default. Select `--detail summary` with
+`--evidence_output /local/capture.json` to retain complete Evidence before returning
+a linked view. Older servers require the existing complete request after schema discovery. APK authenticity and runtime behavior remain
 unverified.
 
 ## Manifest component projection
@@ -75,6 +76,61 @@ Provider authorities and all inventory dimensions are bounded. `status:
 capacity limitation appears only when an actual collection limit was reached.
 The projection does not merge manifests, expand resource references, or
 observe runtime enabled/export state.
+
+`enabled` and `grant_uri_permissions` report only literal component-level
+`android:enabled` and provider-level `android:grantUriPermissions` declarations.
+They are `null` when absent or not a literal boolean; missing attributes are not
+filled from application defaults. A nonliteral declaration gets a limitation.
+`process` preserves the exact component-level `android:process` spelling (including
+empty or symbolic values), or `null` when absent or omitted under the inventory-wide
+1 MiB copy budget. Neither field resolves resources, merges manifest values or
+establishes the effective runtime process or enabled state. The exact boolean
+attributes are retained in `enabled_declaration` and
+`grant_uri_permissions_declaration`, including resource references.
+
+`intent_filters` preserves each filter's source ordinal, exact priority spelling,
+actions, categories and individual data declarations (scheme, host, port, path,
+path prefix/pattern/advanced pattern/suffix and MIME type). These are declarations,
+not computed Android matching rules. `meta_data` lists names; values remain in the
+complete decoded manifest. Component, filter, data and metadata `location` values
+use one-based lines/columns and UTF-16 offsets into that manifest. A component's
+`declaration_index` preserves its original declaration ordinal, including gaps.
+
+`declaration_coverage` distinguishes complete, partial and unknown observations.
+Historical Evidence omits newly introduced fields and defaults coverage to
+`unknown`; omission never establishes absence. Current records contain the fields,
+with null for absent or unresolved scalar declarations. The inventory retains at
+most 32 filters and 64 nested action/category/data/metadata records per component,
+and shares a 1 MiB structured-value copy budget across components. Omitted values
+or unsupported filter constructs mark coverage partial and include a limitation;
+complete retained manifest text remains accessible.
+
+For a small answer, select `detail: "summary"` with an explicit view:
+
+```json
+{
+  "kind": "android",
+  "facet": "components",
+  "actions": ["android.provider.Telephony.SMS_RECEIVED"],
+  "fields": ["name", "permission", "enabled", "process", "intent_filters"],
+  "offset": 0,
+  "limit": 16
+}
+```
+
+The same JSON works with CLI `--view` or retained `inspect_analysis_view`.
+`kinds`, `names` and `actions` use exact matching; names accept either the recorded
+declared or resolved name, actions match any requested action, and different
+filters combine with AND. `exported` matches only explicit declarations, keeping
+`exported_default` separate. Empty selectors match nothing. Every selected row
+retains its parent-array `source_index` and `declaration_coverage`; source coverage,
+parent identity and limitations remain alongside the page. Follow
+`coverage.next_offset`. The 1 MiB projection budget can shorten a page; a single
+oversized row requires fewer selected fields. Exhausting a partial source does
+not establish complete manifest coverage. `facet: "component-summary"` applies
+the same filters and counts kinds, declaration coverage and explicit/default
+exported values separately. Both adapters use the same retained projection;
+repeated pages do not reload JADX.
 
 The service `foreground_service_type` field preserves the declared attribute,
 including an empty value or surrounding spaces; `null` means the attribute is

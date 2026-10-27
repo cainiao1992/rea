@@ -1491,6 +1491,8 @@ validates every result before delivery. On catalogs large enough that full
 input schemas alone approach the frame limit, keep the input profile at its
 `compact` default as well; with full input schemas the advertisement is
 dominated by the input side.
+The full input profile has no one-megabyte catalog-frame guarantee, including
+when output schemas are omitted.
 
 Only client-side schema discovery and validation are reduced or omitted, so
 hosts using these profiles should rely on REA's validation and retain their

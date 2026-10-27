@@ -184,6 +184,76 @@ public class ReaJadxMetadataRegression {
     System.out.println("RAW_CLASS_SELECTOR_REGRESSION_PASS nested=true metadata=true references=true");
   }
 
+  /** Source generation can populate def_pos; it must not change reference identity. */
+  private static JsonObject referenceIdentities(JsonObject references) {
+    JsonObject identity = references.deepCopy();
+    for (JsonElement item : identity.getAsJsonArray("items"))
+      item.getAsJsonObject().remove("def_pos");
+    return identity;
+  }
+
+  private static void verifyDefaultPackageSelectors(Method handle, Object bridge, JadxSession session)
+      throws Exception {
+    JavaClass selected = session.getClasses().stream().filter(cls -> cls.getRawName().equals("sb"))
+        .findFirst().orElseThrow(() -> new AssertionError("Default-package fixture class missing"));
+    String displayed = selected.getFullName();
+    require(!displayed.equals("sb"), "Default-package fixture must exercise a distinct JADX display name");
+    ProcessState state = selected.getClassNode().getState();
+    JsonObject rawClass = arguments("sb");
+    JsonObject displayedClass = arguments(displayed);
+    JsonObject rawMethod = methodArguments("sb", "readNative");
+    JsonObject displayedMethod = methodArguments(displayed, "readNative");
+    JsonObject summary = call(handle, bridge, "get_class_summary", rawClass);
+    require(summary.get("raw_name").getAsString().equals("sb")
+        && summary.get("full_name").getAsString().equals(displayed),
+        "Default-package summary mixed its raw and displayed identities");
+    JsonObject body = call(handle, bridge, "get_method_body", rawMethod);
+    require(body.get("class_name").getAsString().equals(displayed)
+        && body.get("dex_descriptor").getAsString().equals("(I)I")
+        && body.get("body").getAsString().isEmpty()
+        && body.getAsJsonArray("markers").equals(JsonParser.parseString("[\"native_method\"]")),
+        "Default-package native method lost its identity or parsed absence fact");
+    JsonObject classReferences = call(handle, bridge, "get_xrefs_to_class", rawClass);
+    require(classReferences.get("target").getAsString().equals(displayed),
+        "Default-package class references replaced display identity with the raw selector");
+    JsonObject methodReferences = call(handle, bridge, "get_xrefs_to_method", rawMethod);
+    require(methodReferences.get("target").getAsString().equals(displayed + ".readNative")
+        && methodReferences.get("total").getAsInt() == 1
+        && methodReferences.get("count").getAsInt() == 1,
+        "Default-package method reference did not retain its single caller");
+    JsonArray invokes = methodReferences.getAsJsonArray("items").get(0).getAsJsonObject()
+        .getAsJsonArray("direct_invokes");
+    require(invokes.size() == 1
+        && invokes.get(0).getAsJsonObject().get("source_raw_method_id").getAsString()
+            .equals("sb.callNative(I)I"),
+        "Default-package reference lost the caller's raw DEX identity");
+    require(selected.getClassNode().getState() == state,
+        "Default-package metadata or native absence lookup generated source");
+    for (boolean generateNeighbour : List.of(true, false)) {
+      require(summary.equals(call(handle, bridge, "get_class_summary", rawClass))
+          && summary.equals(call(handle, bridge, "get_class_summary", displayedClass)),
+          "Raw and displayed default-package selectors changed frozen class facts");
+      require(body.equals(call(handle, bridge, "get_method_body", rawMethod))
+          && body.equals(call(handle, bridge, "get_method_body", displayedMethod)),
+          "Raw and displayed default-package selectors changed native method facts");
+      require(classReferences.equals(call(handle, bridge, "get_xrefs_to_class", rawClass))
+          && classReferences.equals(call(handle, bridge, "get_xrefs_to_class", displayedClass)),
+          "Raw and displayed default-package selectors changed incoming class references");
+      require(referenceIdentities(methodReferences).equals(
+              referenceIdentities(call(handle, bridge, "get_xrefs_to_method", rawMethod)))
+          && referenceIdentities(methodReferences).equals(
+              referenceIdentities(call(handle, bridge, "get_xrefs_to_method", displayedMethod))),
+          "Raw and displayed default-package selectors changed incoming method identities");
+      if (generateNeighbour) {
+        JsonObject neighbour = call(handle, bridge, "get_method_body", methodArguments("sb", "callNative"));
+        require(neighbour.get("mode").getAsString().equals("java")
+            && neighbour.get("body").getAsString().contains("readNative("),
+            "Default-package neighbour did not generate its own native-calling Java body");
+      }
+    }
+    System.out.println("DEFAULT_PACKAGE_SELECTOR_REGRESSION_PASS raw=true display=true metadata=true method=true references=true frozen=true");
+  }
+
   private static void verifyClassPages(Method handle, Object bridge, List<String> inventory)
       throws Exception {
     int pages = 0;
@@ -234,6 +304,7 @@ public class ReaJadxMetadataRegression {
         Path.of(sources, "NativeOverload.smali").toString(),
         Path.of(sources, "AbstractShape.smali").toString(),
         Path.of(sources, "MergedMethod.smali").toString(),
+        Path.of(sources, "DefaultPackageSelector.smali").toString(),
         Path.of(sources, "ConstantFields.smali").toString())), "Initializer fixture assembly failed");
     Path apk = directory.resolve("initializers.apk");
     try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(apk))) {
@@ -330,6 +401,7 @@ public class ReaJadxMetadataRegression {
     BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
         (scope, continuation) -> holder.load(apk.toString(), config, continuation));
     Object bridge = constructor.newInstance(holder);
+    verifyDefaultPackageSelectors(handle, bridge, holder.current());
     String[] classNames = { "fixture.InitializationPolicy", "fixture.MixedInitialization" };
     String[][] witnesses = {
         { "declared-policy", "->singletonList", "->POLICY:Ljava/util/List;" },

@@ -304,6 +304,12 @@ import {
   androidPackageSummarySchema,
   androidViewRequestSchema,
   androidManifestViewItemSchema,
+  androidManifestViewRequestSchema,
+  androidComponentsViewRequestSchema,
+  androidComponentSummaryViewRequestSchema,
+  androidComponentViewRowSchema,
+  androidComponentViewContextSchema,
+  androidComponentSummarySchema,
 } from "./androidPackageView.js";
 import {
   projectDartAotView,
@@ -858,6 +864,40 @@ export const androidPackageSummaryViewResultSchema = z.strictObject({
   summary: androidPackageSummarySchema,
 });
 
+/** Legacy manifest views keep their original shape; new facets are explicit. */
+export const androidManifestViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  kind: z.literal("android"),
+  facet: z.literal("manifest").optional(),
+  view: androidManifestViewRequestSchema,
+  item: androidManifestViewItemSchema,
+  parent_operation: z.literal("inspect_android_package"),
+});
+export const androidComponentsViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  ...androidComponentViewContextSchema.shape,
+  kind: z.literal("android"),
+  facet: z.literal("components"),
+  view: androidComponentsViewRequestSchema,
+  items: z.array(androidComponentViewRowSchema),
+  byte_limited: z.boolean(),
+  parent_operation: z.literal("inspect_android_package"),
+});
+export const androidComponentSummaryViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  ...androidComponentViewContextSchema.shape,
+  kind: z.literal("android"),
+  facet: z.literal("component-summary"),
+  view: androidComponentSummaryViewRequestSchema,
+  summary: androidComponentSummarySchema,
+  parent_operation: z.literal("inspect_android_package"),
+});
+const androidPackageViewResultSchema = z.discriminatedUnion("facet", [
+  androidManifestViewResultSchema,
+  androidComponentsViewResultSchema,
+  androidComponentSummaryViewResultSchema,
+]);
+
 export const pcapCaptureSummaryViewResultSchema = z.strictObject({
   ...summaryViewResultBase,
   parent_operation: z.literal("inspect_pcap_capture"),
@@ -1388,13 +1428,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     ...managedMembersViewContextSchema.shape,
     parent_operation: z.literal("inspect_managed_members"),
   }),
-  z.strictObject({
-    kind: z.literal("android"),
-    view: androidViewRequestSchema,
-    item: androidManifestViewItemSchema,
-    ...viewResultBase,
-    parent_operation: z.literal("inspect_android_package"),
-  }),
+  androidPackageViewResultSchema,
   z.strictObject({
     kind: z.literal("dart-aot"),
     view: dartAotViewRequestSchema,

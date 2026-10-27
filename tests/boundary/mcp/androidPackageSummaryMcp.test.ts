@@ -8,9 +8,17 @@ import { inspectAnalysisView } from "../../../src/application/analysisView/Analy
 import { androidResultSchemas } from "../../../src/domain/android/androidAnalysis.js";
 import {
   androidPackageSummaryViewResultSchema,
+  androidManifestViewResultSchema,
+  androidComponentsViewResultSchema,
+  androidComponentSummaryViewResultSchema,
   analysisViewResultSchema,
 } from "../../../src/domain/analysisView/analysisView.js";
-import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
+import {
+  createEvidence,
+  parseEvidence,
+  type Evidence,
+} from "../../../src/domain/evidence.js";
+import { ok } from "../../../src/domain/result.js";
 import type { JsonValue } from "../../../src/domain/jsonValue.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
@@ -21,13 +29,55 @@ import {
   verifyJadxFixtureCleanup,
 } from "../../fixtures/android/jadx.js";
 
+async function assertAndroidPackageSelectedFacetContract(options: {
+  client: Pick<Client, "callTool">;
+  ajv: Ajv2020;
+  outputSchema: Record<string, unknown>;
+  apk: string;
+  parent: Evidence;
+  retained: (id: string) => Evidence | undefined;
+  sourceStatus: string;
+}): Promise<void> {
+  const { client, ajv, outputSchema, apk, parent, retained, sourceStatus } =
+    options;
+  for (const facet of ["components", "component-summary"] as const) {
+    const selected = await client.callTool({
+      name: "inspect_android_package",
+      arguments: {
+        path: apk,
+        detail: "summary",
+        view: { kind: "android", facet },
+      },
+    });
+    expect(selected.isError).not.toBe(true);
+    expect(
+      ajv.validate(outputSchema, selected.structuredContent),
+      JSON.stringify(ajv.errors),
+    ).toBe(true);
+    const result = parseEvidence(selected.structuredContent).normalized_result;
+    const projected =
+      facet === "components"
+        ? androidComponentsViewResultSchema.parse(result)
+        : androidComponentSummaryViewResultSchema.parse(result);
+    // A fresh acquisition gets its own Evidence ID even when the engine is reused.
+    const selectedParent = retained(projected.parent_evidence_id);
+    expect(selectedParent?.operation).toBe("inspect_android_package");
+    expect(selectedParent?.subject).toEqual(parent.subject);
+    expect(selectedParent?.normalized_result).toEqual(parent.normalized_result);
+    expect(projected.source_status).toBe(sourceStatus);
+  }
+}
+
 it.skipIf(process.platform === "win32")(
   "retains complete APK Evidence and reads exact manifest without its source or another engine launch",
   async () => {
     const { provider, apk, launches } =
       await createJadxProtocolFixture("large-manifest");
     const harness = await createApplicationMcpHarness({
-      serverOptions: { androidAnalysis: provider },
+      serverOptions: {
+        androidAnalysis: provider,
+        environment: { REA_MCP_TOOL_FAMILIES: "android,application,session" },
+      },
     });
     onTestFinished(harness.close);
     const { client, session } = harness;
@@ -107,6 +157,15 @@ it.skipIf(process.platform === "win32")(
       expect(full.parameters).toEqual(parent.parameters);
       expect(full.raw_result).not.toBeNull();
     }
+    await assertAndroidPackageSelectedFacetContract({
+      client,
+      ajv,
+      outputSchema,
+      apk,
+      parent,
+      retained: (id) => session.evidenceById(id),
+      sourceStatus: report.components.status,
+    });
     const before = JSON.stringify(parent);
     await unlink(apk);
     let text = "";
@@ -123,10 +182,9 @@ it.skipIf(process.platform === "win32")(
         },
       });
       expect(paged.isError).not.toBe(true);
-      const page = analysisViewResultSchema.parse(
+      const page = androidManifestViewResultSchema.parse(
         parseEvidence(paged.structuredContent).normalized_result,
       );
-      if (page.kind !== "android") throw new Error("Unexpected manifest page");
       text += page.item.text;
       expect(page.item.source_status).toBe(manifest.status);
       expect(page.item.reported_total_bytes).toBe(
@@ -274,6 +332,19 @@ it("rejects unavailable retention, invalid selectors and cancellation before pro
   if (cancelled.ok) throw new Error("Expected Android admission cancellation");
   expect(cancelled.error._tag).toBe("AnalysisCancelledError");
   expect(cancelled.error.cause).toBe(reason);
+  for (const detail of [undefined, "complete"]) {
+    expect(
+      await inspectAndroidPackage(
+        service,
+        {
+          path: "/missing.apk",
+          ...(detail === undefined ? {} : { detail }),
+          view: { kind: "android", facet: "components" },
+        },
+        retention,
+      ),
+    ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
+  }
   expect(execute).not.toHaveBeenCalled();
   const session = createTestBinarySession(() => {
     throw new Error("Unexpected deep provider");
@@ -297,4 +368,113 @@ it("rejects unavailable retention, invalid selectors and cancellation before pro
   });
   expect(parseMcpToolError(reply).error.code).toBe("capability_unavailable");
   expect(execute).not.toHaveBeenCalled();
+});
+
+it("delivers the selected retained page in one analysis and reads it later without a provider or source APK", async () => {
+  const parent = createEvidence(
+    { path: "/never-reopened.apk", sha256: "a".repeat(64), format: "apk" },
+    { id: "jadx", name: "JADX", version: "0.7.1" },
+    {
+      operation: "inspect_android_package",
+      parameters: { path: "/never-reopened.apk" },
+      result: {
+        engine: {
+          name: "jadx",
+          version: null,
+          artifact_sha256: "b".repeat(64),
+          source_revision: null,
+          worker_count: 1,
+          heap_limit_mib: null,
+        },
+        package_name: "example",
+        version_name: null,
+        version_code: null,
+        min_sdk: null,
+        target_sdk: "35",
+        permissions: [],
+        manifest: {
+          status: "complete",
+          text: "<manifest/>",
+          reported_total_bytes: 11,
+        },
+        components: {
+          status: "complete",
+          limitations: [],
+          items: [
+            {
+              kind: "activity",
+              declared_name: ".Main",
+              name: "example.Main",
+              exported: true,
+              exported_default: null,
+              permission: null,
+              permission_source: "none",
+              intent_filter_count: 1,
+              actions: ["VIEW"],
+              categories: [],
+              foreground_service_type: null,
+              authorities: null,
+              target_activity: null,
+            },
+          ],
+        },
+        class_count: 1,
+        resource_count: 0,
+        signature_verification: "not_performed",
+      },
+    },
+  );
+  const provider = {
+    execute: vi.fn(),
+    close: async () => {},
+    inspectAvailability: vi.fn(),
+  };
+  const service = new AndroidAnalysisService(provider);
+  const execute = vi.spyOn(service, "execute").mockResolvedValue(ok(parent));
+  const session = createTestBinarySession(() => {
+    throw new Error("Unexpected deep provider");
+  });
+  onTestFinished(async () => {
+    const closed = await session.close();
+    expect(closed.ok).toBe(true);
+  });
+  const view = {
+    kind: "android",
+    facet: "components",
+    actions: ["VIEW"],
+    fields: ["name"],
+    limit: 1,
+  };
+  const selected = await inspectAndroidPackage(
+    service,
+    { path: "/never-reopened.apk", detail: "summary", view },
+    {
+      recordEvidence: session.recordEvidence.bind(session),
+      evidenceById: session.evidenceById.bind(session),
+    },
+  );
+  if (!selected.ok) throw selected.error;
+  const first = androidComponentsViewResultSchema.parse(
+    selected.value.normalized_result,
+  );
+  expect(first.items).toEqual([
+    { source_index: 0, name: "example.Main", declaration_coverage: "unknown" },
+  ]);
+  expect(
+    session.evidenceById(first.parent_evidence_id)?.normalized_result,
+  ).toEqual(parent.normalized_result);
+  const later = await inspectAnalysisView(
+    {
+      source: {
+        kind: "retained-evidence",
+        evidence_id: first.parent_evidence_id,
+      },
+      view,
+    },
+    session.evidenceById.bind(session),
+  );
+  if (!later.ok) throw later.error;
+  expect(later.value.normalized_result).toEqual(first);
+  expect(execute).toHaveBeenCalledTimes(1);
+  expect(provider.execute).not.toHaveBeenCalled();
 });

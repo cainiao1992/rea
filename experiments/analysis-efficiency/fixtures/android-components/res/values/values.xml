@@ -1,0 +1,4 @@
+<resources>
+  <bool name="receiver_enabled">false</bool>
+  <integer name="filter_priority">80</integer>
+</resources>

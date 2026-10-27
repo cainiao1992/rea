@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { AndroidRequest } from "../domain/android/androidAnalysis.js";
 import { androidResultSchemas } from "../domain/android/androidAnalysis.js";
+import { observedAndroidManifestComponentsSchema } from "../domain/android/androidManifestComponents.js";
 import { parseAndroidManifestComponents } from "./AndroidManifestComponents.js";
 import {
   AnalysisInputError,
@@ -38,6 +39,11 @@ type Engine = z.infer<
   typeof androidResultSchemas.inspect_android_package
 >["engine"];
 type ClassSummary = z.infer<typeof jadxClassSchema>;
+
+const observedPackageSchema =
+  androidResultSchemas.inspect_android_package.extend({
+    components: observedAndroidManifestComponentsSchema,
+  });
 
 const methodsOf = (summary: ClassSummary) => {
   const seen = new Map<string, number>();
@@ -127,7 +133,7 @@ const inspectPackage = async (
   const manifest = normalizeJadxText(
     await tools.text("get_android_manifest", {}),
   );
-  return androidResultSchemas.inspect_android_package.parse({
+  return observedPackageSchema.parse({
     engine,
     package_name: app.package || null,
     version_name: app.version_name || null,

@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { localPathStringSchema } from "../localPath.js";
+import { androidManifestComponentsSchema } from "./androidManifestComponents.js";
+import {
+  androidViewRequestSchema,
+  validateAndroidPackageDelivery,
+} from "./androidPackageQuery.js";
 
 const target = {
   path: localPathStringSchema.describe(
@@ -53,9 +58,12 @@ export const androidInputSchemas = {
 
 /** Optional retained delivery is separate from the engine's APK request. */
 export const androidPackageInspectionInputSchema =
-  androidInputSchemas.inspect_android_package.extend({
-    detail: z.enum(["complete", "summary"]).optional(),
-  });
+  androidInputSchemas.inspect_android_package
+    .extend({
+      detail: z.enum(["complete", "summary"]).optional(),
+      view: androidViewRequestSchema.optional(),
+    })
+    .superRefine(validateAndroidPackageDelivery);
 
 /** Supported static Android operations. */
 export type AndroidOperation = keyof typeof androidInputSchemas;
@@ -97,39 +105,6 @@ const textCoverage = z.strictObject({
   reported_total_bytes: z.int().nonnegative().nullable(),
 });
 
-const manifestComponent = z.strictObject({
-  kind: z.enum([
-    "activity",
-    "activity-alias",
-    "service",
-    "receiver",
-    "provider",
-  ]),
-  declared_name: z.string(),
-  name: z.string(),
-  exported: z.boolean().nullable(),
-  exported_default: z.boolean().nullable(),
-  permission: z.string().nullable(),
-  permission_source: z.enum(["component", "application", "none", "unknown"]),
-  intent_filter_count: z.number().int().nonnegative(),
-  actions: z.array(z.string()),
-  categories: z.array(z.string()),
-  foreground_service_type: z.string().nullable(),
-  authorities: z.array(z.string()).nullable(),
-  target_activity: z.string().nullable(),
-});
-
-/**
- * Static component projection of the decoded manifest. The export default is
- * Android's documented rule for an absent android:exported when one applies;
- * null also means the default is unknown or an explicit declaration is
- * required. This is not a merged-manifest or runtime observation.
- */
-const manifestComponents = z.strictObject({
-  status: z.enum(["complete", "partial", "unavailable"]),
-  items: z.array(manifestComponent),
-  limitations: z.array(z.string()),
-});
 /** A DEX prototype; hex parentheses also keep the advertised class valid in v mode. */
 export const dexDescriptorSchema = z
   .string()
@@ -212,7 +187,7 @@ export const androidResultSchemas = {
     manifest: textCoverage,
     // Evidence retained before the component projection existed re-parses
     // with an explicit unavailable inventory; current results always carry it.
-    components: manifestComponents.default(() => ({
+    components: androidManifestComponentsSchema.default(() => ({
       status: "unavailable" as const,
       items: [],
       limitations: [

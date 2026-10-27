@@ -9,6 +9,13 @@ import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import {
+  analysisEvidenceDeliveryOptions,
+  deliverCliAnalysisEvidence,
+  parseCliAnalysisEvidenceDelivery,
+} from "./analysisEvidenceDelivery.js";
+import { androidPackageDeliverySchema } from "../domain/android/androidPackageQuery.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 
 /** Expose the same explicit APK requests through one-shot CLI commands. */
 export const registerAndroidCommands = (
@@ -36,11 +43,38 @@ export const registerAndroidCommands = (
     description:
       "Inspect APK declarations and decoded manifest without executing it",
     args: z.object({ path }),
-    run: ({ args }) =>
-      execute(
-        CLI_COMMANDS.inspectAndroidPackage,
-        "inspect_android_package",
-        args,
+    options: z.object({
+      ...analysisEvidenceDeliveryOptions,
+      view: z
+        .string()
+        .optional()
+        .describe(
+          "JSON android manifest/components/component-summary view; requires --detail summary and --evidence_output",
+        ),
+    }),
+    run: ({ args, options }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.inspectAndroidPackage, async () => {
+          const delivery = parseCliAnalysisEvidenceDelivery(
+            "inspect_android_package",
+            options,
+            androidPackageDeliverySchema,
+          );
+          if (!delivery.ok) return projectAnalysisError(delivery.error);
+          return deliverCliAnalysisEvidence({
+            run: () =>
+              service.execute("inspect_android_package", args, { signal }),
+            service: { close: () => provider.close() },
+            providerId: "jadx",
+            operation: "inspect_android_package",
+            signal,
+            detail: delivery.value.detail,
+            evidenceOutput: delivery.value.evidenceOutput,
+            ...(delivery.value.view === undefined
+              ? {}
+              : { view: delivery.value.view }),
+          });
+        }),
       ),
   });
   cli.command(CLI_COMMANDS.searchAndroidClasses, {

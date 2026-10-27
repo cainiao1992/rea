@@ -210,7 +210,11 @@ changing a callback solely to satisfy its declared `void` return type.
 Ordinary Knip remains. `check`, `check:pr`, and `check:ci:deep` run reachability
 then typed lint sequentially after cached work. Typed lint builds the project
 type graph and stays separate from fast feedback. Its default Go settings are
-`GOMAXPROCS=2` and `GOMEMLIMIT=1024MiB`; caller-selected settings take precedence.
+`GOMAXPROCS=1` and `GOMEMLIMIT=1024MiB`; caller-selected settings take precedence.
+One Go worker reuses checker caches across the file queue without changing the
+file inventory or TypeScript project scope. The Go memory target is soft and
+does not cap the complete process family's memory; measure the full invocation
+when enforcing a host budget.
 
 Routine iterations and rebases need focused regressions and relevant checks.
 Before handing off a PR, run `npm run check` and generated-document checks when

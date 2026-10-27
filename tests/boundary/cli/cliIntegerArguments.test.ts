@@ -1,6 +1,10 @@
 import { describe, expect } from "vitest";
 
-import { cliTest, type CliResult } from "../../support/cli/cliFixture.js";
+import {
+  cliTest,
+  runFileCli,
+  type CliResult,
+} from "../../support/cli/cliFixture.js";
 
 const SESSION_ID = "27d3e3f1-f1e5-49ae-91ec-95af1f343a5a";
 const NON_INTEGER_TEXT = [
@@ -28,53 +32,7 @@ const expectCliValidationError = (result: CliResult, field: string): void => {
 };
 
 describe("CLI integer arguments", () => {
-  cliTest.for(NON_INTEGER_TEXT)(
-    "rejects %j as a Cutter expected generation",
-    async (value, { cli }) => {
-      const result = await cli.run({
-        arguments: ["cutter-command", SESSION_ID, value, "pdi", "--json"],
-      });
-
-      expectCliValidationError(result, "expectedGeneration");
-    },
-  );
-
-  cliTest.for(NON_INTEGER_TEXT)(
-    "rejects %j as a web module script index",
-    async (value, { cli }) => {
-      const result = await cli.run({
-        arguments: [
-          "trace-web-module-imports",
-          "/nonexistent/manifest.json",
-          value,
-          "--json",
-        ],
-      });
-
-      expectCliValidationError(result, "scriptIndex");
-    },
-  );
-
-  cliTest.for(NON_INTEGER_OPTION_TEXT)(
-    "rejects %j in a repeated web capture record selector",
-    async (value, { cli }) => {
-      const result = await cli.run({
-        arguments: [
-          "inspect-web-network-capture",
-          "/nonexistent/capture.qlog",
-          "qlog",
-          "--record",
-          "0",
-          "--record",
-          value,
-          "--json",
-        ],
-      });
-
-      expectCliValidationError(result, "record");
-    },
-  );
-
+  // Run independent processes before retaining the shared validation worker.
   cliTest.for(NON_INTEGER_OPTION_TEXT)(
     "rejects %j as an Android method overload index",
     async (value, { cli }) => {
@@ -168,6 +126,53 @@ describe("CLI integer arguments", () => {
       });
 
       expectCliValidationError(result, "line");
+    },
+  );
+
+  cliTest.for(NON_INTEGER_TEXT)(
+    "rejects %j as a Cutter expected generation",
+    async (value, { cli }) => {
+      const result = await runFileCli(cli, {
+        arguments: ["cutter-command", SESSION_ID, value, "pdi", "--json"],
+      });
+
+      expectCliValidationError(result, "expectedGeneration");
+    },
+  );
+
+  cliTest.for(NON_INTEGER_TEXT)(
+    "rejects %j as a web module script index",
+    async (value, { cli }) => {
+      const result = await runFileCli(cli, {
+        arguments: [
+          "trace-web-module-imports",
+          "/nonexistent/manifest.json",
+          value,
+          "--json",
+        ],
+      });
+
+      expectCliValidationError(result, "scriptIndex");
+    },
+  );
+
+  cliTest.for(NON_INTEGER_OPTION_TEXT)(
+    "rejects %j in a repeated web capture record selector",
+    async (value, { cli }) => {
+      const result = await runFileCli(cli, {
+        arguments: [
+          "inspect-web-network-capture",
+          "/nonexistent/capture.qlog",
+          "qlog",
+          "--record",
+          "0",
+          "--record",
+          value,
+          "--json",
+        ],
+      });
+
+      expectCliValidationError(result, "record");
     },
   );
 });

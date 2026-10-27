@@ -527,10 +527,15 @@ the profile Hermes actually uses and point `HERMES_HOME` directly at that
 `profiles/<name>` directory before setup. Compatibility is tracked in
 [#3939](https://github.com/morluto/rea/issues/3939).
 
-REA resolves existing ancestors when checking containment, including symlinks
-and junctions, even if the final override directory is missing. An unresolved
-home path is reported instead of guessing its location. Inspect setup's
-previewed destinations before applying changes.
+REA resolves existing ancestor directories before checking physical containment,
+including symlinks and junctions, even when the override directory does not exist.
+An override beneath a symlinked default home therefore uses the default home's
+sticky selection. If `~/.hermes/link` points outside the default home,
+`HERMES_HOME=~/.hermes/link/new` instead uses that override root, whether or not
+`new` exists. Previewed destinations retain the configured path spelling.
+An unreadable path or dangling alias leaves the home unresolved; repair that path
+before configuring Hermes. Inspect setup's previewed destinations before applying
+changes.
 
 An explicit `HERMES_HOME` pointing to `profiles/<name>` selects that named
 profile directly, bypassing sticky selection. An invalid, missing or deleted

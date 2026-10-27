@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
-import { evidenceSubjectDeclarationShapes } from "./evidenceSubject.js";
+import { withEvidenceSubjectDeclaration } from "./evidenceSubject.js";
 
 import {
   compareUnicodeCodePoints,
@@ -85,11 +85,7 @@ const subjectBaseSchema = z.object({
   path: localPathStringSchema,
   sha256: digestSchema,
 });
-const subjectSchema = z.discriminatedUnion("format", [
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[0]),
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[1]),
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[2]),
-]);
+const subjectSchema = withEvidenceSubjectDeclaration(subjectBaseSchema);
 const targetIdentitySchema = z.object({
   sha256: digestSchema,
   kind: kindSchema,

@@ -1,3 +1,5 @@
+import { withEvidenceSubjectDeclaration } from "./evidenceSubject.js";
+import { digestSchema } from "./digests.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
 import { err, ok, type Result } from "./result.js";
 import { describeValidationFailure } from "./validationFailure.js";
@@ -20,17 +22,12 @@ import {
 } from "./residualUnknown.js";
 import { freezeJsonSnapshot } from "./immutableJson.js";
 
-const [detectedSubjectSchema, rawSubjectSchema] =
-  evidenceSchema.shape.subject.unwrap().options;
-const manifestFields = {
-  digest: true,
-  format: true,
-  architecture: true,
-} as const;
-const artifactManifestSchema = z.discriminatedUnion("format", [
-  detectedSubjectSchema.pick(manifestFields),
-  rawSubjectSchema.pick(manifestFields),
-]);
+const artifactManifestBaseSchema = z.strictObject({
+  digest: z.strictObject({ sha256: digestSchema }),
+});
+const artifactManifestSchema = withEvidenceSubjectDeclaration(
+  artifactManifestBaseSchema,
+);
 const providerManifestSchema = providerSchema;
 const environmentManifestSchema = evidenceSchema.shape.environment.unwrap();
 const scenarioManifestSchema = z.strictObject({

@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import { z } from "zod";
 
-import { evidenceSubjectDeclarationShapes } from "./evidenceSubject.js";
+import { withEvidenceSubjectDeclaration } from "./evidenceSubject.js";
 
 import { digestCanonicalValue } from "./canonicalDigest.js";
 import { canonicalJsonDigestSteps } from "./canonicalJsonDigestSteps.js";
@@ -43,11 +43,7 @@ const subjectBaseSchema = z.strictObject({
   digest: z.strictObject({ sha256: digestSchema }),
   local_path: nulFreeStringSchema,
 });
-const subjectSchema = z.discriminatedUnion("format", [
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[0]),
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[1]),
-  subjectBaseSchema.extend(evidenceSubjectDeclarationShapes[2]),
-]);
+const subjectSchema = withEvidenceSubjectDeclaration(subjectBaseSchema);
 /** Source location attached to an evidence observation. */
 /** Source-location schema shared by evidence-bearing persistence formats. */
 export const evidenceLocationSchema = z.discriminatedUnion("kind", [

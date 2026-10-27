@@ -685,9 +685,9 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
     name: "hermes",
     displayName: "Hermes",
     skillPath: (context: ClientPathContext) =>
-      join(hermesDirectory(context), "skills"),
+      appendCallerPath(hermesDirectory(context), "skills"),
     configPath: (context: ClientPathContext) =>
-      join(hermesDirectory(context), "config.yaml"),
+      appendCallerPath(hermesDirectory(context), "config.yaml"),
     markerPath: hermesDirectory,
     format: "hermes",
   },

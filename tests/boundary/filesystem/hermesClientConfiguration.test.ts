@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { userInfo } from "node:os";
 
@@ -11,7 +11,10 @@ import {
   configureClientConfiguration,
   inspectClientConfiguration,
 } from "../../../src/application/SetupClientConfiguration.js";
-import { supportedClients } from "../../../src/application/SupportedClients.js";
+import {
+  clientSkillDirectories,
+  supportedClients,
+} from "../../../src/application/SupportedClients.js";
 import {
   runUninstall,
   systemUninstallHost,
@@ -37,6 +40,45 @@ const hermesPath = (
   );
 
 describe("Hermes configuration paths", () => {
+  it.skipIf(process.platform === "win32")(
+    "configures the filesystem-selected Hermes home through symlink parent traversal",
+    async () => {
+      const home = await createTestTempDirectory("rea-hermes-path-selection-");
+      await mkdir(join(home, "physical", "child"), { recursive: true });
+      await symlink(join(home, "physical", "child"), join(home, "alias"));
+      const selected = `${home}/alias/..`;
+      const original = "model: selected-home\n";
+      const decoy = "model: lexical-parent\n";
+      await writeFile(join(home, "physical", "config.yaml"), original);
+      await writeFile(join(home, "config.yaml"), decoy);
+      const environment = { HERMES_HOME: selected };
+      const client = supportedClients(home, process.platform, environment).find(
+        ({ name }) => name === "hermes",
+      );
+      if (client === undefined) throw new Error("missing Hermes client");
+      expect(client.markerPath).toBe(selected);
+      expect(client.configPath).toBe(`${selected}/config.yaml`);
+      expect(
+        clientSkillDirectories(home, ["hermes"], environment).directories,
+      ).toEqual([{ client: "hermes", directory: `${selected}/skills` }]);
+      expect(
+        await configureClientConfiguration(client, {}, command),
+      ).toMatchObject({
+        status: "configured",
+      });
+      expect(
+        await readFile(join(home, "physical", "config.yaml"), "utf8"),
+      ).toContain("mcp_servers:");
+      expect(
+        await readFile(
+          join(home, "physical", "config.yaml.rea.backup"),
+          "utf8",
+        ),
+      ).toBe(original);
+      expect(await readFile(join(home, "config.yaml"), "utf8")).toBe(decoy);
+    },
+  );
+
   it("resolves config.yaml under the platform Hermes home", () => {
     expect(hermesPath({})).toEqual({
       name: "hermes",

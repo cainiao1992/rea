@@ -7,7 +7,6 @@ import {
   readMappedCString,
 } from "../metadata/BinaryContainer.js";
 import { architectureForElfMachine } from "../metadata/ElfImage.js";
-import { isUtf8 } from "node:buffer";
 import { readElfStringBytes } from "../metadata/ElfStringTable.js";
 import { readElfSymbol } from "../../domain/elfSymbol.js";
 import {
@@ -17,6 +16,7 @@ import {
 import { readPeImage } from "../metadata/PeImage.js";
 import {
   MAX_NATIVE_EXPORT_ROWS,
+  decodeElfExportName,
   type ElfExport,
   type NativeExportIssue,
   type NativeExports,
@@ -304,22 +304,7 @@ const versionSectionData = (
 };
 
 /** Version names by index, read from `.gnu.version_d` and `.gnu.version_r`. */
-type DecodedElfString = {
-  readonly name: string;
-  readonly name_bytes_base64: string | null;
-  readonly name_utf8_decodable: boolean;
-};
-
-const decodeElfString = (bytes: Buffer): DecodedElfString => {
-  const utf8 = isUtf8(bytes);
-  return {
-    name: bytes.toString(utf8 ? "utf8" : "latin1"),
-    name_bytes_base64: bytes.some((byte) => byte >= 0x80)
-      ? bytes.toString("base64")
-      : null,
-    name_utf8_decodable: utf8,
-  };
-};
+type DecodedElfString = ReturnType<typeof decodeElfExportName>;
 
 const readVersionNames = (
   reader: BinaryReader,
@@ -331,7 +316,7 @@ const readVersionNames = (
   // output rows. Replacing an index releases its previous decoded name.
   let textBytes = 0;
   const addName = (index: number, name: Buffer): void => {
-    const decoded = name.length === 0 ? null : decodeElfString(name);
+    const decoded = name.length === 0 ? null : decodeElfExportName(name);
     const previous = namesByIndex.get(index);
     const nextTextBytes =
       textBytes -
@@ -641,7 +626,7 @@ const parseElfExports = (bytes: Buffer, artifact: Artifact): NativeExports => {
     let rawNameBase64: string | null;
     try {
       const rawName = readElfStringBytes(names, symbol.name_offset);
-      const decodedName = decodeElfString(rawName);
+      const decodedName = decodeElfExportName(rawName);
       nameUtf8Decodable = decodedName.name_utf8_decodable;
       name = decodedName.name;
       rawNameBase64 = decodedName.name_bytes_base64;

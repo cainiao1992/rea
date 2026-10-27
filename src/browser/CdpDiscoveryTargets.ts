@@ -12,6 +12,10 @@ const identitySchema = z.object({
   webSocketDebuggerUrl: z.unknown().optional(),
 });
 
+const browserSocketIdentitySchema = identitySchema.omit({ id: true }).extend({
+  targetId: identitySchema.shape.id,
+});
+
 /** Shared discovery facts; socket authority stays with each transport owner. */
 export interface CdpDiscoveryTarget {
   readonly id: string;
@@ -26,25 +30,25 @@ export interface CdpDiscoveryTarget {
 export const parseCdpDiscoveryTargets = (
   input: unknown,
   operation: BrowserObservationOperation,
-  source: "CDP /json/list" | "CDP Target.getTargets" = "CDP /json/list",
+  source: "http" | "browser-socket" = "http",
 ): {
   readonly targets: readonly CdpDiscoveryTarget[];
   readonly ambiguousTargetIds: readonly string[];
   readonly limitations: readonly string[];
 } => {
+  const label = source === "http" ? "CDP /json/list" : "CDP Target.getTargets";
   if (!Array.isArray(input))
     throw new BrowserObservationError(operation, "invalid_endpoint_response", {
-      detail: `${source} must return an array of target rows.`,
+      detail: `${label} must return an array of target rows.`,
     });
+  const schema =
+    source === "browser-socket" ? browserSocketIdentitySchema : identitySchema;
   const targets: CdpDiscoveryTarget[] = [];
   const limitations: string[] = [];
   const idCounts = new Map<string, number>();
   for (const row of input) {
     if (typeof row !== "object" || row === null || Array.isArray(row)) continue;
-    const id: unknown = Reflect.get(
-      row,
-      source === "CDP /json/list" ? "id" : "targetId",
-    );
+    const id: unknown = Reflect.get(row, source === "http" ? "id" : "targetId");
     if (typeof id === "string" && id !== "")
       idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
   }
@@ -53,40 +57,34 @@ export const parseCdpDiscoveryTargets = (
     if (count > 1) {
       ambiguousTargetIds.push(id);
       limitations.push(
-        `${source} reported target ID ${id} in ${String(count)} rows; its identity is ambiguous and cannot be selected.`,
+        `${label} reported target ID ${id} in ${String(count)} rows; its identity is ambiguous and cannot be selected.`,
       );
     }
   }
   for (const [index, row] of input.entries()) {
-    const parsed = identitySchema.safeParse(
-      source === "CDP Target.getTargets" &&
-        typeof row === "object" &&
-        row !== null &&
-        !Array.isArray(row)
-        ? { ...row, id: Reflect.get(row, "targetId") }
-        : row,
-    );
+    const parsed = schema.safeParse(row);
     if (!parsed.success) {
       limitations.push(
-        `${source} row ${String(index)} was excluded because its target identity is malformed: ${JSON.stringify(parsed.error.issues)}.`,
+        `${label} row ${String(index)} was excluded because its target identity is malformed: ${JSON.stringify(parsed.error.issues)}.`,
       );
       continue;
     }
     const target = parsed.data;
+    const id = "targetId" in target ? target.targetId : target.id;
     if (
       target.attached !== undefined &&
       target.attached !== null &&
       typeof target.attached !== "boolean"
     )
       limitations.push(
-        `${source} row ${String(index)} target ${target.id} reported malformed attached metadata ${JSON.stringify(target.attached)}; attachment state is unknown.`,
+        `${label} row ${String(index)} target ${id} reported malformed attached metadata ${JSON.stringify(target.attached)}; attachment state is unknown.`,
       );
     if (target.title !== undefined && typeof target.title !== "string")
       limitations.push(
-        `${source} row ${String(index)} target ${target.id} reported malformed title metadata ${JSON.stringify(target.title)}; title is unavailable.`,
+        `${label} row ${String(index)} target ${id} reported malformed title metadata ${JSON.stringify(target.title)}; title is unavailable.`,
       );
     targets.push({
-      id: target.id,
+      id,
       type: target.type,
       url: target.url,
       title: typeof target.title === "string" ? target.title : "",

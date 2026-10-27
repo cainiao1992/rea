@@ -114,7 +114,7 @@ export const inspectCdpElectronPage = async (
       "Known script frame identity is retained independently from frame_scope authorization. Unknown frame scope is attach-limited; scripts from known excluded document generations are omitted before source reads.",
       ...(context.target.attached === null
         ? [
-            "CDP discovery omitted the target attachment state; attached is reported as unknown.",
+            "CDP discovery could not establish the target's debugger attachment state.",
           ]
         : []),
     ],

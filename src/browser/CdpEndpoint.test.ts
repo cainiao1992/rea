@@ -7,6 +7,7 @@ import { WEB_RUNTIME_LIMITS } from "../domain/webRuntime.js";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { CdpConnection } from "./CdpConnection.js";
 import {
   discoverCdpEndpoint,
   discoverCdpBrowserSocket,
@@ -322,6 +323,54 @@ it("names the HTTP discovery document budget when that response deadline expires
   expect(failure.userMessage).not.toContain(
     `${String(WEB_RUNTIME_LIMITS.protocolBytes)}-byte browser-socket message budget`,
   );
+});
+
+const socketDiscoveryConnection = (
+  targetReply: unknown,
+): Pick<CdpConnection, "send"> => ({
+  async send(method: string): Promise<unknown> {
+    if (method === "Browser.getVersion")
+      return {
+        protocolVersion: "1.3",
+        product: "fixture",
+        revision: "fixture",
+        userAgent: "fixture",
+        jsVersion: "fixture",
+      };
+    if (method === "Target.getTargets") return targetReply;
+    throw new Error(method);
+  },
+});
+
+it.each([
+  { label: "absent document", reply: undefined },
+  { label: "null document", reply: null },
+  { label: "array document", reply: [] },
+  { label: "missing target list", reply: {} },
+  { label: "null target list", reply: { targetInfos: null } },
+  { label: "string target list", reply: { targetInfos: "invalid" } },
+  { label: "object target list", reply: { targetInfos: {} } },
+])("rejects an $label during browser-socket discovery", async ({ reply }) => {
+  await expect(
+    discoverCdpBrowserSocket(
+      socketDiscoveryConnection(reply),
+      "ws://127.0.0.1:9222/devtools/browser/fixture",
+      "list_browser_targets",
+    ),
+  ).rejects.toMatchObject({
+    reason: "invalid_endpoint_response",
+    detail: expect.stringContaining("CDP Target.getTargets"),
+  });
+});
+
+it("retains an explicitly empty browser-socket target inventory", async () => {
+  await expect(
+    discoverCdpBrowserSocket(
+      socketDiscoveryConnection({ targetInfos: [] }),
+      "ws://127.0.0.1:9222/devtools/browser/fixture",
+      "list_browser_targets",
+    ),
+  ).resolves.toMatchObject({ targets: [], limitations: [] });
 });
 
 it("preserves an independent typed cancellation when the discovery deadline also expires", async () => {

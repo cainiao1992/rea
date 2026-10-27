@@ -13,10 +13,10 @@ import { parseCdpDiscoveryTargets } from "./CdpDiscoveryTargets.js";
 import { discoverCdpBrowserSocket } from "./CdpEndpoint.js";
 import { authorizeCdpTarget } from "./CdpAuthorizedTarget.js";
 
-it.each(["CDP /json/list", "CDP Target.getTargets"] as const)(
+it.each(["http", "browser-socket"] as const)(
   "%s retains sibling identities and marks duplicates before malformed rows are excluded",
   (source) => {
-    const idField = source === "CDP /json/list" ? "id" : "targetId";
+    const idField = source === "http" ? "id" : "targetId";
     const result = parseCdpDiscoveryTargets(
       [
         { [idField]: "duplicate", type: "page", url: "https://allowed.test/" },

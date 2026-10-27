@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { z } from "incur";
 
 import type { DirectAnalysis } from "../composition/directAnalysis.js";
@@ -108,7 +109,7 @@ const registerNativeUiCommands = (
           "observe_native_ui",
           nativeUiScope(options),
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   const operation = "capture_native_ui_scenario";
@@ -152,7 +153,7 @@ const registerNativeUiCommands = (
             ? scenario
             : { ...scenario, native_ui_deadline_ms: deadline },
           logger,
-        );
+        ).then(projectCliAnalysisResult);
       }),
   });
 };
@@ -209,7 +210,7 @@ const registerNativeCommands = (
               ? {}
               : { native_command_timeout_ms: options.nativeCommandTimeoutMs },
             logger,
-          ),
+          ).then(projectCliAnalysisResult),
         ),
     });
   }
@@ -239,7 +240,7 @@ const registerNativeCommands = (
               : { native_command_timeout_ms: options.nativeCommandTimeoutMs }),
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   cli.command(CLI_COMMANDS.demangleSwift, {
@@ -263,7 +264,7 @@ const registerNativeCommands = (
               : { native_command_timeout_ms: options.nativeCommandTimeoutMs }),
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };

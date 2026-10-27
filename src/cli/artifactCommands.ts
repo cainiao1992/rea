@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import {
   analysisEvidenceDeliveryOptions,
   cliEvidenceDeliveryInputError,
@@ -63,7 +64,7 @@ export const registerArtifactCommands = (
             ...(options.root === undefined ? {} : { root: options.root }),
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -103,7 +104,7 @@ const registerDylibResolutionCommand = (
               : { architecture: options.architecture }),
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -138,7 +139,7 @@ const registerAssetCatalogCommand = (
           "inspect_asset_catalog",
           { offset: options.offset, limit: options.limit },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -188,7 +189,7 @@ const registerInterfaceBuilderCommand = (
             max_connections: options.maxConnections,
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -220,7 +221,7 @@ const registerExtractionCommand = (
             output_root: createArtifactExtractionDestination(),
           },
           logger,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };

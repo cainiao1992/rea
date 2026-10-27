@@ -8,7 +8,7 @@ import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
-import type { Result } from "../domain/result.js";
+import { err, ok, type Result } from "../domain/result.js";
 import { dispatchQueuedInterrupts } from "../process/queuedInterrupts.js";
 
 /** Finish a one-shot CLI operation while retaining primary results through close. */
@@ -30,7 +30,7 @@ export const finishAnalysisCommand = async <
       observation: AnalysisPartialObservation,
     ) => Value | undefined;
   } = {},
-): Promise<Value | ReturnType<typeof projectAnalysisError>> => {
+): Promise<Result<Value, ReturnType<typeof projectAnalysisError>>> => {
   const projectFailure = (error: AnalysisError) =>
     projectAnalysisError(options.redactFailure?.(error) ?? error);
   let result: Result<Value, AnalysisError>;
@@ -78,7 +78,7 @@ export const finishAnalysisCommand = async <
     }
   }
   await dispatchQueuedInterrupts();
-  if (initialFailure !== undefined) return initialFailure;
+  if (initialFailure !== undefined) return err(initialFailure);
   if (
     !result.ok &&
     result.error instanceof ProviderCleanupError &&
@@ -126,5 +126,5 @@ export const finishAnalysisCommand = async <
           ).bindCleanupDependencies([result.error, cleanup]),
     };
   }
-  return result.ok ? result.value : projectFailure(result.error);
+  return result.ok ? ok(result.value) : err(projectFailure(result.error));
 };

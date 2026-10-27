@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "../../../src/cli/projectCliAnalysisResult.js";
 import { expect, it } from "vitest";
 
 import { finishAnalysisCommand } from "../../../src/cli/finishAnalysisCommand.js";
@@ -24,7 +25,7 @@ it("preserves producer-owned cleanup failure when service close does not resolve
     new AbortController().signal,
   );
 
-  expect(result).toEqual(expected);
+  expect(result).toEqual(err(expected));
   expect(failure.cleanupIncomplete).toBe(true);
 });
 
@@ -44,8 +45,11 @@ it("returns completed partial Evidence when cancellation arrives during close", 
   );
 
   expect(result).toMatchObject({
-    code: "cancelled",
-    details: { partial_observation: { evidence_id: evidence.evidence_id } },
+    ok: false,
+    error: {
+      code: "cancelled",
+      details: { partial_observation: { evidence_id: evidence.evidence_id } },
+    },
   });
 });
 
@@ -62,7 +66,7 @@ it("preserves the primary operation error when cancellation arrives during close
     "fixture-provider",
     "inspect_web_page",
     controller.signal,
-  );
+  ).then(projectCliAnalysisResult);
 
   expect(result).toMatchObject({
     code: "unreadable_output",
@@ -92,7 +96,7 @@ it("retains late cancellation and completed Evidence when close also fails", asy
     "fixture-provider",
     "inspect_web_page",
     controller.signal,
-  );
+  ).then(projectCliAnalysisResult);
   expect(result).toMatchObject({
     code: "cleanup_incomplete",
     category: "cancelled",
@@ -134,7 +138,7 @@ it.each([false, true])(
       controller.signal,
       undefined,
       { recoverCompletedObservation: (observation) => observation },
-    );
+    ).then(projectCliAnalysisResult);
     if (!cancel) expect(result).toEqual(evidence);
     else
       expect(result).toMatchObject({
@@ -188,7 +192,7 @@ it.each(["unresolved", "ordinary-partial", "initial-projection"] as const)(
           return observation;
         },
       },
-    );
+    ).then(projectCliAnalysisResult);
     expect(attemptedRecovery).toBe(false);
     expect(result).toEqual(
       kind === "initial-projection" ? initial : projectAnalysisError(failure),

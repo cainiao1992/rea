@@ -18,6 +18,7 @@ import { inspectAnalysisViewValidated } from "../application/analysisView/Analys
 import { localPathStringSchema } from "../domain/localPath.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { analysisInputErrorFromIssues } from "../domain/inputIssueProjection.js";
 import type { ZodSafeParseResult } from "zod";
 
@@ -32,13 +33,6 @@ export const analysisEvidenceDeliveryOptions = {
       "Save complete Evidence as a bundle; required for summary delivery. Never overwrites.",
     ),
 };
-
-const isEvidence = (value: JsonValue): value is Evidence =>
-  typeof value === "object" &&
-  value !== null &&
-  !Array.isArray(value) &&
-  "evidence_id" in value &&
-  "normalized_result" in value;
 
 interface CliEvidenceDelivery {
   readonly view?: AnalysisViewRequest;
@@ -143,7 +137,7 @@ export const deliverCliAnalysisEvidence = async (
       signal,
       undefined,
       { redactFailure },
-    );
+    ).then(projectCliAnalysisResult);
   const complete = await finishAnalysisCommand(
     run,
     service,
@@ -171,7 +165,7 @@ export const deliverCliAnalysisEvidence = async (
 
 /** Publish already finalized CLI analysis without opening a second provider/session. */
 export const publishCliAnalysisEvidence = async (
-  value: JsonValue,
+  result: Result<Evidence, JsonValue>,
   input: CliEvidenceDelivery,
 ): Promise<JsonValue> => {
   const { operation, signal, detail, evidenceOutput } = input;
@@ -179,8 +173,8 @@ export const publishCliAnalysisEvidence = async (
     projectAnalysisError(
       redactExplicitFailure(error, input.sensitiveValues ?? []),
     );
-  if (!isEvidence(value)) return value;
-  const complete = parseEvidence(value);
+  if (!result.ok) return result.error;
+  const complete = parseEvidence(result.value);
   const inputError = cliEvidenceDeliveryInputError(input);
   if (inputError !== undefined) {
     inputError.retainPartialObservation(complete);

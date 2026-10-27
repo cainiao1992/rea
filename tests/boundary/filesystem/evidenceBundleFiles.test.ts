@@ -61,6 +61,27 @@ const bundle = (result = true) =>
     ),
   ]);
 
+it("preserves tagged refusal JSON without interpreting Evidence-shaped fields", async () => {
+  const root = await createTestTempDirectory("rea-refused-delivery-");
+  const refusal = {
+    code: "unreadable_output",
+    evidence_id: "caller-selected diagnostic",
+    normalized_result: { partial: true },
+  };
+  const delivered = await publishCliAnalysisEvidence(
+    { ok: false, error: refusal },
+    {
+      providerId: "fixture",
+      operation: "inspect_artifact",
+      signal: new AbortController().signal,
+      detail: "summary",
+      evidenceOutput: join(root, "refused.json"),
+    },
+  );
+  expect(delivered).toBe(refusal);
+  expect(await readdir(root)).toEqual([]);
+});
+
 it("preserves direct duplicate rejection and CLI identity merging for repeated inspection sources", async () => {
   const root = await createTestTempDirectory("rea-repeated-delivery-");
   const input = join(root, "input.txt");
@@ -91,14 +112,17 @@ it("preserves direct duplicate rejection and CLI identity merging for repeated i
     deliverAnalysisEvidence(complete, join(root, "direct.json")),
   ).rejects.toBeInstanceOf(DuplicateEvidenceRecordError);
   const path = join(root, "cli.json");
-  const delivered = await publishCliAnalysisEvidence(complete, {
-    providerId: "fixture",
-    operation: "inspect_artifact",
-    signal: new AbortController().signal,
-    detail: "complete",
-    evidenceOutput: path,
-    sourceEvidence: [withEvidenceCallerInputPath(complete, "./old"), source],
-  });
+  const delivered = await publishCliAnalysisEvidence(
+    { ok: true, value: complete },
+    {
+      providerId: "fixture",
+      operation: "inspect_artifact",
+      signal: new AbortController().signal,
+      detail: "complete",
+      evidenceOutput: path,
+      sourceEvidence: [withEvidenceCallerInputPath(complete, "./old"), source],
+    },
+  );
   expect(delivered).toEqual(complete);
   const saved = await readEvidenceBundle(path);
   if (!saved.ok) throw saved.error;
@@ -126,13 +150,16 @@ it("retains a malformed artifact parent and refuses publication through both del
   );
   if (direct.ok) throw new Error("Expected invalid artifact closure");
   const projected = projectAnalysisError(direct.error);
-  const cli = await publishCliAnalysisEvidence(evidence, {
-    providerId: "fixture",
-    operation: "inspect_artifact",
-    signal: new AbortController().signal,
-    detail: "complete",
-    evidenceOutput: join(root, "cli.json"),
-  });
+  const cli = await publishCliAnalysisEvidence(
+    { ok: true, value: evidence },
+    {
+      providerId: "fixture",
+      operation: "inspect_artifact",
+      signal: new AbortController().signal,
+      detail: "complete",
+      evidenceOutput: join(root, "cli.json"),
+    },
+  );
   expect(cli).toEqual(projected);
   expect(JSON.stringify(projected)).toContain(evidence.evidence_id);
   expect(await readdir(root)).toEqual([]);

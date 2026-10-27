@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "../../src/cli/projectCliAnalysisResult.js";
 import {
   mkdir,
   open,
@@ -163,7 +164,7 @@ it.each([false, true])(
           {},
           undefined,
           controller.signal,
-        ),
+        ).then(projectCliAnalysisResult),
       );
       expect(result.code).toBe(closeFails ? "cleanup_incomplete" : "cancelled");
       expect(result.category).toBe("cancelled");
@@ -214,7 +215,7 @@ describe("one-shot finalization cancellation", () => {
           path,
           tool,
           parameters,
-        ),
+        ).then(projectCliAnalysisResult),
       );
       const controller = new AbortController();
       const reason = { request: "cancel during native close" };
@@ -227,7 +228,7 @@ describe("one-shot finalization cancellation", () => {
         tool,
         parameters,
         { signal: controller.signal },
-      );
+      ).then(projectCliAnalysisResult);
       expect(result).toEqual({
         error: "Analysis failed",
         ...projectAnalysisError(
@@ -257,7 +258,7 @@ describe("one-shot finalization cancellation", () => {
         "read_bytes",
         {},
         { signal: controller.signal },
-      );
+      ).then(projectCliAnalysisResult);
       expect(result).toMatchObject({
         code: closeFails ? "cleanup_incomplete" : "provider_timeout",
         message: projectAnalysisError(primaryError).message,
@@ -284,7 +285,7 @@ describe("one-shot finalization cancellation", () => {
       "read_bytes",
       {},
       { signal: controller.signal },
-    );
+    ).then(projectCliAnalysisResult);
     expect(result).toMatchObject({
       code: "cleanup_incomplete",
       category: "cancelled",
@@ -341,7 +342,7 @@ describe("snapshot publication finalization", () => {
           "read_bytes",
           {},
           { signal: controller.signal, snapshotPath },
-        );
+        ).then(projectCliAnalysisResult);
         const loaded = await readAnalysisSnapshot(snapshotPath);
         if (!loaded.ok) throw loaded.error;
         const evidence = loaded.value.evidence_bundle.records.find(
@@ -403,7 +404,7 @@ describe("snapshot publication finalization", () => {
           "read_bytes",
           {},
           { signal: controller.signal, snapshotPath: failure.path },
-        ),
+        ).then(projectCliAnalysisResult),
       );
       expect(result.code).toBe(projectAnalysisError(failure).code);
       expect(result.details).toMatchObject({
@@ -428,7 +429,7 @@ describe("one-shot analysis cleanup outcomes", () => {
       path,
       "read_bytes",
       {},
-    );
+    ).then(projectCliAnalysisResult);
     expect(result).toMatchObject({
       error: "Analysis failed",
       code: "cleanup_incomplete",
@@ -458,7 +459,7 @@ describe("one-shot analysis cleanup outcomes", () => {
       path,
       "read_bytes",
       {},
-    );
+    ).then(projectCliAnalysisResult);
     const callerError = analysisCliErrorEnvelopeSchema.parse(result);
     expect(callerError).toMatchObject({
       code: "cleanup_incomplete",
@@ -490,7 +491,7 @@ describe("one-shot analysis cleanup outcomes", () => {
       path,
       "read_bytes",
       {},
-    );
+    ).then(projectCliAnalysisResult);
     expect(result).toMatchObject({
       code: "cleanup_incomplete",
       details: {
@@ -520,7 +521,9 @@ describe("one-shot analysis cleanup outcomes", () => {
         ...(closeFails ? { cleanupError } : {}),
       });
       const result = analysisCliErrorEnvelopeSchema.parse(
-        await runDirectAnalysis(dependencies, path, "read_bytes", {}),
+        await runDirectAnalysis(dependencies, path, "read_bytes", {}).then(
+          projectCliAnalysisResult,
+        ),
       );
       expect(result).toMatchObject({
         code: "cleanup_incomplete",
@@ -544,7 +547,9 @@ describe("one-shot analysis cleanup outcomes", () => {
     const thrownExecution = new Error("unexpected execution rejection");
     const { dependencies } = factories({ thrownExecution, cleanupError });
     await expect(
-      runDirectAnalysis(dependencies, path, "read_bytes", {}),
+      runDirectAnalysis(dependencies, path, "read_bytes", {}).then(
+        projectCliAnalysisResult,
+      ),
     ).rejects.toMatchObject({
       cause: thrownExecution,
       errors: [thrownExecution, cleanupError],
@@ -559,7 +564,7 @@ describe("one-shot analysis cleanup outcomes", () => {
       path,
       "read_bytes",
       {},
-    );
+    ).then(projectCliAnalysisResult);
     expect(parseEvidence(result)).toMatchObject({
       operation: "read_bytes",
       normalized_result: { observation: "retained result" },
@@ -580,7 +585,7 @@ it.each(["complete", "summary"] as const)(
         path,
         "inspect_managed_members",
         {},
-      ),
+      ).then(projectCliAnalysisResult),
     );
     const controller = new AbortController();
     const reason = new Error("cancel during managed close");
@@ -600,7 +605,7 @@ it.each(["complete", "summary"] as const)(
               detail,
               evidenceBundlePath: join(dirname(path), "bundle.json"),
             },
-          )
+          ).then(projectCliAnalysisResult)
         : await runProviderAnalysis(
             dependencies,
             path,
@@ -608,7 +613,7 @@ it.each(["complete", "summary"] as const)(
             {},
             undefined,
             controller.signal,
-          );
+          ).then(projectCliAnalysisResult);
     expect(result).toEqual({
       error: "Analysis failed",
       ...projectAnalysisError(
@@ -640,7 +645,7 @@ it("preserves a managed provider failure when cancellation arrives during close"
     {},
     undefined,
     controller.signal,
-  );
+  ).then(projectCliAnalysisResult);
   expect(result).toEqual({
     error: "Analysis failed",
     ...projectAnalysisError(failure),
@@ -727,7 +732,7 @@ describe("managed one-shot cleanup outcomes", () => {
       path,
       "inspect_managed_artifact",
       {},
-    );
+    ).then(projectCliAnalysisResult);
     expect(isCliOperationFailure(result)).toBe(true);
     expect(result).toMatchObject({
       error: "Analysis failed",

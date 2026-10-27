@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { z } from "incur";
 import { AndroidAnalysisService } from "../application/android/AndroidAnalysisService.js";
 import { createAndroidAnalysisProvider } from "../composition/android.js";
@@ -26,7 +27,7 @@ export const registerAndroidCommands = (
           "jadx",
           operation,
           signal,
-        ),
+        ).then(projectCliAnalysisResult),
       ),
     );
   const path = z.string().describe("Local standalone APK path");

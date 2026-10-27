@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { webBundleDeliveryOptions } from "./javascriptRouteDelivery.js";
 import {
   deliverCliAnalysisEvidence,
@@ -87,7 +88,7 @@ const registerTargetList = (
             provider.identity().id,
             "list_browser_targets",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });
@@ -144,7 +145,7 @@ const registerPageInspection = (
             provider.identity().id,
             "inspect_web_page",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });
@@ -283,7 +284,7 @@ const registerObservationSession = (
             provider.identity().id,
             "observe_web_session",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });

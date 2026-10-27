@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { parseCliAnalysisEvidenceDelivery } from "./analysisEvidenceDelivery.js";
 import { javaScriptRoutesDeliverySchema } from "../domain/analysisView/javascriptRoutesView.js";
 import { isAbsolute, resolve, sep } from "node:path";
@@ -78,7 +79,7 @@ const registerElectronFuseCommand = (
             service.provider.identity.id,
             "inspect_electron_fuses",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });
@@ -158,9 +159,9 @@ const registerElectronActiveCommand = (
               "capture_electron_scenario",
               signal,
             );
-            return "code" in result
-              ? { error: "Electron analysis failed", ...result }
-              : result;
+            return result.ok
+              ? result.value
+              : { error: "Electron analysis failed", ...result.error };
           },
         ),
       ),
@@ -249,7 +250,7 @@ const registerElectronTargetList = (
             provider.identity().id,
             "list_electron_targets",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });
@@ -298,7 +299,7 @@ const registerElectronPageInspection = (
             provider.identity().id,
             "inspect_electron_page",
             signal,
-          );
+          ).then(projectCliAnalysisResult);
         }),
       ),
   });

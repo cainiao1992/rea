@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "../../../src/cli/projectCliAnalysisResult.js";
 import { createReadStream } from "node:fs";
 import {
   open,
@@ -781,7 +782,7 @@ it("retains failed snapshot cleanup and retries it on close", async () => {
     "flutter",
     "identify_flutter_build",
     new AbortController().signal,
-  );
+  ).then(projectCliAnalysisResult);
   expect(result).toMatchObject({
     code: "cleanup_incomplete",
     details: {

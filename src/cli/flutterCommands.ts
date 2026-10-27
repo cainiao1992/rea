@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { evidenceSchema } from "../domain/evidence.js";
 import { z } from "incur";
 import { FlutterBuildAnalysisService } from "../application/flutter/FlutterBuildAnalysisService.js";
@@ -88,7 +89,7 @@ export const registerFlutterCommands = (
                   return parsed.success ? parsed.data : undefined;
                 },
               },
-            ),
+            ).then(projectCliAnalysisResult),
           ),
         ),
     });

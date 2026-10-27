@@ -43,7 +43,7 @@ it.each(["capabilities", "providers"])(
             readConfiguration: () => parseConfig({}),
             createBinarySession: () => session,
           }),
-        runProviderAnalysis: async () => null,
+        runProviderAnalysis: async () => ({ ok: false, error: null }),
       },
     );
     let stdout = "";
@@ -132,7 +132,7 @@ it.each(["capabilities", "providers"])(
               }),
             createBinarySession: () => session,
           }),
-        runProviderAnalysis: async () => null,
+        runProviderAnalysis: async () => ({ ok: false, error: null }),
       },
     );
     let stdout = "";

@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "../../../src/cli/projectCliAnalysisResult.js";
 import { parseEvidence } from "../../../src/domain/evidence.js";
 import { parseBinaryTarget } from "../../../src/application/BinaryTargetResolver.js";
 import { createDirectAnalysis } from "../../../src/composition/directAnalysis.js";
@@ -179,7 +180,9 @@ it.skipIf(process.platform === "win32")(
     await symlink(stored, selected);
     const { runProviderAnalysis } = createDirectAnalysis({});
     const observed = parseEvidence(
-      await runProviderAnalysis(selected, "inventory_artifact", {}),
+      await runProviderAnalysis(selected, "inventory_artifact", {}).then(
+        projectCliAnalysisResult,
+      ),
     );
     expect(observed.subject?.local_path).toBe(selected);
     const inventory = artifactInventoryResultSchema.parse(

@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { nativeDispatchMetadataInputSchema } from "../domain/native/objcSwiftMetadata.js";
 import { z } from "incur";
 import {
@@ -68,7 +69,7 @@ export const registerCoreNativeCommands = (
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   cli.command(CLI_COMMANDS.inspectNativeLoadImage, {
@@ -123,7 +124,7 @@ export const registerCoreNativeCommands = (
           "read_bytes",
           { address: args.address, length: options.length },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   cli.command(CLI_COMMANDS.addressToFileOffset, {
@@ -142,7 +143,7 @@ export const registerCoreNativeCommands = (
           "address_to_file_offset",
           { address: args.address },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   cli.command(CLI_COMMANDS.traceNativeValues, {
@@ -220,7 +221,7 @@ export const registerCoreNativeCommands = (
             limit: options.limit,
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   cli.command(CLI_COMMANDS.inspectNativeDataType, {
@@ -245,7 +246,7 @@ export const registerCoreNativeCommands = (
               : { address: options.address }),
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
   for (const [command, operation] of [
@@ -271,7 +272,7 @@ export const registerCoreNativeCommands = (
             operation,
             { address: args.address },
             directAnalysisOptionsFromCli(logger, options),
-          ),
+          ).then(projectCliAnalysisResult),
         ),
     });
   }
@@ -312,7 +313,7 @@ const registerNativeDispatchMetadataCommand = (
               : { max_input_bytes: options.maxInputBytes }),
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -370,7 +371,7 @@ const registerNativeUiActionCommand = (
             max_edges: options.maxEdges,
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -413,7 +414,7 @@ const registerNativeApiCommand = (
             ),
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };
@@ -459,7 +460,7 @@ const registerAnnotationCommand = (
               : { inline_comment: options["inline-comment"] }),
           },
           directAnalysisOptionsFromCli(logger, options),
-        ),
+        ).then(projectCliAnalysisResult),
       ),
   });
 };

@@ -216,7 +216,10 @@ const registeredComparisonCommand = () => {
       return cli;
     },
   } as unknown as Parameters<typeof registerManagedCommands>[0];
-  registerManagedCommands(cli, silentLogger, async () => null);
+  registerManagedCommands(cli, silentLogger, async () => ({
+    ok: false,
+    error: null,
+  }));
   return commands.get(CLI_COMMANDS.compareManagedMembers)!;
 };
 

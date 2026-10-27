@@ -119,9 +119,11 @@ export const registerAnalysisViewCommands = (
           );
           // Preserve the inline command's existing error label without copying
           // the authenticated completed Evidence or its partial observation.
-          return bundlePath === undefined && "code" in result
-            ? { error: "Application workflow failed", ...result }
-            : result;
+          return result.ok
+            ? result.value
+            : bundlePath === undefined
+              ? { error: "Application workflow failed", ...result.error }
+              : result.error;
         }),
       ),
   });

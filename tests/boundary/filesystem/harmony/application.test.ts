@@ -1,3 +1,4 @@
+import { projectCliAnalysisResult } from "../../../../src/cli/projectCliAnalysisResult.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
@@ -299,7 +300,11 @@ describe("HarmonyOS packaging boundaries", () => {
       path,
       JSON.stringify({ log: { version: "1.2", creator: {}, entries: [] } }),
     );
-    const result = await runProviderAnalysis(path, "inventory_artifact", {});
+    const result = await runProviderAnalysis(
+      path,
+      "inventory_artifact",
+      {},
+    ).then(projectCliAnalysisResult);
     expect(result).toMatchObject({
       error: "Analysis failed",
       code: "target_unavailable",

@@ -270,7 +270,12 @@ it("checks trailer credentials before hidden metadata blocks analysis and withho
     const error = parseMcpToolError(response).error;
     expect(error.code).toBe("capability_unavailable");
     expect(JSON.stringify(response)).not.toContain("content_base64");
-    expect(error.details).not.toHaveProperty("partial_observation");
+    expect(error.details?.partial_observation).toEqual({
+      kind: "file-snapshot-hash",
+      path,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.length,
+    });
   }
   const opaqueReply = await call("inspect_web_network_capture", {
     capture_path: path,
@@ -884,9 +889,13 @@ it.each([
       },
     });
     expect(error).not.toHaveProperty("normalized_result");
-    expect(error.details).not.toHaveProperty("partial_observation");
+    expect(error.details.partial_observation).toEqual({
+      kind: "file-snapshot-hash",
+      path,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.length,
+    });
     expect(mcpFailure).not.toHaveProperty("normalized_result");
-    expect(mcpFailure.error.details).not.toHaveProperty("partial_observation");
     expect(Buffer.compare(await readFile(path), bytes)).toBe(0);
   }
   expect(JSON.stringify(result)).not.toContain("malformed-private-input");

@@ -2,7 +2,7 @@ import { writeOrderedZip } from "../../tests/fixtures/artifactEntryOrder.js";
 import { zipSymlinkMetadataFixture } from "../../tests/fixtures/zipSymlinkMetadata.js";
 import { ArtifactReaderFailure, type ArtifactEntry } from "./ArtifactReader.js";
 import { createDeferred } from "../../tests/fixtures/binarySession.js";
-import { readFile, writeFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { once } from "node:events";
 
@@ -605,5 +605,77 @@ it("joins a late ZIP producer and closes the source despite an enumeration clean
     await traversal.return?.();
     held.enumeration.mockRestore();
     fileClose.mockRestore();
+  }
+});
+
+it.each([false, true])(
+  "rejects ZIP carrier mutation after enumeration (borrowed=%s)",
+  async (borrowed) => {
+    const fixture = await admittedZip();
+    const reader = new ZipArtifactReader(
+      fixture.path,
+      "zip",
+      undefined,
+      borrowed ? fixture : undefined,
+    );
+    try {
+      const entries: ArtifactEntry[] = [];
+      for await (const entry of reader.entries()) entries.push(entry);
+      expect(entries).toHaveLength(1);
+      // Trailing bytes leave the real member and its cached CRC unchanged, but
+      // change the carrier from which the inventory was produced.
+      await appendFile(fixture.path, "changed carrier");
+      await expect(
+        hashReadable(await reader.open(entries[0]!)),
+      ).rejects.toMatchObject({ reason: "integrity" });
+    } finally {
+      await reader.close();
+      await fixture.handle.close();
+    }
+  },
+);
+
+it("rejects ZIP carrier mutation while a directory traversal is paused", async () => {
+  const fixture = await admittedZip();
+  const reader = new ZipArtifactReader(fixture.path, "zip");
+  const entries = reader.entries()[Symbol.asyncIterator]();
+  try {
+    expect((await entries.next()).done).toBe(false);
+    await appendFile(fixture.path, "changed carrier");
+    await expect(entries.next()).rejects.toMatchObject({ reason: "integrity" });
+  } finally {
+    await entries.return?.();
+    await reader.close();
+    await fixture.handle.close();
+  }
+});
+
+it("rejects ZIP carrier mutation during member streaming", async () => {
+  const directory = await createTestTempDirectory("rea-zip-stream-mutation-");
+  const path = join(directory, "stream.zip");
+  const writer = new ZipWriter(new Uint8ArrayWriter());
+  await writer.add(
+    "member.bin",
+    new Uint8ArrayReader(new Uint8Array(512 * 1024)),
+    { level: 0 },
+  );
+  await writeFile(path, await writer.close());
+  const reader = new ZipArtifactReader(path, "zip");
+  try {
+    const entries: ArtifactEntry[] = [];
+    for await (const entry of reader.entries()) entries.push(entry);
+    const stream = await reader.open(entries[0]!);
+    const consume = async () => {
+      let mutated = false;
+      for await (const _chunk of stream) {
+        if (!mutated) {
+          mutated = true;
+          await appendFile(path, "changed carrier");
+        }
+      }
+    };
+    await expect(consume()).rejects.toMatchObject({ reason: "integrity" });
+  } finally {
+    await reader.close();
   }
 });

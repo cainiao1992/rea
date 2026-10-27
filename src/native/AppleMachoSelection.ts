@@ -9,6 +9,11 @@ import {
   readMachoLoadCommandDeclarations,
 } from "../domain/apple/machoLoadCommands.js";
 import { createHash } from "node:crypto";
+import {
+  BinaryFormatFailure,
+  createFileMappingIndex,
+  type ZeroFillMapping,
+} from "./metadata/BinaryContainer.js";
 
 import type { FixupCommands } from "./AppleMachoFixups.js";
 import { decodeMachoFixedName, decodeMachoName } from "./AppleMachoNames.js";
@@ -197,6 +202,7 @@ export const parseMachoLayout = (
     slice,
     sliceEnd,
     segments: [],
+    zeroFills: [],
     sections: [],
     dylibs: [],
     binds: [],
@@ -220,19 +226,27 @@ export const parseMachoLayout = (
   const complete = framing.finish();
   if (!complete.ok) throw new RangeError(complete.error);
   const { segments, sections, chained, binds, rebases, dylibs } = state;
+  const mappings = createFileMappingIndex(
+    segments.map((segment) => ({
+      address: segment.address,
+      offset: segment.offset,
+      size: Number(segment.size),
+    })),
+    state.zeroFills,
+  );
   const offset = (address: bigint, size = 1): number => {
-    const matches = segments.filter(
-      (segment) =>
-        address >= segment.address &&
-        address + BigInt(size) <= segment.address + segment.size,
-    );
-    if (matches.length !== 1)
+    try {
+      return mappings.offset(address, size);
+    } catch (cause) {
+      // Metadata consumers use RangeError to retain partial facts when a
+      // pointer is unavailable. Mapping interpretation belongs to the shared
+      // image reader, including aliases that only overlap part of the span.
+      if (!(cause instanceof BinaryFormatFailure)) throw cause;
       throw new RangeError(
         `Unmapped or ambiguous metadata pointer ${hex(address)}`,
+        { cause },
       );
-    const segment = matches[0];
-    if (segment === undefined) throw new RangeError("Missing metadata segment");
-    return segment.offset + Number(address - segment.address);
+    }
   };
   return {
     segments,
@@ -261,6 +275,7 @@ interface LayoutState {
   readonly slice: number;
   readonly sliceEnd: number;
   readonly segments: Segment[];
+  readonly zeroFills: ZeroFillMapping[];
   readonly sections: Section[];
   readonly dylibs: FixupCommands["dylibs"][number][];
   readonly binds: FixupCommands["binds"][number][];
@@ -290,6 +305,8 @@ const collectSegment = (
   if (!parsed.ok) throw new RangeError("Truncated segment command");
   const {
     address,
+    memorySize,
+    nameBytes,
     fileSize,
     fileOffset,
     protection,
@@ -304,6 +321,11 @@ const collectSegment = (
     offset: state.slice + Number(fileOffset),
     executable: (protection & 4) !== 0,
   });
+  if (memorySize > fileSize && decodeMachoFixedName(nameBytes) !== "__PAGEZERO")
+    state.zeroFills.push({
+      address: address + fileSize,
+      size: memorySize - fileSize,
+    });
   if (fileOffset === 0n && fileSize > 0n) state.baseAddress ??= address;
   if (headerSize + count * 80 > size)
     throw new RangeError("Truncated section table");

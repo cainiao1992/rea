@@ -3,12 +3,14 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { TextReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js";
 import { expect } from "vitest";
+import { machoImage } from "../../../src/artifacts/apple/MachoImage.fixture.js";
 
 import {
   artifactInventoryResultSchema,
   type ArtifactInventoryResult,
 } from "../../../src/domain/artifactGraph.js";
 import { artifactInspectionResultSchema } from "../../../src/domain/artifactInspection.js";
+import { artifactIdForContent } from "../../../src/domain/artifactIdentity.js";
 import {
   createEvidence,
   parseEvidence,
@@ -16,6 +18,7 @@ import {
 } from "../../../src/domain/evidence.js";
 
 import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { cliTest, type TestCli } from "../../support/cli/cliFixture.js";
 
@@ -166,6 +169,42 @@ cliTest(
     const inventory = artifactInventoryResultSchema.parse(
       right.normalized_result,
     );
+    // Reauthenticate an imported malformed carrier; this does not claim that
+    // the real inventory producer emitted members beyond its commitment.
+    const sha256 = "f".repeat(64);
+    const oversized = createEvidence(
+      {
+        path: right.subject!.local_path,
+        sha256: inventory.manifest.root_sha256,
+        format: inventory.manifest.root_format,
+      },
+      right.provider,
+      {
+        operation: "inventory_artifact",
+        parameters: {},
+        result: {
+          ...inventory,
+          nodes: [
+            ...inventory.nodes,
+            {
+              ...inventory.nodes[0]!,
+              sha256,
+              artifact_id: artifactIdForContent(sha256),
+            },
+          ],
+        },
+        confidence: "derived",
+        authority: "shipped-artifact",
+      },
+    );
+    const rejected = await call("compare_artifacts", {
+      left,
+      right: oversized,
+    });
+    expect(rejected.isError, JSON.stringify(rejected)).toBe(true);
+    expect(parseMcpToolError(rejected)).toMatchObject({
+      error: { code: "evidence_integrity_mismatch" },
+    });
     expect(inventory.coverage).toEqual({ scope: "root", status: "complete" });
     expect(inventory.manifest).toMatchObject({
       root_format: "plist",
@@ -294,9 +333,9 @@ cliTest.skipIf(process.platform === "win32")(
       [leftPath, rightPath].flatMap((path) => [
         writeFile(
           join(path, "Info.plist"),
-          "<plist><dict><key>CFBundleExecutable</key><string>main.js</string></dict></plist>",
+          "<plist><dict><key>CFBundleExecutable</key><string>main</string></dict></plist>",
         ),
-        writeFile(join(path, "main.js"), "export const value = 1;"),
+        writeFile(join(path, "main"), machoImage({})),
       ]),
     );
     const fifo = await processes.run("mkfifo", [join(leftPath, "p")]);

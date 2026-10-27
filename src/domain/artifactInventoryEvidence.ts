@@ -383,6 +383,14 @@ const assembleInventoryResults = (
     occurrences,
     edges,
   });
+  if (
+    inventory.nodes.length > inventory.manifest.node_count ||
+    inventory.occurrences.length > inventory.manifest.occurrence_count ||
+    inventory.edges.length > inventory.manifest.edge_count
+  )
+    throw new ArtifactInventoryValidationError(
+      "Artifact inventory members exceed their manifest counts",
+    );
   if (inventory.complete) validateCompleteInventory(inventory);
   return inventory;
 };

@@ -35,6 +35,26 @@ export const gpuObjectSchema = z.strictObject({
       location: gpuLocationSchema,
     })
     .nullable(),
+  amd_target_metadata: z
+    .strictObject({
+      flags: z.string().regex(/^0x[0-9a-f]{8}$/u),
+      processor: z.string().nullable(),
+      header_location: gpuLocationSchema,
+      note_coverage: z
+        .enum(["complete", "partial"])
+        .describe(
+          "Complete only after all declared ELF note sections were examined within supported AMD metadata coverage; partial retains only examined facts.",
+        ),
+      notes: z.array(
+        z.strictObject({
+          target: z.string().nullable(),
+          target_state: z.enum(["absent", "declared", "invalid"]),
+          location: gpuLocationSchema,
+        }),
+      ),
+    })
+    .nullable()
+    .default(null),
   target_consistency: z.enum([
     "unexamined",
     "single-source",
@@ -207,6 +227,48 @@ export const gpuCodeObjectsSchema = gpuCodeObjectsObjectSchema.superRefine(
       const row = report.objects[index]!;
       range(row.location, ["objects", index, "location"]);
       range(row.metadata_location, ["objects", index, "metadata_location"]);
+      const amd = row.amd_target_metadata;
+      if (amd !== null) {
+        range(amd.header_location, [
+          "objects",
+          index,
+          "amd_target_metadata",
+          "header_location",
+        ]);
+        if (
+          row.kind !== "amdgpu" ||
+          amd.header_location.container_id !== row.id ||
+          amd.header_location.offset !== 0 ||
+          ![52, 64].includes(amd.header_location.size)
+        )
+          issue(
+            ["objects", index, "amd_target_metadata"],
+            "AMDGPU header provenance must start at its payload",
+          );
+        for (let note = 0; note < amd.notes.length; note++) {
+          const location = amd.notes[note]!.location;
+          range(location, [
+            "objects",
+            index,
+            "amd_target_metadata",
+            "notes",
+            note,
+            "location",
+          ]);
+          if (location.container_id !== row.id)
+            issue(
+              [
+                "objects",
+                index,
+                "amd_target_metadata",
+                "notes",
+                note,
+                "location",
+              ],
+              "AMDGPU notes must use their payload coordinate space",
+            );
+        }
+      }
       const header = row.cuda_target_header;
       if (header !== null) {
         range(header.location, [

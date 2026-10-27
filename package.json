@@ -99,7 +99,12 @@
     "bridge/pwndbg/core_context.py",
     "third_party/pwndbg/README.md",
     "third_party/pwndbg/LICENSE.md",
-    "licenses"
+    "licenses",
+    ".claude-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
+    ".codex-plugin/mcp.json",
+    "scripts/plugin-mcp-launcher.mjs",
+    "npm-shrinkwrap.json"
   ],
   "scripts": {
     "release:notes": "node scripts/release-notes.mjs",

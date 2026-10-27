@@ -3,13 +3,14 @@
 Run REA, connect your selected agents, and check the tools needed for your task.
 Setup previews configuration changes and asks for approval before applying them.
 
-| Task                              | Section                                                                                             |
-| --------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Connect an agent                  | [Start setup](#start-setup), then [review changes](#review-setup-changes)                           |
-| Diagnose one task                 | [Scoped readiness checks](#check-readiness-for-your-task)                                           |
-| Configure an analysis engine      | [Hopper](#hopper), [Ghidra](#ghidra), the [IDA guide](ida-provider.md), or [Kuna](kuna-provider.md) |
-| Update or remove REA              | [Maintenance](#diagnose-update-and-remove)                                                          |
-| Resolve a client-specific problem | [Client configuration](client-configuration.md)                                                     |
+| Task                               | Section                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Connect an agent                   | [Start setup](#start-setup), then [review changes](#review-setup-changes)                           |
+| Install a Claude Code/Codex plugin | [Agent plugins and marketplaces](#agent-plugins-and-marketplaces)                                   |
+| Diagnose one task                  | [Scoped readiness checks](#check-readiness-for-your-task)                                           |
+| Configure an analysis engine       | [Hopper](#hopper), [Ghidra](#ghidra), the [IDA guide](ida-provider.md), or [Kuna](kuna-provider.md) |
+| Update or remove REA               | [Maintenance](#diagnose-update-and-remove)                                                          |
+| Resolve a client-specific problem  | [Client configuration](client-configuration.md)                                                     |
 
 ## Start setup
 
@@ -1551,6 +1552,87 @@ read-only operations, digest identity, and runtime cleanup. The separate
 `verify:ghidra:windows:package` lane checks the packed CLI/MCP boundary with an
 ordinary user. It requires the built Windows native bundle and an existing
 Ghidra/JDK installation; neither is inferred from startup alone.
+
+## Agent plugins and marketplaces
+
+REA's npm package is the shared Claude Code and Codex plugin artifact. It
+contains `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and the
+canonical generated `skills/` tree. Both manifests select `./skills` and run a plain Node bootstrap pinned to
+that exact package version. The client must have a supported standalone `node`
+on its PATH. Claude expands its documented `CLAUDE_PLUGIN_ROOT` in the script
+argument; Codex resolves `cwd: "."` from the installed plugin root before
+launching the relative script. The bootstrap verifies the package version and runs its bundled runtime in
+the same process, preserving stdio and REA's provider/worker cleanup. It does
+not start another package runner or download a different runtime. The existing release skill
+generator also pins CLI recovery commands to the same version.
+
+The repository's single-plugin marketplaces are declared in
+`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`.
+Both select an exact `rea-agents` npm version instead of mutable source-checkout
+contents. Release Please updates their selectors alongside the plugin manifests.
+No plugin-only publication or generated skill files committed to Git are needed.
+The qualified release archive contains a runtime-only manifest and
+`npm-shrinkwrap.json` plus bundled runtime dependencies, including PTY packages
+for each supported OS and CPU; development dependencies and development-only overrides
+stay in the source manifest and lockfile. Both clients receive this same archive.
+
+This distribution becomes installable after the first qualified npm release
+containing these plugin manifests. Earlier published packages are not changed
+by this source proposal. For local source development, run `npm ci && npm run build:cached` to generate
+the runtime and packaged skill before loading the repository as a plugin.
+A source plugin uses the locally built runtime and generated skill; rebuild after
+source changes. Missing builds and mismatched version pins fail with an actionable
+error. The authored `.agents/skills/` tree is not the plugin's shipped skill layout.
+Windows source workflows that need native controls still require the
+[Windows source-checkout build](https://github.com/morluto/rea/blob/main/native/windows/README.md#build).
+
+In Claude Code:
+
+```text
+/plugin marketplace add morluto/rea
+/plugin install rea@rea
+```
+
+In Codex CLI, add the marketplace and install REA:
+
+```bash
+codex plugin marketplace add morluto/rea
+codex plugin add rea@rea
+```
+
+Each release updates both manifest versions and their pinned server version
+together, which is when installed copies refresh the bundled skill and move to
+the new server. A plugin does not run `rea setup`, so provider
+configuration still follows the sections above. Use the plugin or a
+`rea setup` registration for a client, not both, to avoid two `rea` servers.
+
+`rea doctor` does not see plugin-owned state. Its client and skill checks read
+only the registrations and skill locations that `rea setup` manages, so for a
+plugin-only install `rea doctor --client <id>` and `rea doctor --skill` report
+`missing` and recommend `rea setup`. Do not follow that remediation. Check the
+plugin with the client instead (`claude plugin list` and `/mcp` in Claude
+Code, `codex plugin list` in Codex).
+
+For analysis engines, ask the connected server: have the agent call
+`binary_session` and read `result.tool_availability`, which reports what the
+server the plugin started can use, with reasons and remediation. See
+[MCP contracts](mcp-contracts.md).
+
+A plugin does not put `rea` on your `PATH`. To check an engine from a
+terminal, use the package runner at the version the plugin pins:
+
+<!-- x-release-please-start-version -->
+
+```bash
+npx -y rea-agents@6.8.0 doctor --provider ghidra --json
+```
+
+<!-- x-release-please-end -->
+
+If your installed plugin is older, use the version in its manifest instead.
+That report describes the terminal's environment, not the plugin server's.
+The server inherits the client's environment, so a setting such as
+`GHIDRA_INSTALL_DIR` that exists only in your terminal does not reach it.
 
 ## MCP Registry
 

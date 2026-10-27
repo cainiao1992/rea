@@ -7,7 +7,6 @@ import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type {
   AnalysisClient,
-  ExecutionOptions,
   RetainedResourceScope,
 } from "../application/AnalysisProvider.js";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -206,9 +205,7 @@ export class AnalysisClientCreation {
   }
 
   close(
-    options?: Pick<ExecutionOptions, "progress"> & {
-      readonly retainDocument?: boolean;
-    },
+    options?: Parameters<AnalysisClient["close"]>[0],
   ): Promise<Result<null, AnalysisError>> {
     this.#closed = true;
     this.#closeOptions = options;

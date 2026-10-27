@@ -1,4 +1,4 @@
-import { readdir, writeFile } from "node:fs/promises";
+import { readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -13,6 +13,8 @@ import {
   writeEvidenceBundle,
 } from "../../src/application/EvidenceBundleFiles.js";
 import { ArtifactResourceScope } from "../../src/artifacts/ArtifactResourceScope.js";
+import { OwnedFileHandle } from "../../src/filesystem/OwnedFileHandle.js";
+import { RetainedRegularFileCleanupFailure } from "../../src/application/RegularFileRead.js";
 import { bundleComparisonResultSchema } from "../../src/domain/bundleComparison.js";
 import { processEvidence } from "../../src/application/ReconstructionObligationLedger.fixture.js";
 import { processCaptureSchema } from "../../src/domain/process/processCapture.js";
@@ -42,6 +44,60 @@ const validBundleFile = async (directory: string, name = "bundle.json") => {
   await writeFile(path, evidenceBundleDomain.serializeEvidenceBundle(bundle));
   return { bundle, path };
 };
+
+it.each(["missing", "invalid", "cleanup"])(
+  "retains the right bundle close owner when the left bundle has a %s failure",
+  async (leftFailure) => {
+    const directory = await createTestTempDirectory(
+      "rea-bundle-mixed-cleanup-",
+    );
+    const { path: rightPath } = await validBundleFile(directory, "right.json");
+    const leftPath = join(directory, "left.json");
+    if (leftFailure === "invalid") await writeFile(leftPath, "{}");
+    if (leftFailure === "cleanup")
+      await validBundleFile(directory, "left.json");
+    const rightIdentity = await stat(rightPath);
+    const original = OwnedFileHandle.prototype.close;
+    const owners = new Set<OwnedFileHandle>();
+    const close = vi
+      .spyOn(OwnedFileHandle.prototype, "close")
+      .mockImplementation(async function (this: OwnedFileHandle) {
+        const identity = await this.handle.stat();
+        if (identity.ino === rightIdentity.ino || leftFailure === "cleanup") {
+          owners.add(this);
+          throw new Error("injected bundle descriptor close failure");
+        }
+        await original.call(this);
+      });
+    onTestFinished(async () => {
+      close.mockRestore();
+      for (const owner of owners) await owner.close();
+    });
+
+    const result = await compareEvidenceBundlesCommand({ leftPath, rightPath });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.cleanupIncomplete).toBe(true);
+    expect(result.error.cleanupResources).toContain(rightPath);
+    if (leftFailure === "cleanup")
+      expect(result.error.cleanupResources).toContain(leftPath);
+    expect([...owners].every((owner) => owner.handle.fd >= 0)).toBe(true);
+
+    // Retry the exact leases carried through the combined failure, rather than
+    // closing an independently reconstructed descriptor owner.
+    close.mockRestore();
+    const retry = async (cause: unknown): Promise<void> => {
+      if (cause instanceof RetainedRegularFileCleanupFailure) {
+        await cause.cleanupLease.release();
+      } else if (cause instanceof AggregateError) {
+        for (const nested of cause.errors) await retry(nested);
+      } else if (cause instanceof Error) await retry(cause.cause);
+    };
+    await retry(result.error);
+    expect(result.error.cleanupIncomplete).toBe(false);
+    expect([...owners].every((owner) => owner.handle.fd < 0)).toBe(true);
+  },
+);
 
 it.each([
   new TypeError("capture validation implementation failed"),

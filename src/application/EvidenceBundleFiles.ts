@@ -1,3 +1,5 @@
+import type { AnalysisError } from "../domain/analysisErrorBase.js";
+import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { requireAuthenticationHeadroom } from "./JsonAuthenticationHeadroom.js";
 import { absoluteCallerPath } from "../filesystem/callerPath.js";
 
@@ -51,6 +53,38 @@ export const readImmutableEvidenceBundle = (
   operation = "import_evidence_bundle",
 ): Promise<Result<EvidenceBundle, EvidenceReadFailure>> =>
   readBundle(path, true, signal, resources, operation);
+
+/** Join both comparison reads and preserve cleanup owned by either failed input. */
+export const readComparisonEvidenceBundles = async (
+  leftPath: string,
+  rightPath: string,
+  signal?: AbortSignal,
+  resources?: ArtifactResourceScope,
+  operation = "compare_bundles",
+): Promise<
+  Result<
+    { readonly left: EvidenceBundle; readonly right: EvidenceBundle },
+    AnalysisError
+  >
+> => {
+  const [left, right] = await Promise.all([
+    readImmutableEvidenceBundle(leftPath, signal, resources, operation),
+    readImmutableEvidenceBundle(rightPath, signal, resources, operation),
+  ]);
+  if (!left.ok) {
+    if (!right.ok && right.error.cleanupIncomplete)
+      return err(
+        analysisErrorWithCleanupFailure(
+          left.error,
+          right.error,
+          operation,
+        ).bindCleanupDependencies([left.error, right.error]),
+      );
+    return left;
+  }
+  if (!right.ok) return right;
+  return ok({ left: left.value, right: right.value });
+};
 
 const readBundle = async (
   path: string,

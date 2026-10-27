@@ -31,6 +31,7 @@ import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
 import {
   readEvidenceBundle,
   readImmutableEvidenceBundle,
+  readComparisonEvidenceBundles,
   writeEvidenceBundle,
 } from "./EvidenceBundleFiles.js";
 import { inspectAnalysisViewValidated } from "./analysisView/AnalysisViewService.js";
@@ -226,27 +227,15 @@ export const compareEvidenceBundlesCommand = async (input: {
 }): Promise<Result<JsonValue, AnalysisError>> => {
   // Sealed snapshots let comparison and its bundle digests reuse this
   // authentication instead of re-validating every record twice more.
-  const [left, right] = await Promise.all([
-    readImmutableEvidenceBundle(
-      input.leftPath,
-      undefined,
-      undefined,
-      "compare_bundles",
-    ),
-    readImmutableEvidenceBundle(
-      input.rightPath,
-      undefined,
-      undefined,
-      "compare_bundles",
-    ),
-  ]);
-  if (!left.ok) return left;
-  if (!right.ok) return right;
+  const loaded = await readComparisonEvidenceBundles(
+    input.leftPath,
+    input.rightPath,
+  );
+  if (!loaded.ok) return loaded;
+  const { left, right } = loaded.value;
   try {
     return ok(
-      jsonValueSchema.parse(
-        compareBundles(left.value, right.value, input.recordPairs),
-      ),
+      jsonValueSchema.parse(compareBundles(left, right, input.recordPairs)),
     );
   } catch (cause: unknown) {
     if (cause instanceof AnalysisInputError) return err(cause);

@@ -3,7 +3,7 @@ import { snapshotGdbCommandRecords } from "./GdbCommandRecords.js";
 import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { isUtf8 } from "node:buffer";
-import { readFile, readlink, realpath, stat } from "node:fs/promises";
+import { readlink, realpath, stat } from "node:fs/promises";
 
 import {
   AnalysisCapabilityUnavailableError,
@@ -27,13 +27,13 @@ import {
 } from "../process/ProviderProcess.js";
 import {
   closeOwnedDebuggerSessions,
+  readLinuxProcessStartTime,
   stopOwnedDebuggerProcess,
   type OwnedDebuggerDetachResult,
   type OwnedInferiorIdentity,
   type ProcessStartTimeReader,
   verifyOwnedInferiorsEnded,
 } from "../process/ownedDebuggerSession.js";
-import { parseLinuxProcessStat } from "../process/LinuxProcessStat.js";
 
 const STARTUP_TIMEOUT_MS = 10_000;
 const COMMAND_TIMEOUT_MS = 120_000;
@@ -440,12 +440,8 @@ const verifyGdbInferiorOutputSink = async (
     throw new Error(
       "GDB cannot confirm live inferior output descriptors outside Linux /proc.",
     );
-  const statPath = `/proc/${pid}/stat`;
-  const expectedPid = Number(pid);
-  const beforeStat = parseLinuxProcessStat(await readFile(statPath, "utf8"));
-  const before =
-    beforeStat?.pid === expectedPid ? beforeStat.startTime : undefined;
-  if (before === undefined)
+  const before = await readLinuxProcessStartTime(pid);
+  if (before === null)
     throw new Error("GDB could not establish the live inferior identity.");
   const ttyPath = await realpath(selectedTty);
   const tty = await stat(ttyPath);
@@ -465,9 +461,7 @@ const verifyGdbInferiorOutputSink = async (
         `GDB inferior descriptor ${descriptor} no longer points to the selected TTY.`,
       );
   }
-  const afterStat = parseLinuxProcessStat(await readFile(statPath, "utf8"));
-  const after =
-    afterStat?.pid === expectedPid ? afterStat.startTime : undefined;
+  const after = await readLinuxProcessStartTime(pid);
   if (after !== before)
     throw new Error(
       "The GDB inferior identity changed during descriptor readback.",

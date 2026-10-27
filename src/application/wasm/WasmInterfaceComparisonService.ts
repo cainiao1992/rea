@@ -50,7 +50,6 @@ const parseInspection = (
       evidence.subject === null
         ? null
         : {
-            path: evidence.subject.local_path,
             sha256: evidence.subject.digest.sha256,
             format: evidence.subject.format,
           },

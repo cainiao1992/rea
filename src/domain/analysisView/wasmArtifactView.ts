@@ -95,7 +95,6 @@ export const projectWasmArtifactView = (
       parent.subject == null
         ? null
         : {
-            path: parent.subject.local_path,
             sha256: parent.subject.digest.sha256,
             format: parent.subject.format,
           },
@@ -107,7 +106,7 @@ export const projectWasmArtifactView = (
           path: ["source", "subject"],
           reason: "invalid_value",
           message:
-            "WASM parent Evidence subject must identify the report's exact path and SHA-256.",
+            "WASM parent Evidence subject must identify the report's file format and SHA-256.",
         },
       ]),
     );

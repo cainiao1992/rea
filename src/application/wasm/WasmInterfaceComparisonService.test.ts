@@ -131,7 +131,7 @@ it("withholds absence claims for historical or partial inventories and unsupport
   });
 });
 
-it("authenticates semantic Evidence and binds display subject and selection identity", async () => {
+it("authenticates semantic Evidence and rejects altered artifact digests", async () => {
   const left = JSON.parse(JSON.stringify(evidence(facts("f"))));
   left.normalized_result.interface.entries[0].name = "tampered";
   expect(
@@ -142,7 +142,7 @@ it("authenticates semantic Evidence and binds display subject and selection iden
     }),
   ).toMatchObject({ ok: false, error: { _tag: "AnalysisInputError" } });
   const rebound = JSON.parse(JSON.stringify(evidence(facts("f"))));
-  rebound.subject.local_path = "/other.wasm";
+  rebound.subject.digest.sha256 = "b".repeat(64);
   expect(
     await compareWasmInterfaces({
       left: rebound,

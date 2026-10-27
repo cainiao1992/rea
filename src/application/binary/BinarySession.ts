@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { retainSavedAnalysisSnapshot } from "../../domain/savedAnalysisSnapshot.js";
+
 import type { BinaryTarget } from "../../domain/binaryTargetTypes.js";
 import {
   analysisProfilesEqual,
@@ -824,15 +826,16 @@ export class BinarySession
         overwrite,
       );
       if (!written.ok) return written;
+      const receipt: SavedAnalysisSnapshot = {
+        ...written.value,
+        primitive_entries: snapshot.value.entries.length,
+        workflow_entries: snapshot.value.workflow_entries.length,
+        evidence_records: snapshot.value.evidence_bundle.records.length,
+      };
       const closed = await this.#closeActive(options);
       return closed.ok
-        ? ok({
-            ...written.value,
-            primitive_entries: snapshot.value.entries.length,
-            workflow_entries: snapshot.value.workflow_entries.length,
-            evidence_records: snapshot.value.evidence_bundle.records.length,
-          })
-        : closed;
+        ? ok(receipt)
+        : err(retainSavedAnalysisSnapshot(closed.error, receipt));
     });
   }
 

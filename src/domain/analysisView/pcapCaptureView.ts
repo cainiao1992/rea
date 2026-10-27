@@ -38,6 +38,17 @@ export const pcapViewRequestSchema = z.discriminatedUnion("facet", [
     ...pageShape,
     facet: z.literal("dns-addresses"),
     query: z.string().min(1),
+    query_labels_hex:
+      fields.dns_queries.element.shape.query_labels_hex.describe(
+        "Select the exact retained wire label bytes for this query display. Null selects unknown identity, including historical records with the field omitted; omit this selector to match any identity.",
+      ),
+    query_index: z
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Zero-based index in the full retained dns_queries array, independent of page offset; use it to select one occurrence when display and wire identity remain ambiguous.",
+      ),
   }),
   z.strictObject({
     ...pageShape,
@@ -210,7 +221,12 @@ const selectRows = (
       });
     case "dns-addresses": {
       const matches = capture.dns_queries.filter(
-        (query) => query.query === view.query,
+        (query, index) =>
+          query.query === view.query &&
+          (view.query_index === undefined || index === view.query_index) &&
+          (view.query_labels_hex === undefined ||
+            JSON.stringify(query.query_labels_hex ?? null) ===
+              JSON.stringify(view.query_labels_hex)),
       );
       if (matches.length !== 1)
         return err(
@@ -218,7 +234,8 @@ const selectRows = (
             {
               path: ["view", "query"],
               reason: "invalid_value",
-              message: "Select one unambiguous exact retained DNS question.",
+              message:
+                "Select one exact retained DNS question using query_labels_hex or query_index when its display is ambiguous.",
             },
           ]),
         );

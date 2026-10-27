@@ -519,6 +519,25 @@ it("keeps context identity across authenticated target path aliases while preser
   });
   expect(ledger.forAnalysis(original.evidence_id)).toBe(retained);
   expect(retained.subject?.local_path).toBe("/selected/fixture.elf");
+  const imported = new EvidenceLedger();
+  const exporting = new EvidenceLedger();
+  expect(exporting.record(rebound).ok).toBe(true);
+  expect(imported.import(exporting.export()).ok).toBe(true);
+  const replay = await inspectAnalysisView(
+    {
+      source: { kind: "retained-evidence", evidence_id: rebound.evidence_id },
+      view,
+    },
+    (id) => imported.forAnalysis(id),
+  );
+  if (!replay.ok) throw replay.error;
+  expect(replay.value.subject?.local_path).toBe("/other/alias.elf");
+  expect(replay.value.normalized_result).toMatchObject({
+    artifact: { path: "/other/alias.elf" },
+    items: {
+      rows: [{ record: { subject: { local_path: "/other/alias.elf" } } }],
+    },
+  });
 });
 
 it("pages recorded empty graph levels without inventing nodes or dropping their identity", async () => {

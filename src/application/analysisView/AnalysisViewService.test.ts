@@ -111,6 +111,28 @@ it("projects retained GPU source facts while delivering the caller's rebound sub
     });
   }
   expect(ledger.forAnalysis(original.evidence_id)).toBe(retained);
+  // Local path metadata may be rebound before first retention or bundle import.
+  const aliasLedger = new EvidenceLedger();
+  expect(aliasLedger.record(selected).ok).toBe(true);
+  const imported = new EvidenceLedger();
+  expect(imported.import(aliasLedger.export()).ok).toBe(true);
+  // Importing metadata into an existing ledger must preserve view validity too.
+  expect(ledger.import(aliasLedger.export()).ok).toBe(true);
+  for (const sourceLedger of [aliasLedger, imported, ledger]) {
+    const result = projectRetainedAnalysis(
+      selected,
+      {
+        recordEvidence: (evidence) => sourceLedger.record(evidence),
+        evidenceById: (id) => sourceLedger.forAnalysis(id),
+      },
+      { kind: "summary" },
+    );
+    if (!result.ok) throw result.error;
+    expect(result.value.subject?.local_path).toBe("/selected/gpu");
+    expect(result.value.normalized_result).toMatchObject({
+      artifact: { path: "/original/gpu", sha256 },
+    });
+  }
   expect(retained.normalized_result).toBe(payload);
   expect(retained.subject?.local_path).toBe("/original/gpu");
   const mismatched = createEvidence(

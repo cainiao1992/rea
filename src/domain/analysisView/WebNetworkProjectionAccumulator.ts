@@ -13,10 +13,7 @@ import {
 } from "../webNetworkCapture.js";
 import { admitAnalysisViewData } from "./analysisViewDataAdmission.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import {
-  analysisViewSourceSubject,
-  analysisViewResultInputError,
-} from "./analysisViewParent.js";
+import { analysisViewResultInputError } from "./analysisViewParent.js";
 import type { AnalysisViewParent } from "./analysisView.js";
 import {
   ENTRY_BYTES,
@@ -150,24 +147,21 @@ export const admitHarCaptureParent = (
     return unsupported(
       `${viewKind} does not support capture format ${parsed.data.format}.`,
     );
-  // Environment views cite the report path and digest, so their parent's subject must be exactly them;
+  // Environment views preserve the recorded report path and authenticate its digest;
   // the api-surface view keeps the admission its existing callers rely on.
   const { artifact } = parsed.data;
-  const sourceSubject = analysisViewSourceSubject(parent);
+  const subject = parent.subject;
   if (
     viewKind !== "api-surface" &&
     artifact.sha256 !== null &&
-    (sourceSubject == null ||
-      sourceSubject.local_path !== artifact.path ||
-      sourceSubject.digest.sha256 !== artifact.sha256)
+    (subject == null || subject.digest.sha256 !== artifact.sha256)
   )
     return err(
       analysisViewInputError([
         {
           path: ["source", "subject"],
           reason: "invalid_value",
-          message:
-            "Capture parent subject must identify the report's exact path and SHA-256.",
+          message: "Capture parent subject must identify the report's SHA-256.",
         },
       ]),
     );

@@ -41,7 +41,7 @@ it("checks each subject despite reusable GPU summary indexes", () => {
   const input = parent(source);
   expect(projectGpuCodeObjectsView(input, { kind: "summary" }).ok).toBe(true);
   const subject = createEvidence(
-    { path: "/other", sha256: source.artifact.sha256, format: "file" },
+    { path: "/other", sha256: "b".repeat(64), format: "file" },
     { id: "fixture", name: "Fixture", version: "1" },
     {
       operation: input.operation,

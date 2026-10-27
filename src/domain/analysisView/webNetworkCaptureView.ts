@@ -3,10 +3,7 @@ import { analysisViewInputError } from "./analysisViewErrors.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
-import {
-  analysisViewSourceSubject,
-  parseAnalysisViewResult,
-} from "./analysisViewParent.js";
+import { parseAnalysisViewResult } from "./analysisViewParent.js";
 import type { JsonValue } from "../jsonValue.js";
 import { err, ok, type Result } from "../result.js";
 import {
@@ -425,20 +422,17 @@ const parseCaptureParent = (
   const parsed = parseAnalysisViewResult(captureParser, parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
-  const sourceSubject = analysisViewSourceSubject(parent);
+  const subject = parent.subject;
   if (
     report.artifact.sha256 !== null &&
-    (sourceSubject == null ||
-      sourceSubject.local_path !== report.artifact.path ||
-      sourceSubject.digest.sha256 !== report.artifact.sha256)
+    (subject == null || subject.digest.sha256 !== report.artifact.sha256)
   )
     return err(
       analysisViewInputError([
         {
           path: ["source", "subject"],
           reason: "invalid_value",
-          message:
-            "Capture parent subject must identify the report's exact path and SHA-256.",
+          message: "Capture parent subject must identify the report's SHA-256.",
         },
       ]),
     );

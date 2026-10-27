@@ -5,10 +5,7 @@ import {
   isImmutableJsonSnapshot,
 } from "../immutableJson.js";
 import type { AnalysisViewParent } from "./analysisView.js";
-import {
-  analysisViewSourceSubject,
-  createAnalysisViewResultReader,
-} from "./analysisViewParent.js";
+import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 
 const parent = (normalizedResult: unknown): AnalysisViewParent => ({
   evidenceId: `ev_${"a".repeat(64)}`,
@@ -16,14 +13,6 @@ const parent = (normalizedResult: unknown): AnalysisViewParent => ({
   normalizedResult,
   sealedResult: true,
   limitations: [],
-});
-
-it("keeps explicit source absence separate from a delivery subject", () => {
-  const source = parent({});
-  expect(analysisViewSourceSubject(source)).toBeUndefined();
-  expect(
-    analysisViewSourceSubject({ ...source, sourceSubject: null }),
-  ).toBeNull();
 });
 
 it("does not trust a caller's sealed flag or shallow freeze for mutable facts", () => {

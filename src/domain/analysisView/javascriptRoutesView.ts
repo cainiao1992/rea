@@ -1,4 +1,3 @@
-import { analysisViewSourceSubject } from "./analysisViewParent.js";
 import { javascriptSourceRangeSchema } from "../javascript/javascriptSourceCoordinates.js";
 import { z } from "zod";
 import { webBundleViewRequestSchema } from "./webBundleView.js";
@@ -345,12 +344,8 @@ export const projectJavaScriptRoutesView = (
       path: identity.data.input_path,
       sha256: identity.data.root_artifact_sha256,
     };
-    const sourceSubject = analysisViewSourceSubject(parent);
-    if (
-      sourceSubject != null &&
-      (sourceSubject.local_path !== artifact.path ||
-        sourceSubject.digest.sha256 !== artifact.sha256)
-    )
+    const subject = parent.subject;
+    if (subject != null && subject.digest.sha256 !== artifact.sha256)
       return err(
         inputError(
           "Parent subject does not match its application artifact identity.",

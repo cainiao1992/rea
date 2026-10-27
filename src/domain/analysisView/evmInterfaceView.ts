@@ -4,10 +4,7 @@ import type { AnalysisError } from "../analysisErrorBase.js";
 import { uniqueSorted } from "../canonicalOrdering.js";
 import { evmInterfaceSchema } from "../evm/evmInterface.js";
 import { err, ok, type Result } from "../result.js";
-import {
-  analysisViewSourceSubject,
-  parseAnalysisViewResult,
-} from "./analysisViewParent.js";
+import { parseAnalysisViewResult } from "./analysisViewParent.js";
 import type {
   AnalysisViewParent,
   AnalysisViewRequest,
@@ -69,12 +66,11 @@ export const projectEvmInterfaceView = (
   const parsed = parseAnalysisViewResult(evmInterfaceSchema, parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
-  const sourceSubject = analysisViewSourceSubject(parent);
+  const subject = parent.subject;
   if (
-    sourceSubject == null ||
-    sourceSubject.format !== "file" ||
-    sourceSubject.local_path !== report.artifact.path ||
-    sourceSubject.digest.sha256 !== report.artifact.sha256
+    subject == null ||
+    subject.format !== "file" ||
+    subject.digest.sha256 !== report.artifact.sha256
   )
     return err(
       analysisViewInputError([
@@ -82,7 +78,7 @@ export const projectEvmInterfaceView = (
           path: ["source", "subject"],
           reason: "invalid_value",
           message:
-            "EVM parent subject must identify the report's exact carrier path and SHA-256.",
+            "EVM parent subject must identify the report's carrier format and SHA-256.",
         },
       ]),
     );

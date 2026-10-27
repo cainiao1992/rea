@@ -20,10 +20,7 @@ import {
   pageViewCoverage,
 } from "./analysisViewCoverage.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import {
-  analysisViewSourceSubject,
-  createAnalysisViewResultReader,
-} from "./analysisViewParent.js";
+import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import { selectViewRows } from "./selectViewRows.js";
 
 const count = z.number().int().nonnegative();
@@ -126,10 +123,9 @@ export const projectRustBinaryView = (
   const parsed = parseReport(parent);
   if (!parsed.ok) return parsed;
   const report = parsed.value;
-  const subject = analysisViewSourceSubject(parent);
+  const subject = parent.subject;
   if (
     subject == null ||
-    subject.local_path !== report.artifact.path ||
     subject.digest.sha256 !== report.artifact.sha256 ||
     subject.format !== metadataReportSubjectFormat(report) ||
     subject.architecture !==

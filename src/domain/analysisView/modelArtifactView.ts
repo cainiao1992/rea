@@ -10,10 +10,7 @@ import {
 } from "../model/modelArtifact.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { analysisViewInputError } from "./analysisViewErrors.js";
-import {
-  analysisViewSourceSubject,
-  createAnalysisViewResultReader,
-} from "./analysisViewParent.js";
+import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import { isImmutableJsonSnapshot } from "../immutableJson.js";
 import type { JsonValue } from "../jsonValue.js";
 import { err, ok, type Result } from "../result.js";
@@ -145,12 +142,8 @@ const read = (parent: AnalysisViewParent): Result<Checked, AnalysisError> => {
   const report = parsed.value;
   const reusable = isImmutableJsonSnapshot(report);
   const cached = reusable ? checked.get(report) : undefined;
-  const sourceSubject = analysisViewSourceSubject(parent);
-  if (
-    sourceSubject != null &&
-    (sourceSubject.local_path !== report.artifact.path ||
-      sourceSubject.digest.sha256 !== report.artifact.sha256)
-  )
+  const subject = parent.subject;
+  if (subject != null && subject.digest.sha256 !== report.artifact.sha256)
     return err(
       analysisViewInputError([
         {

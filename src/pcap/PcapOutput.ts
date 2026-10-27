@@ -104,6 +104,7 @@ export const parseCapinfosOutput = (stdout: string): CapinfosMetadata => {
     durationText === undefined
       ? null
       : /^(\d+(?:\.\d+)?)(?:\s+seconds?)?$/u.exec(durationText);
+  const durationSeconds = duration === null ? null : Number(duration[1]);
   const snapshot = /^file hdr:\s*(\d+) bytes$/u.exec(
     lines.get("Packet size limit") ?? "",
   );
@@ -121,7 +122,10 @@ export const parseCapinfosOutput = (stdout: string): CapinfosMetadata => {
     captureEnd: captureInstant(
       lines.get("Latest packet time") ?? lines.get("Last packet time"),
     ),
-    captureDurationSeconds: duration === null ? null : Number(duration[1]),
+    captureDurationSeconds:
+      durationSeconds !== null && Number.isFinite(durationSeconds)
+        ? durationSeconds
+        : null,
     snapshotLength:
       snapshotLength !== null &&
       Number.isSafeInteger(snapshotLength) &&

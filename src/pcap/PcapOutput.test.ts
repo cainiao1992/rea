@@ -581,6 +581,25 @@ it("accepts exact machine packet counts and rejects scaled human counts", () => 
   );
 });
 
+it.each([
+  ["0", 0],
+  ["1.250 seconds", 1.25],
+  ["2 second", 2],
+  ["n/a", null],
+  ["-1 seconds", null],
+  [`${"9".repeat(309)} seconds`, null],
+] as const)(
+  "retains finite capinfos duration %s and preserves other metadata",
+  (duration, expected) => {
+    const metadata = parseCapinfosOutput(
+      `File type: pcap\nFile encapsulation: Ethernet\nNumber of packets: 2\nCapture duration: ${duration}\nPacket size limit: file hdr: 65535 bytes\n`,
+    );
+    expect(metadata.captureDurationSeconds).toBe(expected);
+    expect(metadata.packetCount).toBe(2);
+    expect(metadata.snapshotLength).toBe(65535);
+  },
+);
+
 it("excludes transport credentials without normalizing observed URL bytes", async () => {
   const result = await parseTsharkJsonOutput(
     capture([

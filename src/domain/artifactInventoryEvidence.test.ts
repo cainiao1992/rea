@@ -41,6 +41,40 @@ const inspectionEvidence = (result: unknown, subject = target) =>
 
 const inspection = createArtifactInspection(inventoryEvidence);
 
+it.each([
+  { occurrence_id: `occ_${"f".repeat(64)}` },
+  { artifact_id: null },
+  { artifact_format: "unknown" },
+  { entry_kind: "directory" },
+  { parent_occurrence_id: `occ_${"f".repeat(64)}` },
+])("rejects an invalid root on an incomplete inventory page: %j", (patch) => {
+  const inventory = artifactInventoryResultSchema.parse(
+    inventoryEvidence.normalized_result,
+  );
+  const carrier = createEvidence(
+    {
+      path: target.local_path,
+      sha256: target.digest.sha256,
+      format: target.format,
+    },
+    inventoryEvidence.provider,
+    {
+      operation: "inventory_artifact",
+      parameters: {},
+      result: {
+        ...inventory,
+        nodes: [],
+        occurrences: [{ ...inventory.occurrences[0]!, ...patch }],
+      },
+      confidence: "derived",
+      authority: "shipped-artifact",
+    },
+  );
+  expect(() => parseArtifactInventoryEvidence(carrier)).toThrow(
+    EvidenceIntegrityError,
+  );
+});
+
 it("accepts an inspection whose carrier, declaration, and substep identities agree", () => {
   expect(
     parseArtifactInventoryEvidence(inspectionEvidence(inspection)).inventory,

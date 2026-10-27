@@ -311,6 +311,42 @@ export const validateArtifactInventorySubject = (
 };
 
 const validateInventoryPage = (inventory: ArtifactInventoryResult): void => {
+  const manifest = inventory.manifest;
+  if (manifest.root_artifact_id !== artifactIdForContent(manifest.root_sha256))
+    throw new ArtifactInventoryValidationError(
+      "Artifact root identity does not match its manifest digest",
+    );
+  if (
+    manifest.manifest_id !==
+    artifactManifestId(manifest.root_artifact_id, manifest.graph_sha256)
+  )
+    throw new ArtifactInventoryValidationError(
+      "Artifact manifest ID does not match its commitment",
+    );
+  for (const occurrence of inventory.occurrences) {
+    if (occurrence.logical_path !== ".") continue;
+    if (
+      occurrence.artifact_id !== manifest.root_artifact_id ||
+      occurrence.artifact_format !== manifest.root_format ||
+      occurrence.parent_occurrence_id !== null ||
+      occurrence.entry_kind !==
+        (manifest.root_format === "directory" ? "directory" : "file")
+    )
+      throw new ArtifactInventoryValidationError(
+        "Artifact root occurrence does not match its manifest representation",
+      );
+    if (
+      occurrence.occurrence_id !==
+      occurrenceIdForLocation({
+        rootArtifactId: manifest.root_artifact_id,
+        logicalPath: ".",
+        entryKind: occurrence.entry_kind,
+      })
+    )
+      throw new ArtifactInventoryValidationError(
+        "Artifact occurrence ID does not match its identity",
+      );
+  }
   assertUnique(
     inventory.nodes.map(({ artifact_id: id }) => id),
     "node ID",
@@ -488,10 +524,7 @@ const validateCompleteInventory = (inventory: InventorySet): void => {
   const rootOccurrence = inventory.occurrences.find(
     ({ logical_path }) => logical_path === ".",
   );
-  if (
-    rootOccurrence?.artifact_id !== inventory.manifest.root_artifact_id ||
-    rootOccurrence.artifact_format !== inventory.manifest.root_format
-  )
+  if (rootOccurrence === undefined)
     throw new ArtifactInventoryValidationError(
       "Artifact root occurrence does not match its manifest representation",
     );
@@ -536,14 +569,6 @@ const validateCompleteInventory = (inventory: InventorySet): void => {
   if (graphSha256 !== inventory.manifest.graph_sha256)
     throw new ArtifactInventoryValidationError(
       "Artifact graph commitment does not match its members",
-    );
-  const manifestId = artifactManifestId(
-    inventory.manifest.root_artifact_id,
-    graphSha256,
-  );
-  if (manifestId !== inventory.manifest.manifest_id)
-    throw new ArtifactInventoryValidationError(
-      "Artifact manifest ID does not match its commitment",
     );
 };
 

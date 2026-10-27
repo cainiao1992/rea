@@ -137,6 +137,108 @@ const assertCoverageControls = async ({
   ).toThrow();
 };
 
+const assertMalformedImportsRejected = async (
+  left: Evidence,
+  right: Evidence,
+  inventory: ArtifactInventoryResult,
+  call: Awaited<ReturnType<typeof connectLocalToolsMcp>>["call"],
+) => {
+  // Reauthenticate an imported malformed carrier; this does not claim that
+  // the real inventory producer emitted members beyond its commitment.
+  const sha256 = "f".repeat(64);
+  const oversized = createEvidence(
+    {
+      path: right.subject!.local_path,
+      sha256: inventory.manifest.root_sha256,
+      format: inventory.manifest.root_format,
+    },
+    right.provider,
+    {
+      operation: "inventory_artifact",
+      parameters: {},
+      result: {
+        ...inventory,
+        nodes: [
+          ...inventory.nodes,
+          {
+            ...inventory.nodes[0]!,
+            sha256,
+            artifact_id: artifactIdForContent(sha256),
+          },
+        ],
+      },
+      confidence: "derived",
+      authority: "shipped-artifact",
+    },
+  );
+  const rejected = await call("compare_artifacts", {
+    left,
+    right: oversized,
+  });
+  expect(rejected.isError, JSON.stringify(rejected)).toBe(true);
+  expect(parseMcpToolError(rejected)).toMatchObject({
+    error: { code: "evidence_integrity_mismatch" },
+  });
+  // Missing members do not prevent checking identities whose complete inputs
+  // are already present on an imported page.
+  for (const result of [
+    ...[
+      { occurrence_id: `occ_${"f".repeat(64)}` },
+      { artifact_id: null },
+      { artifact_format: "unknown" },
+      { entry_kind: "directory" },
+      { parent_occurrence_id: `occ_${"f".repeat(64)}` },
+    ].map((patch) => ({
+      ...inventory,
+      nodes: [],
+      occurrences: inventory.occurrences.map((occurrence) => ({
+        ...occurrence,
+        ...patch,
+      })),
+    })),
+    {
+      ...inventory,
+      nodes: [],
+      manifest: {
+        ...inventory.manifest,
+        manifest_id: `agm_${"f".repeat(64)}`,
+      },
+    },
+    {
+      ...inventory,
+      nodes: [],
+      manifest: {
+        ...inventory.manifest,
+        root_artifact_id: artifactIdForContent(sha256),
+      },
+    },
+  ]) {
+    const malformed = createEvidence(
+      {
+        path: right.subject!.local_path,
+        sha256: inventory.manifest.root_sha256,
+        format: inventory.manifest.root_format,
+      },
+      right.provider,
+      {
+        operation: "inventory_artifact",
+        parameters: {},
+        result,
+        confidence: "derived",
+        authority: "shipped-artifact",
+      },
+    );
+    const response = await call("compare_artifacts", {
+      left,
+      right: malformed,
+    });
+    expect(response.isError, JSON.stringify(response)).toBe(true);
+    expect(parseMcpToolError(response)).toMatchObject({
+      error: { code: "evidence_integrity_mismatch" },
+    });
+  }
+};
+
 cliTest(
   "compares fully observed roots without inventing coverage gaps through CLI and MCP",
   async ({ cli }) => {
@@ -169,42 +271,7 @@ cliTest(
     const inventory = artifactInventoryResultSchema.parse(
       right.normalized_result,
     );
-    // Reauthenticate an imported malformed carrier; this does not claim that
-    // the real inventory producer emitted members beyond its commitment.
-    const sha256 = "f".repeat(64);
-    const oversized = createEvidence(
-      {
-        path: right.subject!.local_path,
-        sha256: inventory.manifest.root_sha256,
-        format: inventory.manifest.root_format,
-      },
-      right.provider,
-      {
-        operation: "inventory_artifact",
-        parameters: {},
-        result: {
-          ...inventory,
-          nodes: [
-            ...inventory.nodes,
-            {
-              ...inventory.nodes[0]!,
-              sha256,
-              artifact_id: artifactIdForContent(sha256),
-            },
-          ],
-        },
-        confidence: "derived",
-        authority: "shipped-artifact",
-      },
-    );
-    const rejected = await call("compare_artifacts", {
-      left,
-      right: oversized,
-    });
-    expect(rejected.isError, JSON.stringify(rejected)).toBe(true);
-    expect(parseMcpToolError(rejected)).toMatchObject({
-      error: { code: "evidence_integrity_mismatch" },
-    });
+    await assertMalformedImportsRejected(left, right, inventory, call);
     expect(inventory.coverage).toEqual({ scope: "root", status: "complete" });
     expect(inventory.manifest).toMatchObject({
       root_format: "plist",

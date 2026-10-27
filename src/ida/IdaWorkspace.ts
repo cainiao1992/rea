@@ -152,7 +152,20 @@ export class IdaWorkspace {
       if (end > start) {
         const admitted = bytes.subarray(start - position, end - position);
         inputHash.update(admitted);
-        await input.write(admitted);
+        let offset = 0;
+        while (offset < admitted.length) {
+          assertArtifactReadActive(signal);
+          const { bytesWritten } = await input.write(
+            admitted,
+            offset,
+            admitted.length - offset,
+          );
+          if (bytesWritten === 0)
+            throw new AnalysisProtocolError(
+              "IDA input copy write made no progress",
+            );
+          offset += bytesWritten;
+        }
         assertArtifactReadActive(signal);
       }
       position += observed.bytesRead;

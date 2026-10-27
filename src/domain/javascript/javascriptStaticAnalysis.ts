@@ -1,3 +1,4 @@
+import { createXhrOpenRequestQuery } from "./javascriptNetworkRequests.js";
 import { uniqueSortedBy } from "../canonicalOrdering.js";
 import * as t from "@babel/types";
 import { JavaScriptRouteScan } from "./javascriptRouteScan.js";
@@ -114,6 +115,7 @@ export function* analyzeParsedJavaScriptStaticSourceSteps(
     bindings,
   );
   const findings: JavaScriptFindingContext = {
+    xhrOpenRequest: createXhrOpenRequestQuery(index),
     pathIntrinsics: createStaticPathIntrinsicQuery(index),
     browserWindowReceiver: (node, site, suffix) =>
       resolveElectronBrowserWindowReceiver(node, site, suffix, findings, index),

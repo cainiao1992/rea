@@ -1,3 +1,8 @@
+import {
+  isBrowserNetworkRequest,
+  createXhrOpenRequestQuery,
+} from "./javascript/javascriptNetworkRequests.js";
+import type { JavaScriptSemanticAnalysisState } from "./javascript/javascriptSemanticState.js";
 import type {
   AnalysisAccumulator,
   IncludedScript,
@@ -89,6 +94,7 @@ export const analyzeScript = (
     }
     return isIntrinsicMapLookup(node, index.bindings, index) === true;
   };
+  const isXhrRequest = createXhrOpenRequestQuery(index);
   const rpc = createJavaScriptRpcScan(
     script.source.artifact.text,
     receivers.rpcClientRoots,
@@ -98,7 +104,15 @@ export const analyzeScript = (
     enter: (node, parent) => {
       accumulator.visitedNodes += 1;
       routeScan.inspect(node, parent);
-      inspectNode(script, node, accumulator, openReceiverFacts, isMapLookup);
+      inspectNode(
+        script,
+        node,
+        accumulator,
+        openReceiverFacts,
+        isMapLookup,
+        index.bindings,
+        isXhrRequest,
+      );
       const endpoint = rpc.inspect(node);
       if (endpoint !== undefined)
         addFinding({
@@ -134,6 +148,8 @@ const inspectNode = (
   isMapLookup: (
     node: t.CallExpression | t.OptionalCallExpression | t.NewExpression,
   ) => boolean,
+  bindings: JavaScriptSemanticAnalysisState,
+  isXhrRequest: (node: t.Node) => boolean,
 ): void => {
   const moduleSource = semanticStaticModuleSource(node);
   if (moduleSource !== null)
@@ -160,7 +176,15 @@ const inspectNode = (
     t.isOptionalCallExpression(node) ||
     t.isNewExpression(node)
   )
-    inspectCall(script, node, accumulator, openReceiverFacts, isMapLookup);
+    inspectCall(
+      script,
+      node,
+      accumulator,
+      openReceiverFacts,
+      isMapLookup,
+      bindings,
+      isXhrRequest,
+    );
 };
 
 const inspectCall = (
@@ -171,6 +195,8 @@ const inspectCall = (
   isMapLookup: (
     node: t.CallExpression | t.OptionalCallExpression | t.NewExpression,
   ) => boolean,
+  bindings: JavaScriptSemanticAnalysisState,
+  isXhrRequest: (node: t.Node) => boolean,
 ): void => {
   const name = calleeName(node.callee);
   const first = stringValue(node.arguments[0]);
@@ -206,8 +232,13 @@ const inspectCall = (
     node.callee,
     openReceiverFacts.get(node.start ?? -1),
   );
+  const mapLookup = isMapLookup(node);
+  const knownRequest =
+    isBrowserNetworkRequest(node, bindings) || isXhrRequest(node);
   const networkEndpoint =
-    endpoint !== undefined && !isMapLookup(node) ? endpoint : undefined;
+    endpoint !== undefined && !mapLookup
+      ? { ...endpoint, kind: knownRequest ? "endpoint" : endpoint.kind }
+      : undefined;
   if (networkEndpoint?.kind === "candidate")
     addEndpointCandidate(
       script,

@@ -1,3 +1,7 @@
+import {
+  isBrowserNetworkRequest,
+  isFetchCall,
+} from "./javascriptNetworkRequests.js";
 import * as t from "@babel/types";
 import { isIntrinsicMapLookup } from "./javascriptSemanticMapOperations.js";
 import { traverseJavaScriptValueAst } from "./javascriptSemanticTraversal.js";
@@ -491,13 +495,6 @@ export const indexVitePreloadDependencyTable = (
   return escapedOrMutated ? dependencies.map(() => undefined) : dependencies;
 };
 
-const isFetchCall = (
-  node: t.Node,
-  bindings: JavaScriptSemanticAnalysisState,
-): boolean =>
-  (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
-  isUnmodifiedGlobalReference(node.callee, bindings, "fetch");
-
 const requestConstructorUrl = (
   node: t.Node,
   bindings: JavaScriptSemanticAnalysisState,
@@ -591,7 +588,10 @@ const inspectLiteralEndpointCall = (
       kind: "network",
       value: endpoint.value,
       mechanism: `call:${name}`,
-      ...(endpoint.kind === "candidate" ? { interpretation: "candidate" } : {}),
+      ...(endpoint.kind === "candidate" &&
+      context.xhrOpenRequest?.(node) !== true
+        ? { interpretation: "candidate" }
+        : {}),
     });
 };
 
@@ -611,7 +611,7 @@ const isKnownNetworkRequest = (
   bindings: JavaScriptSemanticAnalysisState,
   context: FindingContext,
 ): boolean => {
-  if (isFetchCall(node, bindings)) return true;
+  if (isBrowserNetworkRequest(node, bindings)) return true;
   const callee = unwrapJavaScriptExpression(node.callee).node;
   if (
     (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
@@ -620,19 +620,7 @@ const isKnownNetworkRequest = (
     context.rendererLoad?.(node.callee, node) === true
   )
     return true;
-  if (
-    t.isNewExpression(node) &&
-    (isUnmodifiedGlobalReference(node.callee, bindings, "WebSocket") ||
-      isUnmodifiedGlobalReference(node.callee, bindings, "EventSource"))
-  )
-    return true;
-  return (
-    (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
-    isUnmodifiedGlobalReference(node.callee, bindings, [
-      "navigator",
-      "sendBeacon",
-    ])
-  );
+  return false;
 };
 
 /** Finish queued targets after shared member-mutation facts are indexed. */

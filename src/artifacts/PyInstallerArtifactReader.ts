@@ -1,3 +1,4 @@
+import type { PyInstallerAdmission } from "./pyinstaller/PyInstallerAdmission.js";
 import type { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
 import { setImmediate } from "node:timers/promises";
@@ -110,6 +111,7 @@ interface LoadedArchive {
 export class PyInstallerArtifactReader implements ArtifactReader {
   readonly format = "pyinstaller" as const;
   readonly #source: ArtifactFileSource;
+  #admission: PyInstallerAdmission | undefined;
   #closed = false;
   readonly #scope = new ArtifactResourceScope();
   readonly #cleanup = new ArtifactResourceScope();
@@ -124,8 +126,16 @@ export class PyInstallerArtifactReader implements ArtifactReader {
   readonly #members = new Map<string, PyInstallerMember>();
   readonly #openedPyzSizes = new Map<string, number>();
 
-  constructor(path: string, source?: StableRegularFileDescriptor) {
-    this.#source = new ArtifactFileSource(path, "PyInstaller", source);
+  constructor(
+    path: string,
+    source?: StableRegularFileDescriptor | PyInstallerAdmission,
+  ) {
+    if (source !== undefined && "kind" in source) {
+      this.#admission = source;
+      this.#source = new ArtifactFileSource(path, "PyInstaller", source.source);
+    } else {
+      this.#source = new ArtifactFileSource(path, "PyInstaller", source);
+    }
     this.#cleanup.retain({
       kind: "lease",
       resource: "PyInstaller private PYZ images",
@@ -287,6 +297,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     await this.#cleanup.close();
     this.#closed = true;
     this.#loaded = undefined;
+    this.#admission = undefined;
     this.#members.clear();
     this.#openedPyzSizes.clear();
   }
@@ -313,7 +324,8 @@ export class PyInstallerArtifactReader implements ArtifactReader {
     const { handle, initial } = await this.#source.readSelectedPath();
     const size = initial.size;
     const pathDialect = await carrierPathDialect(handle, size, signal);
-    const cookie = await this.#cookie(handle, size, signal);
+    const cookie =
+      this.#admission?.cookie ?? (await this.#cookie(handle, size, signal));
     this.#budget = artifactExpansionBudgetBytes(cookie.packageLength);
     const toc = await this.#toc(handle, cookie, signal);
     for (const entry of toc) {
@@ -339,6 +351,7 @@ export class PyInstallerArtifactReader implements ArtifactReader {
       if (member.read?.kind === "carchive")
         this.#charge(member.read.header?.length ?? 0);
     await this.#source.readSelectedPath();
+    this.#admission = undefined;
     this.#metadata = cookieMetadata(cookie, toc, encrypted);
     let opaqueImages = 0;
     for (const image of images.values())

@@ -1,3 +1,4 @@
+import type { PyInstallerAdmission } from "../pyinstaller/PyInstallerAdmission.js";
 import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import type {
@@ -19,7 +20,10 @@ export const createReader = (
   path: string,
   format: ArtifactOccurrence["artifact_format"],
   environment: Readonly<NodeJS.ProcessEnv>,
-  readerAdmission?: StableRegularFileDescriptor | NodeSeaAdmission,
+  readerAdmission?:
+    | StableRegularFileDescriptor
+    | NodeSeaAdmission
+    | PyInstallerAdmission,
   asarHeaderAdmission?: AsarHeaderAdmission,
   selectedPath?: string,
 ): ArtifactReader | undefined => {

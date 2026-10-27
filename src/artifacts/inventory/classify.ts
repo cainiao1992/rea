@@ -1,3 +1,4 @@
+import type { PyInstallerAdmission } from "../pyinstaller/PyInstallerAdmission.js";
 import { assertArtifactSelectedSource } from "../ArtifactSelectedSource.js";
 import { artifactNameForClassification } from "../../domain/artifactNameSelection.js";
 import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
@@ -51,6 +52,7 @@ type RootInventoryClassification = RootClassification & {
   readonly readerAdmission:
     | StableRegularFileDescriptor
     | NodeSeaAdmission
+    | PyInstallerAdmission
     | undefined;
 };
 
@@ -202,7 +204,11 @@ const classifyRootFormat = async (
   signal?: AbortSignal,
   asarHeaderAdmission?: AsarHeaderAdmission,
   selectedPath?: string,
-): Promise<ArtifactOccurrence["artifact_format"] | NodeSeaAdmission> => {
+): Promise<
+  | ArtifactOccurrence["artifact_format"]
+  | NodeSeaAdmission
+  | PyInstallerAdmission
+> => {
   const { handle } = source;
   const probe = createArtifactClassificationProbe(asarHeaderAdmission);
   const chunk = Buffer.alloc(64 * 1024);
@@ -292,7 +298,8 @@ const classifyRootFormat = async (
     }
     const packaged = await embeddedProbes.pyInstaller();
     abortIfNeeded(signal);
-    if (packaged) return "pyinstaller";
+    if (packaged !== undefined)
+      return { kind: "pyinstaller", source, cookie: packaged };
   }
   return format;
 };

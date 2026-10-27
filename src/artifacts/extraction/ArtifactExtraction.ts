@@ -603,7 +603,7 @@ const requireExtractableFormat = async (
           (await probes.godotPck()) !== undefined ||
           ((format === "elf" || format === "pe" || format === "mach-o") &&
             ((await probes.nodeSea()) !== undefined ||
-              (await probes.pyInstaller())));
+              (await probes.pyInstaller()) !== undefined));
         if (pack && input.expectedRootSha256 !== undefined) {
           const digest = await hashStableRootArtifactHandle(
             path,

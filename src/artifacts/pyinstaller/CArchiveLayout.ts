@@ -83,16 +83,6 @@ export const isCArchiveDeclaration = (entry: CArchiveEntry): boolean =>
 export const isCArchivePythonModule = (entry: CArchiveEntry): boolean =>
   entry.role === "module" || entry.role === "package";
 
-/** True when a native executable has a structurally valid CArchive cookie. */
-export const containsPyInstallerArchive = async (
-  handle: FileHandle,
-  fileSize: number,
-  signal?: AbortSignal,
-): Promise<boolean> => {
-  const found = await findPyInstallerCookie(handle, fileSize, signal);
-  return found?.ok === true;
-};
-
 /** Locate a structurally valid cookie. Invalid magic copies are skipped. */
 export const findPyInstallerCookie = async (
   handle: FileHandle,

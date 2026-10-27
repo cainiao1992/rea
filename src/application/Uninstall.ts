@@ -20,7 +20,10 @@ import { copyFile, lstat, realpath, rm, rmdir } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { homeDirectoryFromEnvironment } from "../config/homeDirectory.js";
 import { basename, dirname } from "node:path";
-import { defaultKunaCacheDirectory } from "../config/kunaCacheDirectory.js";
+import {
+  defaultKunaCacheDirectory,
+  sameLexicalDirectory,
+} from "../config/kunaCacheDirectory.js";
 import { linuxHopperReleaseCacheDirectory } from "./LinuxHopperCacheDirectory.js";
 
 import { ClientConfigurationPublication } from "./ClientConfigurationPublication.js";
@@ -1029,17 +1032,20 @@ const purgeSelectedData = async (
   platform: NodeJS.Platform,
   fileSystem: UninstallFileSystem,
 ): Promise<readonly UninstallItem[]> => {
-  const items = [
-    ...(await purgeManagedData(appendCallerPath(home, ".rea"), fileSystem, [
-      "cache",
-      "state",
-    ])),
-  ];
+  const items: UninstallItem[] = [];
   const directories: string[] = [];
   if (platform === "darwin" || platform === "linux") {
-    directories.push(defaultKunaCacheDirectory(home, environment, platform));
+    const defaultCache = defaultKunaCacheDirectory(home, environment, platform);
+    directories.push(defaultCache);
     const custom = environment.REA_KUNA_CACHE_DIR;
-    if (custom !== undefined && custom !== directories[0])
+    // Lexical spellings identify the default namespace for reporting.
+    // Removal still uses the owned-path checks below. Other selections
+    // remain separately reported without resolving symbolic links.
+    if (
+      custom !== undefined &&
+      custom !== defaultCache &&
+      !sameLexicalDirectory(custom, defaultCache, platform)
+    )
       items.push(
         item(
           "kuna-custom-cache",
@@ -1053,6 +1059,14 @@ const purgeSelectedData = async (
     if (hopper.ok) directories.push(hopper.value);
     else items.push(item("hopper-releases", "failed", hopper.error.message));
   }
+  // Resolve selections before a managed namespace removal can delete cwd.
+  // Keep the existing result and removal order after planning those facts.
+  items.unshift(
+    ...(await purgeManagedData(appendCallerPath(home, ".rea"), fileSystem, [
+      "cache",
+      "state",
+    ])),
+  );
   for (const directory of directories)
     items.push(
       ...(await purgeManagedData(dirname(directory), fileSystem, [

@@ -1,3 +1,7 @@
+import {
+  iterateUrlQueryParameters,
+  parseUrlQueryParameterNames,
+} from "../recordedTransportUrl.js";
 import type { OffsetDateTimeInstant } from "../offsetDateTime.js";
 import type { StateRecordChronology } from "./StateRecordChronology.js";
 import type { ListQuery } from "./environmentStateListQuery.js";
@@ -165,16 +169,18 @@ export const isProjectionParameter = (name: string): boolean => {
 };
 
 /** Whether a recorded query string names a projection parameter. */
-export const projectsFields = (query: string | undefined): boolean =>
-  query !== undefined &&
-  [...new URLSearchParams(query).keys()].some(isProjectionParameter);
+export const projectsFields = (query: string | undefined): boolean => {
+  for (const name of parseUrlQueryParameterNames(query ?? ""))
+    if (isProjectionParameter(name)) return true;
+  return false;
+};
 
 /** Whether a recorded query asks for some fields only: a projection parameter with a value other than `*`, which asks for all. */
-export const selectsSomeFields = (query: string | undefined): boolean =>
-  query !== undefined &&
-  [...new URLSearchParams(query)].some(
-    ([name, value]) => isProjectionParameter(name) && value !== "*",
-  );
+export const selectsSomeFields = (query: string | undefined): boolean => {
+  for (const [name, value] of iterateUrlQueryParameters(query ?? ""))
+    if (isProjectionParameter(name) && value !== "*") return true;
+  return false;
+};
 
 export type StateListView = EntityViewPlan &
   ReplayedReads & {

@@ -1436,6 +1436,21 @@ current setting. For Windows PE resource analysis, the exact name is
 `WindowsResourceReference`. Disabling an analyzer skips the facts it would have
 produced.
 
+Ghidra's Objective-C Message Analyzer can log
+`Required Objective-C data type not found in data type manager` /
+`Try adding libobjc.dylib` when a Mach-O links Objective-C runtime symbols but
+defines no class metadata (thin Cocoa glue in a C++ binary is a common case).
+That text is non-fatal Ghidra analyzer output: auto-analysis continues, and the
+analyzer simply skips `objc_msgSend` call-target recovery. REA's headless import
+does not accept a "add this library" option, and on modern macOS
+`/usr/lib/libobjc.A.dylib` exists only in the dyld shared cache, so there is no
+on-disk library to add. Treat the line as a coverage limitation, not an REA
+failure; check the session's `failure_kind` (and related provider errors) for
+any real abort. To silence that analyzer, set
+`REA_GHIDRA_DISABLED_ANALYZERS="Objective-C Message Analyzer"`. For large
+executables that miss the startup deadline instead, raise
+`REA_GHIDRA_STARTUP_TIMEOUT_MS` and the [Ghidra heap](#ghidra-heap-and-cpu-controls).
+
 ### Ghidra heap and CPU controls
 
 Set resource controls in the environment that launches the CLI or MCP server,

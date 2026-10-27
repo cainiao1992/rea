@@ -259,8 +259,11 @@ const scanCanonical = async (
         : "release",
   });
   if (cleanup.failure !== undefined) throw cleanup.failure;
-  if (outcome.kind === "failed") throw outcome.cause;
-  return { snapshot: outcome.snapshot, transferredSource: cleanup.transferred };
+  if (cleanup.outcome.kind === "failed") throw cleanup.outcome.cause;
+  return {
+    snapshot: cleanup.outcome.snapshot,
+    transferredSource: cleanup.transferred,
+  };
 };
 
 type InventoryScanOutcome =
@@ -289,8 +292,35 @@ const cleanupInventoryOwners = async ({
 }): Promise<{
   readonly failure: ArtifactReaderFailure | undefined;
   readonly transferred: TransferredArtifactInventorySource | undefined;
+  readonly outcome: InventoryScanOutcome;
 }> => {
+  let finalOutcome = outcome;
   let cleanupFailure: ArtifactReaderFailure | undefined;
+  // Finalization still belongs to this operation. Preserve completed facts when
+  // cancellation arrives while an owner is being released, but keep an earlier
+  // operation or cleanup failure primary.
+  const observeCancellation = (): void => {
+    if (
+      finalOutcome.kind === "completed" &&
+      cleanupFailure === undefined &&
+      options.signal?.aborted === true
+    )
+      finalOutcome = {
+        kind: "failed",
+        cause: new ArtifactReaderFailure(
+          "cancelled",
+          "Artifact inventory cancelled during finalization",
+          {
+            cause: options.signal.reason,
+            partialObservation: {
+              kind: "artifact-inventory",
+              inventory: finalOutcome.snapshot,
+            },
+          },
+        ),
+      };
+  };
+  observeCancellation();
   const readerOwners: ArtifactResourceOwner[] = [...ownedReaders]
     .reverse()
     .map((reader) => ({
@@ -308,10 +338,11 @@ const cleanupInventoryOwners = async ({
         };
   for (const owner of readerOwners) {
     const attempt = await options.resourceScope.release(owner);
+    observeCancellation();
     if (attempt.kind === "released") continue;
     cleanupFailure = options.resourceScope.cleanupFailure(
       cleanupFailure === undefined
-        ? outcome
+        ? finalOutcome
         : { kind: "failed", cause: cleanupFailure },
       [attempt],
       outcome.kind === "completed"
@@ -321,6 +352,7 @@ const cleanupInventoryOwners = async ({
   }
   if (
     rootDisposition === "transfer" &&
+    finalOutcome.kind === "completed" &&
     cleanupFailure === undefined &&
     rootSource !== undefined &&
     rootOwner !== undefined &&
@@ -329,13 +361,15 @@ const cleanupInventoryOwners = async ({
     return {
       failure: undefined,
       transferred: { owner: rootOwner, admission: readerAdmission },
+      outcome: finalOutcome,
     };
   if (rootOwner !== undefined) {
     const attempt = await options.resourceScope.release(rootOwner);
+    observeCancellation();
     if (attempt.kind === "failed")
       cleanupFailure = options.resourceScope.cleanupFailure(
         cleanupFailure === undefined
-          ? outcome
+          ? finalOutcome
           : { kind: "failed", cause: cleanupFailure },
         [attempt],
         outcome.kind === "completed"
@@ -343,7 +377,11 @@ const cleanupInventoryOwners = async ({
           : undefined,
       );
   }
-  return { failure: cleanupFailure, transferred: undefined };
+  return {
+    failure: cleanupFailure,
+    transferred: undefined,
+    outcome: finalOutcome,
+  };
 };
 
 interface SnapshotBuildInput {

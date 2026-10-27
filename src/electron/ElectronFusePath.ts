@@ -210,7 +210,21 @@ const resolveInside = async (
       nodes.push({ path: absolute, metadata });
       hops += 1;
       if (hops > MAX_SYMLINK_HOPS) return { kind: "loop" };
-      const target = await readlink(absolute);
+      const rawTarget = await readlink(absolute, { encoding: "buffer" });
+      let target: string;
+      try {
+        // A replacement character can alias a different, valid sibling name.
+        // Preserve a literal UTF-8 BOM too: it is part of a filesystem name.
+        target = new TextDecoder("utf-8", {
+          fatal: true,
+          ignoreBOM: true,
+        }).decode(rawTarget);
+      } catch {
+        throw new ElectronFusePathFailure(
+          "invalid_value",
+          `Framework symlink target is not valid UTF-8 (raw target bytes: ${rawTarget.toString("hex")}): ${absolute}`,
+        );
+      }
       // Lexical only: another alias of this root (/tmp vs /private/tmp)
       // is still an escape. Later hops stay lstat- and containment-checked.
       const absoluteTarget = isAbsolute(target);

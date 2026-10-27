@@ -167,6 +167,13 @@ export const resolveGhidraProject = async (
     "resolve_analysis_profile",
     async () => {
       assertArtifactReadActive(signal);
+      // Admit the caller's exact marker before canonicalizing its parent.
+      // Darwin realpath(file/..) can succeed despite native lookup rejecting
+      // that traversal; hashing the canonical sibling would select a new input.
+      if (!(await lstat(selection.path)).isFile())
+        throw selectionFailure(
+          `Existing Ghidra project marker must be a regular file: ${selection.path}`,
+        );
       const projectName = basename(selection.path, ".gpr");
       const projectPath = await realpath(dirname(selection.path));
       const program = ghidraProgramNameSchema.safeParse(

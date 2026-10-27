@@ -1,4 +1,12 @@
-import { mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { ArtifactResourceScope } from "../../../../src/artifacts/ArtifactResourceScope.js";
@@ -168,5 +176,49 @@ it.each([null, "caller stopped", { kind: "stop-project-read" }])(
         controller.signal,
       ),
     ).rejects.toMatchObject({ _tag: "AnalysisCancelledError", cause: reason });
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "rejects a selected marker with a non-directory traversal before canonicalizing its parent",
+  async () => {
+    const root = await createTestTempDirectory("rea-ghidra-project-traversal-");
+    await writeFile(join(root, "file"), "not a directory");
+    await writeFile(join(root, "project.gpr"), "marker");
+    await mkdir(join(root, "project.rep"));
+    const path = `${root}/file/../project.gpr`;
+    await expect(stat(path)).rejects.toMatchObject({ code: "ENOTDIR" });
+    await expect(
+      resolveGhidraProject({ path }, { path: join(root, "target") }, resources),
+    ).rejects.toMatchObject({ diagnostics: { system_code: "ENOTDIR" } });
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "follows native parent symlinks and preserves missing marker failures",
+  async () => {
+    const root = await createTestTempDirectory("rea-ghidra-project-selection-");
+    await mkdir(join(root, "actual", "nested"), { recursive: true });
+    await symlink("actual/nested", join(root, "link"));
+    await writeFile(join(root, "actual", "project.gpr"), "marker");
+    await mkdir(join(root, "actual", "project.rep"));
+    const path = `${root}/link/../project.gpr`;
+    const commitment = await resolveGhidraProject(
+      { path },
+      { path: join(root, "target") },
+      resources,
+    );
+    expect(commitment).toMatchObject({
+      configured_path: path,
+      project_path: await realpath(join(root, "actual")),
+      project_name: "project",
+    });
+    await expect(
+      resolveGhidraProject(
+        { path: join(root, "missing.gpr") },
+        { path: join(root, "target") },
+        resources,
+      ),
+    ).rejects.toMatchObject({ diagnostics: { system_code: "ENOENT" } });
   },
 );

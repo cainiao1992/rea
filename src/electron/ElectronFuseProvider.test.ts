@@ -42,6 +42,37 @@ const inspect = async (path: string) => {
 };
 
 it.skipIf(process.platform === "win32")(
+  "rejects undecodable symlink targets rather than selecting a replacement sibling",
+  async () => {
+    const root = await createTestTempDirectory("rea-electron-link-encoding-");
+    const framework = join(root, "Electron Framework.framework");
+    await mkdir(framework);
+    await writeFile(join(framework, "\uFFFD"), thinFuseImage([0x31]).bytes);
+    const alias = join(framework, "alias");
+    await symlink(Buffer.from([0xff]), alias);
+    await expect(stat(alias)).rejects.toMatchObject({ code: "ENOENT" });
+    const result = await provider.inspect({ path: alias });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toMatchObject({
+        issues: [
+          {
+            reason: "invalid_value",
+            message: expect.stringContaining("not valid UTF-8"),
+          },
+        ],
+      });
+    const validName = "\uFEFFbinary";
+    await writeFile(join(framework, validName), thinFuseImage([0x31]).bytes);
+    const validAlias = join(framework, "valid-alias");
+    await symlink(validName, validAlias);
+    expect(
+      (await inspect(validAlias)).slices[0]?.sentinels[0]?.fuses[0]?.state,
+    ).toBe("enabled");
+  },
+);
+
+it.skipIf(process.platform === "win32")(
   "rejects framework links whose terminal separator requires a directory",
   async () => {
     const root = await createTestTempDirectory("rea-electron-link-directory-");

@@ -307,10 +307,10 @@ it.each([
           expect(extracted.manifest.root_format).toBe(format);
           expect(extracted.artifacts.length).toBeGreaterThan(0);
           expect(probesBeforeHash).toEqual(probes);
-          // Preflight's cookie also supplies inventory. Extraction opens its
-          // own reader and establishes that reader's cookie independently.
+          // Preflight's cookie supplies inventory and the transferred extraction
+          // admission; descriptor/path and digest checks still validate freshness.
           if (format === "pyinstaller")
-            expect(pyInstaller).toHaveBeenCalledTimes(2);
+            expect(pyInstaller).toHaveBeenCalledTimes(1);
         },
       );
     } finally {

@@ -14,6 +14,40 @@ import { hashReadable } from "./ArtifactHash.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
 
+/** Verify an admitted descriptor against the regular file still named by its path. */
+export const assertArtifactFileSelectedSource = async (
+  path: string,
+  source: StableRegularFileDescriptor,
+  diagnosticLabel: string,
+): Promise<void> => {
+  const [observed, selected] = await Promise.all([
+    source.handle.stat(),
+    lstat(path).catch((cause: unknown) => {
+      // Admission already established this selected name. Its disappearance
+      // or a replaced ancestor is a source change, not an unrelated I/O fault.
+      if (
+        cause instanceof Error &&
+        "code" in cause &&
+        (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+      )
+        throw new ArtifactReaderFailure(
+          "integrity",
+          `${diagnosticLabel} source identity changed: ${path}`,
+          { cause },
+        );
+      throw cause;
+    }),
+  ]);
+  if (
+    !sameRegularFileState(source.initial, observed) ||
+    !sameRegularFileState(source.initial, selected)
+  )
+    throw new ArtifactReaderFailure(
+      "integrity",
+      `${diagnosticLabel} source identity changed: ${path}`,
+    );
+};
+
 /** One persistent descriptor and hash binding, borrowing caller-admitted sources. */
 export class ArtifactFileSource {
   readonly #scope = new ArtifactResourceScope();
@@ -140,32 +174,11 @@ export class ArtifactFileSource {
     assertArtifactReadActive(signal);
     this.#opening ??= this.#admit(signal);
     const source = await this.#opening;
-    const [observed, selected] = await Promise.all([
-      source.handle.stat(),
-      lstat(this.path).catch((cause: unknown) => {
-        // Admission already established this selected name. Its disappearance
-        // or a replaced ancestor is a source change, not an unrelated I/O fault.
-        if (
-          cause instanceof Error &&
-          "code" in cause &&
-          (cause.code === "ENOENT" || cause.code === "ENOTDIR")
-        )
-          throw new ArtifactReaderFailure(
-            "integrity",
-            `${this.diagnosticLabel} source identity changed: ${this.path}`,
-            { cause },
-          );
-        throw cause;
-      }),
-    ]);
-    if (
-      !sameRegularFileState(source.initial, observed) ||
-      !sameRegularFileState(source.initial, selected)
-    )
-      throw new ArtifactReaderFailure(
-        "integrity",
-        `${this.diagnosticLabel} source identity changed: ${this.path}`,
-      );
+    await assertArtifactFileSelectedSource(
+      this.path,
+      source,
+      this.diagnosticLabel,
+    );
     assertArtifactReadActive(signal);
     return source;
   }

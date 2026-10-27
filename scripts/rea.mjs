@@ -80,14 +80,15 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
 } else {
   const {
     cliConfigurationError,
-    normalizeCliArguments,
     renderCliOutputArgumentError,
     renderEmptyFilteredCliOutput,
     renderVersionReport,
     parseCliOutputArguments,
   } = await import("../dist/cli-runtime/cliOutput.js");
   guardClosedStdout();
-  const cliArgs = isShellCompletion ? args : normalizeCliArguments(args);
+  const cliArgs = isShellCompletion
+    ? args
+    : builtinArguments.normalizeCliArguments(args);
   // Completion words are transport data, including partial output flags.
   const outputOptions = parseCliOutputArguments(
     isShellCompletion ? [] : cliArgs,

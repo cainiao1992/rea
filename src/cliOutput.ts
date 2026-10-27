@@ -1,8 +1,3 @@
-export {
-  normalizeCliArguments,
-  splitIncurBuiltinArguments,
-  type IncurBuiltinArgumentSplit,
-} from "./cliBuiltinArguments.js";
 import {
   declaredSensitiveValues,
   splitIncurBuiltinArguments,

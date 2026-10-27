@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import { workspaceCliTest } from "../../support/cli/workspaceCliFixture.js";
 
+import { normalizeCliArguments } from "../../../src/cliBuiltinArguments.js";
 import {
-  normalizeCliArguments,
   renderCliOutputArgumentError,
   renderCliDocument,
   renderEmptyFilteredCliOutput,

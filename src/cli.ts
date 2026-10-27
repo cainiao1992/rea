@@ -20,7 +20,7 @@ import { registerBinaryDiagnosticsCommands } from "./cli/binaryDiagnosticsComman
 import { registerFridaCommands } from "./cli/fridaCommands.js";
 import type { FridaInstrumentationPort } from "./application/frida/FridaInstrumentationPort.js";
 import { Cli } from "incur";
-import { normalizeCliArguments } from "./cliOutput.js";
+import { normalizeCliArguments } from "./cliBuiltinArguments.js";
 
 import { createLogger } from "./logger.js";
 import { parseLogLevel } from "./config/processStart.js";

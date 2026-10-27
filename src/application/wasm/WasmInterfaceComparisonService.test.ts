@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { createEvidence, parseEvidence } from "../../domain/evidence.js";
 import { projectAnalysisError } from "../../domain/analysisErrorProjection.js";
@@ -328,4 +328,24 @@ it("retains the complete comparison when cancelled at the final handoff", async 
     coverage: "complete-within-inputs",
     summary: { changed: 1, added: 0, removed: 0, unchanged: 0, unknown: 0 },
   });
+});
+
+it("does not report unexpected output-construction failures as invalid caller Evidence", async () => {
+  const failure = new Error("comparison output construction failed");
+  const parse = vi
+    .spyOn(wasmInterfaceComparisonSchema, "parse")
+    .mockImplementation(() => {
+      throw failure;
+    });
+  try {
+    await expect(
+      compareWasmInterfaces({
+        left: evidence(facts("f")),
+        right: evidence(facts("f")),
+        scope: "both",
+      }),
+    ).rejects.toBe(failure);
+  } finally {
+    parse.mockRestore();
+  }
 });

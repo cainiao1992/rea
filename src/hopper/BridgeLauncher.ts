@@ -507,7 +507,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
         ? await (
             this.dependencies.acquireApplicationLease ??
             acquireLinuxHopperApplicationLease
-          )({ runId })
+          )({ runId, resources: this.#probeResources })
         : await (
             this.dependencies.acquireTargetLease ?? acquireHopperTargetLease
           )({
@@ -515,6 +515,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
             targetKind: this.options.targetKind,
             loaderArgs: this.options.loaderArgs,
             runId,
+            resources: this.#probeResources,
           });
       if (!acquisition.acquired)
         return err(

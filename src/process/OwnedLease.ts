@@ -9,6 +9,12 @@ import {
 } from "node:net";
 import { join } from "node:path";
 
+import {
+  ArtifactFileCleanupFailure,
+  withArtifactFileHandle,
+} from "../artifacts/ArtifactFileOperation.js";
+import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+
 import { safeParseJson } from "../domain/safeJson.js";
 
 /** The process that holds a lease, as that process reports itself. */
@@ -34,6 +40,7 @@ export type LeaseFailure =
   | { readonly kind: "directory_permissions" }
   | { readonly kind: "directory_access_denied"; readonly directory: string }
   | { readonly kind: "directory_inspect" }
+  | { readonly kind: "directory_close" }
   | { readonly kind: "recovery_busy"; readonly path: string }
   | { readonly kind: "recovery_create"; readonly path: string }
   | { readonly kind: "recovery_remove"; readonly path: string }
@@ -59,6 +66,7 @@ export const acquireOwnedLease = async (input: {
   /** Private per-user directory for POSIX sockets. Unused on Windows. */
   readonly directory: string;
   readonly failure: LeaseFailureFactory;
+  readonly resources?: ArtifactResourceScope | undefined;
 }): Promise<LeaseAcquisition> => {
   const produced = new WeakSet<Error>();
   const fail = (failure: LeaseFailure, cause?: unknown): Error => {
@@ -81,7 +89,7 @@ export const acquireOwnedLease = async (input: {
     }
     throw fail({ kind: "unrecoverable" });
   }
-  await ensureLeaseDirectory(input.directory, fail, produced);
+  await ensureLeaseDirectory(input.directory, fail, produced, input.resources);
   const socketPath = join(input.directory, `${key}.sock`);
   const acquisition = await tryAcquireLease(socketPath, owner, fail, true);
   if (typeof acquisition !== "string") return acquisition;
@@ -173,60 +181,76 @@ const ensureLeaseDirectory = async (
   directory: string,
   fail: (failure: LeaseFailure, cause?: unknown) => Error,
   produced: WeakSet<Error>,
+  resources: ArtifactResourceScope | undefined,
 ): Promise<void> => {
   try {
     await mkdir(directory, { recursive: true, mode: 0o700 });
   } catch (cause: unknown) {
     throw fail({ kind: "directory_create" }, cause);
   }
-  // Use O_DIRECTORY|O_NOFOLLOW to open the directory without following symlinks,
-  // then inspect and secure that descriptor. Later socket operations still use
-  // the path and are not made atomic by this directory validation.
-  let handle;
-  try {
-    handle = await open(
-      directory,
-      fsConstants.O_RDONLY |
-        (fsConstants.O_DIRECTORY ?? 0) |
-        (fsConstants.O_NOFOLLOW ?? 0),
-    );
-    const directoryStat = await handle.stat();
-    if (
-      directoryStat.isSymbolicLink() ||
-      directoryStat.isDirectory() === false ||
-      (process.getuid !== undefined && directoryStat.uid !== process.getuid())
-    )
-      throw fail({ kind: "directory_not_private" });
-    // POSIX permission hardening: chmod on the already-opened descriptor avoids
-    // a second TOCTOU window where the directory could be swapped between check
-    // and permission fix.
-    const posixPermissionsApply = process.getuid !== undefined;
-    if (posixPermissionsApply && (directoryStat.mode & 0o077) !== 0) {
-      await handle.chmod(0o700);
-      // Re-verify permissions on the same opened directory.
-      const afterChmod = await handle.stat();
-      if (
-        afterChmod.isSymbolicLink() ||
-        afterChmod.isDirectory() === false ||
-        (afterChmod.mode & 0o077) !== 0
-      )
-        throw fail({ kind: "directory_permissions" });
-    }
-  } catch (cause: unknown) {
-    if (cause instanceof Error && produced.has(cause)) throw cause;
+  const inspectionFailure = (cause: unknown): Error => {
+    if (cause instanceof Error && produced.has(cause)) return cause;
     const accessDenied =
       process.getuid !== undefined &&
       cause instanceof Error &&
       "code" in cause &&
       cause.code === "EACCES";
-    throw fail(
+    return fail(
       accessDenied
         ? { kind: "directory_access_denied", directory }
         : { kind: "directory_inspect" },
       cause,
     );
-  } finally {
-    await handle?.close();
+  };
+  // Use O_DIRECTORY|O_NOFOLLOW to open the directory without following symlinks,
+  // then inspect and secure that descriptor. Later socket operations still use
+  // the path and are not made atomic by this directory validation.
+  try {
+    const handle = await open(
+      directory,
+      fsConstants.O_RDONLY |
+        (fsConstants.O_DIRECTORY ?? 0) |
+        (fsConstants.O_NOFOLLOW ?? 0),
+    );
+    await withArtifactFileHandle(
+      directory,
+      handle,
+      resources,
+      undefined,
+      async (handle) => {
+        try {
+          const directoryStat = await handle.stat();
+          if (
+            directoryStat.isSymbolicLink() ||
+            directoryStat.isDirectory() === false ||
+            (process.getuid !== undefined &&
+              directoryStat.uid !== process.getuid())
+          )
+            throw fail({ kind: "directory_not_private" });
+          // POSIX permission hardening: chmod on the already-opened descriptor avoids
+          // a second TOCTOU window where the directory could be swapped between check
+          // and permission fix.
+          const posixPermissionsApply = process.getuid !== undefined;
+          if (posixPermissionsApply && (directoryStat.mode & 0o077) !== 0) {
+            await handle.chmod(0o700);
+            // Re-verify permissions on the same opened directory.
+            const afterChmod = await handle.stat();
+            if (
+              afterChmod.isSymbolicLink() ||
+              afterChmod.isDirectory() === false ||
+              (afterChmod.mode & 0o077) !== 0
+            )
+              throw fail({ kind: "directory_permissions" });
+          }
+        } catch (cause: unknown) {
+          throw inspectionFailure(cause);
+        }
+      },
+    );
+  } catch (cause: unknown) {
+    if (cause instanceof ArtifactFileCleanupFailure)
+      throw fail({ kind: "directory_close" }, cause);
+    throw inspectionFailure(cause);
   }
 };
 

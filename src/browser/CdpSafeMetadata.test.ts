@@ -428,6 +428,52 @@ describe("Link header value delimiters", () => {
     },
   );
 
+  it.each(["\u00a0", "\u000b", "\u000c", "\u2003", "\ufeff"])(
+    "preserves non-HTTP whitespace %j without inventing agent relations",
+    (separator) => {
+      for (const declaration of [
+        `"alternate${separator}mcp"`,
+        `${separator}mcp${separator}`,
+        `"${separator}mcp${separator}"`,
+      ]) {
+        const captured = safeResponseMetadata(
+          "owned",
+          "https://owned.test/page",
+          { headers: { Link: `</agent>; rel=${declaration}` } },
+          new Set(["https://owned.test"]),
+        );
+        expect(captured.response.links[0]?.rel).toEqual([
+          declaration.replace(/^"|"$/gu, ""),
+        ]);
+        expect(captured.agentHints).toEqual([]);
+      }
+    },
+  );
+
+  it("does not trim non-HTTP whitespace into link or parameter syntax", () => {
+    expect(captureLinks("\u00a0</agent>; rel=mcp")).toEqual([]);
+    const links = captureLinks(
+      "</agent>; \u00a0rel=mcp; rel\u00a0=service-desc",
+    );
+    expect(links[0]?.rel).toEqual([]);
+  });
+
+  it("uses HTTP spaces and tabs for relation and parameter boundaries", () => {
+    const captured = safeResponseMetadata(
+      "owned",
+      "https://owned.test/page",
+      { headers: { Link: '\t</agent>; \trel\t=\t" MCP\t service-desc "\t' } },
+      new Set(["https://owned.test"]),
+    );
+    expect(captured.response.links[0]?.rel).toEqual(["mcp", "service-desc"]);
+    expect(captured.agentHints).toContainEqual({
+      mechanism: "link_rel",
+      declaration: "mcp service-desc",
+      url: "https://owned.test/agent",
+      trust: "page-declared-untrusted",
+    });
+  });
+
   it("keeps delimiters scoped to each CDP field line", () => {
     const links = captureLinks(
       '</first>; title="unterminated\n</agent>; rel=mcp',

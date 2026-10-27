@@ -219,7 +219,7 @@ const parseLinks = (
   // Quoted delimiters belong to one field line.
   for (const line of lines ?? []) {
     for (const entry of splitLinkHeader(line)) {
-      const match = /^\s*<([^>]*)>(.*)$/u.exec(entry);
+      const match = /^[\t ]*<([^>]*)>(.*)$/u.exec(entry);
       if (match === null) continue;
       const parameters = linkParameters(match[2] ?? "");
       const anchor = firstLinkParameter(parameters, "anchor");
@@ -240,7 +240,11 @@ const parseLinks = (
           destination_scope: destination.scope,
           context_url: context.url,
           context_scope: context.scope,
-          rel: rel.toLowerCase().split(/\s+/u).filter(Boolean),
+          // RFC 8288 Appendix B.2 uses HTTP RWS (SP / HTAB), not HTML whitespace.
+          rel: rel
+            .toLowerCase()
+            .split(/[\t ]+/u)
+            .filter(Boolean),
           as: boundedHeader(lastLinkParameter(parameters, "as")?.value),
           type: mediaTypeDeclaration(
             firstLinkParameter(parameters, "type")?.value,
@@ -287,15 +291,20 @@ const splitLinkHeader = (
   return entries;
 };
 
+// HTTP OWS/BWS never includes Unicode or HTML-only whitespace.
+const trimLinkWhitespace = (value: string): string =>
+  value.replace(/^[\t ]+|[\t ]+$/gu, "");
+
 const linkParameters = (value: string): readonly LinkParameter[] => {
   const parameters: LinkParameter[] = [];
   for (const raw of splitLinkHeader(value, ";").slice(1)) {
     const separator = raw.indexOf("=");
-    const name = (separator < 0 ? raw : raw.slice(0, separator))
-      .trim()
-      .toLowerCase();
+    const name = trimLinkWhitespace(
+      separator < 0 ? raw : raw.slice(0, separator),
+    ).toLowerCase();
     if (!/^[a-z][a-z0-9\x2d]*$/u.test(name)) continue;
-    const parameter = separator < 0 ? "" : raw.slice(separator + 1).trim();
+    const parameter =
+      separator < 0 ? "" : trimLinkWhitespace(raw.slice(separator + 1));
     parameters.push({ name, value: decodeLinkParameter(parameter) });
   }
   return parameters;

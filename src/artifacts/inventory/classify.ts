@@ -1,3 +1,4 @@
+import type { GodotPckAdmission } from "../GodotPckLocation.js";
 import type { PyInstallerAdmission } from "../pyinstaller/PyInstallerAdmission.js";
 import { assertArtifactSelectedSource } from "../ArtifactSelectedSource.js";
 import { artifactNameForClassification } from "../../domain/artifactNameSelection.js";
@@ -53,6 +54,7 @@ type RootInventoryClassification = RootClassification & {
     | StableRegularFileDescriptor
     | NodeSeaAdmission
     | PyInstallerAdmission
+    | GodotPckAdmission
     | undefined;
 };
 
@@ -208,6 +210,7 @@ const classifyRootFormat = async (
   | ArtifactOccurrence["artifact_format"]
   | NodeSeaAdmission
   | PyInstallerAdmission
+  | GodotPckAdmission
 > => {
   const { handle } = source;
   const probe = createArtifactClassificationProbe(asarHeaderAdmission);
@@ -261,7 +264,8 @@ const classifyRootFormat = async (
     (await hasDiskImageSignature(archiveBytes, read))
   )
     return "dmg";
-  if (await embeddedProbes.godotPck(evidence.prefix)) return "godot-pck";
+  const pck = await embeddedProbes.godotPck(evidence.prefix);
+  if (pck !== undefined) return { kind: "godot-pck", source, location: pck };
   const fatEvidence = await readRootFatSliceHeaders(handle, evidence, signal);
   const mzWindowsHeaderSignature = await readRootMzWindowsHeaderSignature(
     handle,

@@ -1,3 +1,4 @@
+import type { GodotPckAdmission } from "../GodotPckLocation.js";
 import type { PyInstallerAdmission } from "../pyinstaller/PyInstallerAdmission.js";
 import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
@@ -23,7 +24,8 @@ export const createReader = (
   readerAdmission?:
     | StableRegularFileDescriptor
     | NodeSeaAdmission
-    | PyInstallerAdmission,
+    | PyInstallerAdmission
+    | GodotPckAdmission,
   asarHeaderAdmission?: AsarHeaderAdmission,
   selectedPath?: string,
 ): ArtifactReader | undefined => {

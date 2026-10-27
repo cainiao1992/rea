@@ -1,3 +1,4 @@
+import type { StableRegularFileDescriptor } from "../filesystem/RegularFile.js";
 import type { FileHandle } from "node:fs/promises";
 import {
   hasGodotPckHeader,
@@ -11,6 +12,13 @@ export interface GodotPckLocation {
   readonly start: number;
   readonly end: number;
   readonly embedded: boolean;
+}
+
+/** Located pack facts borrowed with the descriptor that produced them. */
+export interface GodotPckAdmission {
+  readonly kind: "godot-pck";
+  readonly source: StableRegularFileDescriptor;
+  readonly location: GodotPckLocation;
 }
 
 type DeclaredGodotPckTrailer = Extract<

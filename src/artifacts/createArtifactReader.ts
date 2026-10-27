@@ -1,3 +1,4 @@
+import type { GodotPckAdmission } from "./GodotPckLocation.js";
 import type { PyInstallerAdmission } from "./pyinstaller/PyInstallerAdmission.js";
 import type { NodeSeaAdmission } from "./nodeSea/NodeSeaAdmission.js";
 import type { AsarHeaderAdmission } from "../config/asarHeaderAdmission.js";
@@ -35,6 +36,7 @@ interface ArtifactReaderConstruction {
     | StableRegularFileDescriptor
     | NodeSeaAdmission
     | PyInstallerAdmission
+    | GodotPckAdmission
     | undefined;
   readonly asarHeaderAdmission?: AsarHeaderAdmission | undefined;
   /** Caller-selected root spelling; only ASAR companion lookup consumes this. */
@@ -90,12 +92,19 @@ export function createArtifactReader(
         path,
         admission !== undefined &&
           "kind" in admission &&
-          admission.kind === "pyinstaller"
-          ? rootSource
-          : admission,
+          admission.kind === "node-sea"
+          ? admission
+          : rootSource,
       );
     case "godot-pck":
-      return new GodotPckArtifactReader(path, rootSource);
+      return new GodotPckArtifactReader(
+        path,
+        admission !== undefined &&
+          "kind" in admission &&
+          admission.kind === "godot-pck"
+          ? admission
+          : rootSource,
+      );
     case "mach-o-universal":
       return new MachOSliceArtifactReader(
         path,

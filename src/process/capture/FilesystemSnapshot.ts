@@ -4,6 +4,7 @@ import { lstat, open, opendir, readlink, realpath } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import type { FileHandle } from "node:fs/promises";
 import { appendCallerPath } from "../../filesystem/callerPath.js";
+import { sameRegularFileState } from "../../filesystem/RegularFile.js";
 import type { ProcessScenario } from "../../domain/process/processScenario.js";
 import type { FilesystemCoverage } from "../../domain/process/processCaptureCoverage.js";
 import type { Stats } from "node:fs";
@@ -39,16 +40,6 @@ const hasSameIdentity = (
   before.dev === after.dev &&
   before.ino === after.ino &&
   (expected === "directory" ? after.isDirectory() : after.isSymbolicLink());
-
-const hasSameFileState = (before: Stats, after: Stats): boolean =>
-  before.dev === after.dev &&
-  before.ino === after.ino &&
-  before.isFile() &&
-  after.isFile() &&
-  before.mode === after.mode &&
-  before.size === after.size &&
-  before.mtimeMs === after.mtimeMs &&
-  before.ctimeMs === after.ctimeMs;
 
 const filesystemSystemCode = (cause: unknown): string | undefined => {
   if (!(cause instanceof Error) || !("code" in cause)) return undefined;
@@ -297,7 +288,7 @@ export const hashFile = async (
         if (!noFollowAvailable) {
           const named = await lstat(path);
           signal?.throwIfAborted();
-          if (!hasSameFileState(expected, named))
+          if (!expected.isFile() || !sameRegularFileState(expected, named))
             return {
               state: "omitted",
               reason: "file_changed_or_short_read",
@@ -306,7 +297,11 @@ export const hashFile = async (
         }
         const stats = await ownedHandle.stat();
         signal?.throwIfAborted();
-        if (!hasSameFileState(expected, stats) || stats.size > maxBytes)
+        if (
+          !expected.isFile() ||
+          !sameRegularFileState(expected, stats) ||
+          stats.size > maxBytes
+        )
           return {
             state: "omitted",
             reason: "file_changed_or_short_read",
@@ -334,11 +329,11 @@ export const hashFile = async (
         }
         const after = await ownedHandle.stat();
         signal?.throwIfAborted();
-        let unchanged = hasSameFileState(stats, after);
+        let unchanged = sameRegularFileState(stats, after);
         if (unchanged && !noFollowAvailable) {
           const namedAfter = await lstat(path);
           signal?.throwIfAborted();
-          unchanged = hasSameFileState(after, namedAfter);
+          unchanged = sameRegularFileState(after, namedAfter);
         }
         if (!unchanged)
           return {

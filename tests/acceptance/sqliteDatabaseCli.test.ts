@@ -34,7 +34,7 @@ import { cliTest, runFileCli } from "../support/cli/cliFixture.js";
 const digest = (bytes: Buffer): string =>
   createHash("sha256").update(bytes).digest("hex");
 
-cliTest(
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
   "unions SQLite cell slices with numeric cell paths",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-sqlite-mixed-filter-");
@@ -91,7 +91,7 @@ cliTest(
   },
 );
 
-cliTest(
+cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
   "projects selected SQLite matrix cells through consecutive output slices",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-sqlite-matrix-filter-");

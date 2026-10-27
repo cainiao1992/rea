@@ -4,6 +4,7 @@ import {
   androidPackageInspectionInputSchema,
   androidSymbolInspectionInputSchemas,
   androidResultSchemas,
+  androidJniInspectionInputSchema,
 } from "../../domain/android/androidAnalysis.js";
 import {
   androidPackageSummaryViewResultSchema,
@@ -12,6 +13,8 @@ import {
   androidComponentSummaryViewResultSchema,
   androidClassSummaryViewResultSchema,
   androidMethodSummaryViewResultSchema,
+  androidJniSummaryViewResultSchema,
+  androidJniPageViewResultSchema,
 } from "../../domain/analysisView/analysisView.js";
 import type { ToolContract } from "../toolContractTypes.js";
 import { evidenceResultOf } from "../toolOutputSchemaPrimitives.js";
@@ -19,6 +22,33 @@ import { toolContractMetadata } from "../toolEffects.js";
 
 /** Static APK operations backed by a separately supplied headless engine. */
 export const ANDROID_TOOL_CONTRACTS = [
+  {
+    name: "inspect_android_jni_bindings",
+    ...toolContractMetadata("inspect_android_jni_bindings"),
+    description:
+      'Link raw APK DEX ACC_NATIVE declarations to observed Java_* function exports and relocated static JNINativeMethod table candidates, per ABI and exact library occurrence. Optional class_name/method_names/descriptors narrow bindings; abis/library_paths narrow parsed libraries. RegisterNatives class attribution always uses the global native declaration inventory before these filters. Matched records establish observed candidate presence; partial coverage does not establish uniqueness, and empty partial scans remain unknown. Includes APK/library digests, stable relation IDs and table slot/relocation provenance. No target execution, library load or runtime registration claim. Omitted detail defaults to summary: a bounded relation preview retaining complete Evidence. Optional view:{kind:"android-jni",collection:"bindings"|"declarations"|"candidates"|"libraries",offset:0,limit:64,fields:[...]} selects exact columns/pages; [] matches none. Read later pages with inspect_analysis_view and the returned parent_evidence_id without reopening files or rerunning analysis. Explicit complete detail returns full retained facts inline. Requires caller-supplied JADX MCP JAR and JDK.',
+    kind: "android-provider",
+    inputSchema: androidJniInspectionInputSchema,
+    outputSchema: evidenceResultOf(
+      z.union([
+        androidResultSchemas.inspect_android_jni_bindings,
+        androidJniSummaryViewResultSchema,
+        androidJniPageViewResultSchema,
+      ]),
+    ),
+    examples: [
+      {
+        title: "Find one Conscrypt native implementation",
+        input: {
+          path: "/tmp/Example.apk",
+          class_name: "org.conscrypt.NativeCrypto",
+          method_names: ["EVP_PKEY_new_RSA"],
+          abis: ["arm64-v8a"],
+          detail: "summary",
+        },
+      },
+    ],
+  },
   {
     name: "inspect_android_package",
     ...toolContractMetadata("inspect_android_package"),

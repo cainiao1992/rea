@@ -72,6 +72,8 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
   project_managed_application_graph: "states it does not execute managed code",
   inspect_android_package: "states it does not execute the APK",
   search_android_classes: "states it does not execute the APK",
+  inspect_android_jni_bindings:
+    "reads DEX and ELF bytes without executing target code",
   inspect_apktool_client:
     "inspects the operator-selected apktool launcher; never installs it",
   inspect_pcap_client:

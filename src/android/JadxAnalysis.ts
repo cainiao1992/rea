@@ -13,6 +13,13 @@ import {
   AnalysisOutputError,
 } from "../domain/analysisErrorCore.js";
 import type { JsonValue } from "../domain/jsonValue.js";
+import type { AndroidNativeDeclarations } from "../domain/android/androidNativeDeclarations.js";
+import type { AndroidJniLibraries } from "./AndroidJniLibraries.js";
+import {
+  ANDROID_JNI_REPORT_BYTES,
+  projectAndroidJniBindings,
+} from "../domain/android/androidJniBindings.js";
+import { AnalysisResourceConstraintError } from "../domain/analysisErrorCore.js";
 import {
   jadxAppSchema,
   type JadxClassPage,
@@ -46,9 +53,14 @@ type Engine = z.infer<
 type ClassSummary = z.infer<typeof jadxClassSchema>;
 /** Session facts shared by every request, and the caller's optional mapping. */
 export interface JadxAnalysisContext {
-  readonly loaded: z.infer<typeof jadxLoadSchema>;
+  readonly loaded: z.infer<typeof jadxLoadSchema> | undefined;
   readonly engine: Engine;
   readonly mapping?: AndroidMappingSource | undefined;
+  readonly jni?: {
+    readonly apkSha256: string;
+    readonly inventory: () => Promise<AndroidNativeDeclarations>;
+    readonly libraries: () => Promise<AndroidJniLibraries>;
+  };
 }
 
 const observedPackageSchema =
@@ -129,7 +141,12 @@ const classSummary = async (
   tools: JadxToolPort,
   request: Exclude<
     AndroidRequest,
-    { operation: "inspect_android_package" | "search_android_classes" }
+    {
+      operation:
+        | "inspect_android_package"
+        | "search_android_classes"
+        | "inspect_android_jni_bindings";
+    }
   >,
 ): Promise<ClassSummary> => {
   // Only class inspection reports DEX static values; method and reference
@@ -355,6 +372,44 @@ export const analyzeJadxRequest = async (
   context: JadxAnalysisContext,
 ): Promise<JsonValue> => {
   const { loaded, engine } = context;
+  if (request.operation === "inspect_android_jni_bindings") {
+    if (context.jni === undefined)
+      throw new AnalysisOutputError(
+        request.operation,
+        "Native declaration and immutable APK library readers are unavailable.",
+      );
+    const inventory = await context.jni.inventory();
+    const libraries = await context.jni.libraries();
+    const { path, ...selection } = request.input;
+    const projected = projectAndroidJniBindings({
+      apk: { path, sha256: context.jni.apkSha256 },
+      selection,
+      inventory,
+      libraries: libraries.libraries,
+      libraryInventory: libraries.inventory,
+    });
+    if (!projected.ok)
+      throw new AnalysisResourceConstraintError(
+        request.operation,
+        "memory",
+        "JNI relationship facts exceed the bounded retained report allowance.",
+        { limit_bytes: ANDROID_JNI_REPORT_BYTES },
+        {
+          retryable: false,
+          remediationAction:
+            "Select fewer ABI or library occurrences; raw declaration uniqueness remains global.",
+        },
+      );
+    return androidResultSchemas.inspect_android_jni_bindings.parse({
+      ...projected.value,
+      engine,
+    });
+  }
+  if (loaded === undefined)
+    throw new AnalysisOutputError(
+      request.operation,
+      "Decompiler operation requires the admitted APK to be loaded.",
+    );
   if (request.operation === "inspect_android_package")
     return inspectPackage(tools, loaded, engine);
   if (request.operation === "search_android_classes")

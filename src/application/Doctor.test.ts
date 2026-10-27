@@ -495,22 +495,28 @@ describe("doctor runtime check", () => {
   );
 });
 
-it.each([undefined, "", "not-a-version", "14garbage"])(
-  "retains unknown host support for macOS probe value %s",
-  async (version) => {
-    const result = await runDoctor(
-      undefined,
-      host({ macosVersion: () => Promise.resolve(version) }),
-    );
-    expect(result.checks).toContainEqual(
-      expect.objectContaining({
-        name: "host",
-        ok: false,
-        classification: "unknown",
-      }),
-    );
-  },
-);
+it.each([
+  undefined,
+  "",
+  "not-a-version",
+  "14garbage",
+  "14.garbage",
+  "14.",
+  "14.0\n",
+  "99999999999999999",
+])("retains unknown host support for macOS probe value %s", async (version) => {
+  const result = await runDoctor(
+    undefined,
+    host({ macosVersion: () => Promise.resolve(version) }),
+  );
+  expect(result.checks).toContainEqual(
+    expect.objectContaining({
+      name: "host",
+      ok: false,
+      classification: "unknown",
+    }),
+  );
+});
 
 it.skipIf(process.platform !== "darwin")(
   "reads the macOS version without PATH utilities",

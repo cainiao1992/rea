@@ -683,6 +683,10 @@ describe("setup Hopper install eligibility", () => {
   it.each([
     { version: "", installs: false },
     { version: "14beta", installs: false },
+    { version: "14.garbage", installs: false },
+    { version: "14.", installs: false },
+    { version: "14.0\n", installs: false },
+    { version: "99999999999999999", installs: false },
     { version: "12", installs: true },
     { version: "12.0", installs: true },
   ])(

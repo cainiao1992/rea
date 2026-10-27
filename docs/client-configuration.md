@@ -497,6 +497,12 @@ comments and unrelated settings. It resolves that file from `HERMES_HOME`, else
 from the platform default Hermes itself uses — `%LOCALAPPDATA%\hermes` on
 Windows, `~/.hermes` elsewhere — including any `HERMES_DATA_DIR_SUFFIX`. Hermes
 connects an entry unless `enabled` is false, so setup states `enabled: true`.
+Aliases whose anchor is defined in the `rea` entry retain their original resolved
+values when setup refreshes or uninstall removes that entry. Setup does not
+redirect another server's alias to REA's new launcher or policy.
+This also covers an anchor on the removed registration key. References to
+definitions outside the entry keep sharing the original value, including when
+another definition later reuses the same anchor name.
 
 Hermes personal skills install under the active Hermes home's `skills` directory.
 Setup, doctor and uninstall share REA's sticky-profile resolver.
@@ -733,10 +739,6 @@ Legacy activation is normalized before layer merging, so an explicit enable
 can override an inherited disable. Lower files and other server entries remain
 unchanged; a legacy server named `servers` that conflicts with the native table
 requires manual repair before setup can write.
-
-When Hermes aliases refer to an anchored REA entry, refreshing or removing REA
-retains the aliases' original resolved values. Setup does not redirect another
-server's alias to REA's new launcher or policy.
 
 With no client selected, the interactive skill choice targets the shared
 `~/.agents/skills` copy. Selecting a client targets its personal destination

@@ -25,6 +25,10 @@ export const finishAnalysisCommand = async <
     readonly failureProjection?: "initial" | "final";
     /** Apply invocation-specific exclusions after all owned cleanup is composed. */
     readonly redactFailure?: (error: AnalysisError) => AnalysisError;
+    /** Validate producer-attested completed output against this command's exact result contract. */
+    readonly recoverCompletedObservation?: (
+      observation: AnalysisPartialObservation,
+    ) => Value | undefined;
   } = {},
 ): Promise<Value | ReturnType<typeof projectAnalysisError>> => {
   const projectFailure = (error: AnalysisError) =>
@@ -75,6 +79,32 @@ export const finishAnalysisCommand = async <
   }
   await dispatchQueuedInterrupts();
   if (initialFailure !== undefined) return initialFailure;
+  if (
+    !result.ok &&
+    result.error instanceof ProviderCleanupError &&
+    !result.error.cleanupIncomplete &&
+    result.error.cleanupPrimary === undefined &&
+    result.error.completedObservation !== undefined
+  ) {
+    const completed = options.recoverCompletedObservation?.(
+      result.error.completedObservation,
+    );
+    if (completed !== undefined) {
+      const recoveredCleanup = result.error;
+      result = signal.aborted
+        ? {
+            ok: false,
+            error: new AnalysisCancelledError(canonicalOperation, {
+              cause: signal.reason,
+              partialObservation: completed,
+              diagnostics: {
+                cleanup_history: projectFailure(recoveredCleanup),
+              },
+            }),
+          }
+        : { ok: true, value: completed };
+    }
+  }
   if (result.ok && signal.aborted)
     result = {
       ok: false,

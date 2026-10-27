@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "../domain/result.js";
+import { mediaTypeEssence } from "../domain/analysisView/recordedMediaType.js";
 import {
   admitRecords,
   isHttpUrl,
@@ -76,7 +77,10 @@ export const isJsonContentType = (
 };
 
 export const isJsonMediaType = (value: string | null | undefined): boolean => {
-  const mediaType = value?.split(";", 1)[0]?.trim().toLowerCase();
+  const mediaType =
+    value === null || value === undefined ? null : mediaTypeEssence(value);
+  // CDP shape collection accepts structured JSON suffixes on any media type;
+  // replay's application-only JSON policy is a separate consumer decision.
   return (
     mediaType === "application/json" || mediaType?.endsWith("+json") === true
   );

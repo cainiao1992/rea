@@ -40,7 +40,7 @@ for (const [version, keyStyle] of [
         "timestamp: 2026-10-14T00:00:00.123456+08:00\n";
       const original =
         settings +
-        "mcp_servers:\n  rea:\n    command: rea-old\n    args: [mcp]\n    env:\n" +
+        "mcp_servers:\n  rea:\n    command: rea\n    args: [mcp]\n    env:\n" +
         Object.entries(environment)
           .map(
             ([key, value]) =>
@@ -114,7 +114,7 @@ cliTest(
       "# Caller configuration",
       "mcp_servers:",
       "  rea:",
-      "    command: rea-old",
+      "    command: rea",
       "    args: [mcp]",
       "    env:",
       "      CALLER_SETTING: keep exactly",
@@ -173,7 +173,7 @@ cliTest(
       },
     });
     expect(parse(configured)).not.toMatchObject({
-      mcp_servers: { rea: { command: "rea-old" } },
+      mcp_servers: { rea: { command: "rea" } },
     });
     expect(configured).toContain("# Curated for this client.");
     expect(await readFile(`${config}.rea.backup`, "utf8")).toBe(original);

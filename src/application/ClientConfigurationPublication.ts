@@ -84,7 +84,10 @@ export class ClientConfigurationPublication {
     selection?: ClientConfigurationSelection,
   ): Promise<ClientConfigurationPublication> {
     const parent = await realpath(dirname(path));
-    const destination = join(parent, basename(path));
+    // Retain the transaction owner's directory requirement through final-file
+    // publication rather than allowing basename/join to select a regular file.
+    const destination =
+      join(parent, basename(path)) + (path.endsWith(sep) ? sep : "");
     const input = await selectedConfiguration(destination, previous);
     if (selection !== undefined) {
       await assertRequestedConfigurationPath(path, selection.requestedPath);

@@ -55,6 +55,21 @@ const provider = (
     listTargets,
   }) as unknown as BrowserObservationPort;
 
+it("keeps live browser inventory Evidence observed with external-service authority", async () => {
+  const result = await listBrowserTargets(
+    provider(async () => ok(report)),
+    input,
+  );
+  expect(result).toMatchObject({
+    ok: true,
+    value: { confidence: "observed", authority: "external-service" },
+  });
+  if (result.ok)
+    expect(result.value.parameters).not.toHaveProperty(
+      "comparison_input_sha256",
+    );
+});
+
 it("retains completed browser inventory Evidence when the provider completes after abort", async () => {
   const controller = new AbortController();
   const result = await listBrowserTargets(

@@ -540,7 +540,7 @@ describe("safe CDP response metadata referrer policy", () => {
     ],
     ["origin, future-policy", "origin"],
     ["future-policy, no-referrer", "no-referrer"],
-    ["unsafe-url, NO-REFERRER", "no-referrer"],
+    ["unsafe-url, NO-REFERRER", "unsafe-url"],
     ["origin,, no-referrer", "no-referrer"],
     // CDP joins repeated field lines with LF.
     ["no-referrer\nstrict-origin", "strict-origin"],
@@ -548,6 +548,18 @@ describe("safe CDP response metadata referrer policy", () => {
     ["future-policy", null],
     ['unsafe-url, "no-referrer"', null],
     ["no-referrer; report-to=x, origin", null],
+    ["origin, no-referrer; report-to=x", null],
+    ["origin, \u00a0no-referrer", null],
+    ["\u00a0no-referrer, origin", null],
+    ["NO-REFERRER", null],
+    ["NO-REFERRER, origin", "origin"],
+    ["origin, \u212a", null],
+    ["origin, \u017f", null],
+    // Legacy meta names do not declare a policy through the response header.
+    ["never, always, default, origin-when-crossorigin", null],
+    ["no-referrer, never, always", "no-referrer"],
+    ['"no-referrer"', null],
+    ["no-referrer; report-to=x", null],
     ["", null],
     [undefined, null],
     ...[
@@ -652,4 +664,82 @@ describe("Link context identity and display", () => {
       expect(JSON.stringify(captured)).not.toContain("secret");
     },
   );
+});
+
+describe("response metadata whitespace boundaries", () => {
+  it.each(["\u00a0", "\u2003", "\ufeff", "\v"])(
+    "keeps %j out of CSP delimiters and HTTP optional whitespace",
+    (whitespace) => {
+      const captured = safeResponseMetadata(
+        "whitespace",
+        `${origin}/page`,
+        {
+          mimeType: `${whitespace}Text/Plain${whitespace}`,
+          headers: {
+            "Content-Security-Policy":
+              `default-src${whitespace}'self'; ` +
+              `script-src 'self'${whitespace}https:; ` +
+              `${whitespace}img-src data:`,
+            "Content-Length": `${whitespace}100${whitespace}`,
+            "Cross-Origin-Resource-Policy": `${whitespace}same-origin${whitespace}`,
+            "X-Content-Type-Options": `${whitespace}nosniff${whitespace}`,
+            "Referrer-Policy": `${whitespace}no-referrer${whitespace}`,
+            "Permissions-Policy": `${whitespace}camera=(), geolocation=()`,
+            "Content-Encoding": `${whitespace}GZip${whitespace}`,
+          },
+        },
+        new Set([origin]),
+      );
+      expect(captured.response.csp).toEqual({
+        directives:
+          whitespace === "\v"
+            ? [
+                {
+                  name: "script-src",
+                  sources: [{ kind: "other", value: null }],
+                },
+              ]
+            : [],
+        nonce_count: 0,
+        hash_count: 0,
+      });
+      expect(captured.response.content_length).toBeNull();
+      expect(captured.response.policies).toMatchObject({
+        corp: null,
+        x_content_type_options: null,
+        referrer_policy: null,
+        permissions_policy_features: ["geolocation"],
+      });
+      expect(captured.response.mime_type).toBe(
+        `${whitespace}text/plain${whitespace}`,
+      );
+      expect(captured.response.content_encoding).toBe(
+        `${whitespace}gzip${whitespace}`,
+      );
+    },
+  );
+
+  it("accepts CSP ASCII whitespace and HTTP SP/HTAB at their owning boundaries", () => {
+    const captured = safeResponseMetadata(
+      "ascii-whitespace",
+      `${origin}/page`,
+      {
+        headers: {
+          "Content-Security-Policy":
+            "\tdefault-src\f'self'\r; script-src\t'data' ",
+          "Content-Length": "\t100 \t",
+          "Cross-Origin-Resource-Policy": "\tsame-origin \t",
+          "Referrer-Policy": "\tno-referrer \t",
+        },
+      },
+      new Set([origin]),
+    );
+    expect(captured.response.csp.directives).toEqual([
+      { name: "default-src", sources: [{ kind: "keyword", value: "'self'" }] },
+      { name: "script-src", sources: [{ kind: "keyword", value: "'data'" }] },
+    ]);
+    expect(captured.response.content_length).toBe(100);
+    expect(captured.response.policies.corp).toBe("same-origin");
+    expect(captured.response.policies.referrer_policy).toBe("no-referrer");
+  });
 });

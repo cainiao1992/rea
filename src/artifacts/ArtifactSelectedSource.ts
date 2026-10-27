@@ -1,5 +1,16 @@
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
+
+/** Canonicalize only a path that native filesystem lookup actually accepts. */
+export const resolveArtifactSourcePath = async (
+  path: string,
+): Promise<string> => {
+  // Darwin realpath can collapse file/.. although opening that spelling fails
+  // with ENOTDIR. Keep both file and directory selections valid here; the
+  // inventory/reader owns format and regular-file admission.
+  await stat(path);
+  return realpath(path);
+};
 
 /** Verify selection spelling independently of canonical descriptor ownership. */
 export const assertArtifactSelectedSource = async (
@@ -19,7 +30,7 @@ export const assertArtifactSelectedSource = async (
     );
   let current: string;
   try {
-    current = await realpath(selectedPath);
+    current = await resolveArtifactSourcePath(selectedPath);
   } catch (cause: unknown) {
     if (
       cause instanceof Error &&

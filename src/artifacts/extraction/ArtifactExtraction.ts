@@ -1,6 +1,9 @@
 import { assertAdmittedRootDigest } from "../inventory/classify.js";
 import { assertArtifactFileSelectedSource } from "../ArtifactFileSource.js";
-import { assertArtifactSelectedSource } from "../ArtifactSelectedSource.js";
+import {
+  assertArtifactSelectedSource,
+  resolveArtifactSourcePath,
+} from "../ArtifactSelectedSource.js";
 import { hashStableRootArtifactHandle } from "../inventory/hashStableRootArtifact.js";
 import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
@@ -83,7 +86,7 @@ const extractArtifactInScope = async (
 ): Promise<ArtifactExtractionResult> => {
   // Cancellation wins over every later refusal, including unsupported formats.
   abortIfNeeded(signal);
-  const sourcePath = await realpath(input.inputPath);
+  const sourcePath = await resolveArtifactSourcePath(input.inputPath);
   if (input.expectedRootSha256 !== undefined)
     await assertArtifactSelectedSource(sourcePath, input.selectedPath);
   const admission = await requireExtractableFormat(sourcePath, input, signal);

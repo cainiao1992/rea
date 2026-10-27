@@ -51,6 +51,24 @@ describe("Factory Droid configuration paths", () => {
       join("/home/a", ".factory", "skills", "reverse-engineer-anything"),
     ]);
   });
+
+  it("uses Droid's selected home for configuration, discovery, and personal skills", () => {
+    const environment = { FACTORY_HOME_OVERRIDE: "/selected/home" };
+    expect(droidPath("/home/a", "darwin", environment)).toMatchObject({
+      configPath: join("/selected/home", ".factory", "mcp.json"),
+      markerPath: join("/selected/home", ".factory"),
+    });
+    expect(
+      skillDestinations("/home/a", ["droid"], environment).map(
+        ({ path }) => path,
+      ),
+    ).toEqual([
+      join("/selected/home", ".factory", "skills", "reverse-engineer-anything"),
+    ]);
+    expect(
+      droidPath("/home/a", "darwin", { FACTORY_HOME_OVERRIDE: "" }),
+    ).toEqual(droidPath("/home/a", "darwin"));
+  });
 });
 
 describe("Factory Droid JSON registration", () => {

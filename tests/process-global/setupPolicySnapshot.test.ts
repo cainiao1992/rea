@@ -136,3 +136,52 @@ it("blocks an inherited foreign row before planning creation of a missing write 
     code: "ENOENT",
   });
 });
+
+it.each(["other", "rea"])(
+  "rechecks an inherited %s launcher after preflight for a policy fragment",
+  async (command) => {
+    const home = await createTestTempDirectory("rea-setup-layer-recheck-");
+    const lower = join(home, "config.json");
+    const configPath = join(home, "opencode.json");
+    const client: SetupClient = {
+      name: "opencode",
+      format: "opencode",
+      configPath,
+      configPaths: [lower, configPath],
+    };
+    await writeFile(
+      lower,
+      '{"mcp":{"rea":{"type":"local","command":["rea","mcp"]}}}',
+    );
+    const original = '{"mcp":{"rea":{"environment":{"CUSTOM":"keep"}}}}';
+    await writeFile(configPath, original);
+    expect(
+      await inspectClientConfiguration(client, {}, ["rea", "mcp"]),
+    ).toMatchObject({ status: "update" });
+    // The write transaction must use a fresh source discovery after preflight.
+    await writeFile(
+      lower,
+      JSON.stringify({
+        mcp: { rea: { type: "local", command: [command, "mcp"] } },
+      }),
+    );
+    const result = await configureClientConfiguration(client, {}, [
+      "rea",
+      "mcp",
+    ]);
+    if (command === "other") {
+      expect(result).toMatchObject({
+        status: "failed",
+        reason: "registration_ownership",
+        detail: expect.stringContaining("foreign ownership"),
+      });
+      expect(await readFile(configPath, "utf8")).toBe(original);
+      await expect(readFile(`${configPath}.rea.backup`)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } else {
+      expect(result).toMatchObject({ status: "configured" });
+      expect(await readFile(`${configPath}.rea.backup`, "utf8")).toBe(original);
+    }
+  },
+);

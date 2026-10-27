@@ -705,7 +705,17 @@ const registrationOwnershipBlocker = (
       value: effective.servers[name],
       paths: client.configPaths ?? [client.configPath],
     });
-  if (Object.hasOwn(parsed.servers, name))
+  const fragment = parsed.servers[name];
+  // A layered policy fragment inherits its launcher. Classify the effective
+  // launcher above, but also admit any explicit command this write replaces.
+  const inheritsLauncher =
+    effective !== undefined &&
+    effective !== parsed &&
+    typeof fragment === "object" &&
+    fragment !== null &&
+    !Array.isArray(fragment) &&
+    !Object.hasOwn(fragment, "command");
+  if (Object.hasOwn(parsed.servers, name) && !inheritsLauncher)
     entries.push({ value: parsed.servers[name], paths: [client.configPath] });
   if (legacyClientServerPath(parsed, name) !== undefined) {
     entries.push({

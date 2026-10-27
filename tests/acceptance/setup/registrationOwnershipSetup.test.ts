@@ -262,3 +262,71 @@ cliTest(
     });
   },
 );
+
+cliTest(
+  "OpenCode setup refreshes an owned inherited launcher through a policy fragment",
+  async ({ cli }) => {
+    const home = await createTestTempDirectory("rea-setup-owned-layer-");
+    const directory = join(home, ".config", "opencode");
+    await mkdir(directory, { recursive: true });
+    const lower = join(directory, "config.json");
+    const upper = join(directory, "opencode.json");
+    const originalLower = JSON.stringify({
+      mcp: { rea: { type: "local", command: ["rea", "mcp"] } },
+    });
+    const originalUpper = JSON.stringify({
+      mcp: { rea: { environment: { CUSTOM: "keep" } } },
+    });
+    await writeFile(lower, originalLower);
+    await writeFile(upper, originalUpper);
+    const result = await cli.run({
+      arguments: [
+        "setup",
+        "--client",
+        "opencode",
+        "--skill=false",
+        "--yes",
+        "--json",
+      ],
+      cwd: home,
+      environment: {
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: join(home, ".config"),
+      },
+    });
+    expect(result.exitCode, result.stdout).toBe(0);
+    expect(await readFile(lower, "utf8")).toBe(originalLower);
+    expect(await readFile(`${upper}.rea.backup`, "utf8")).toBe(originalUpper);
+    expect(JSON.parse(await readFile(upper, "utf8"))).toMatchObject({
+      mcp: { rea: { type: "local", environment: { CUSTOM: "keep" } } },
+    });
+    const foreignFragment = JSON.stringify({
+      mcp: { rea: { command: ["other", "mcp"] } },
+    });
+    await writeFile(upper, foreignFragment);
+    const blocked = await cli.run({
+      arguments: [
+        "setup",
+        "--client",
+        "opencode",
+        "--skill=false",
+        "--yes",
+        "--json",
+      ],
+      cwd: home,
+      environment: {
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: join(home, ".config"),
+      },
+    });
+    expect(blocked.exitCode, blocked.stdout).toBe(1);
+    expect(blocked.json).toMatchObject({
+      status: "needs_human",
+      remediation: expect.stringContaining("foreign ownership"),
+    });
+    expect(await readFile(upper, "utf8")).toBe(foreignFragment);
+    expect(await readFile(`${upper}.rea.backup`, "utf8")).toBe(originalUpper);
+  },
+);

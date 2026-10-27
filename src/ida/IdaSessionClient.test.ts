@@ -1,5 +1,13 @@
-import { readFile, readdir, rm } from "node:fs/promises";
-import { sep } from "node:path";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
@@ -355,6 +363,75 @@ describe("attached IDA input identity and validation", () => {
     );
     await client.close();
   });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a document whose symlink traversal names a different input",
+    async () => {
+      const { root, target, producer, client } = await fixture();
+      await mkdir(join(root, "foreign", "inner"), { recursive: true });
+      await writeFile(
+        join(root, "foreign", basename(target.path)),
+        "foreign input",
+      );
+      await symlink(join(root, "foreign", "inner"), join(root, "link"));
+      const document = `${root}/link/../${basename(target.path)}`;
+      expect(await realpath(document)).not.toBe(await realpath(target.path));
+
+      const result = await client.execute("list_procedures", { document });
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { _tag: "AnalysisInputError" },
+      });
+      expect(producer.connects).toBe(0);
+      await client.close();
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "refuses an opened worker whose input only matches after lexical parent collapse",
+    async () => {
+      const { root, producer, client } = await fixture("headless");
+      await mkdir(join(root, "foreign", "inner"), { recursive: true });
+      let privateInput = "";
+      producer.beforeCall = async (name, args) => {
+        if (name !== "idb_open") return;
+        privateInput = z.string().parse(args.input_path);
+        await writeFile(
+          join(root, "foreign", basename(privateInput)),
+          "foreign input",
+        );
+        await symlink(
+          join(root, "foreign", "inner"),
+          join(dirname(privateInput), "link"),
+        );
+      };
+      producer.overrideCall = (name, args) => {
+        if (name !== "idb_open") return undefined;
+        producer.database = z.string().parse(args.preferred_session_id);
+        producer.inputPath = `${dirname(privateInput)}/link/../${basename(privateInput)}`;
+        return {
+          success: true,
+          session: {
+            session_id: producer.database,
+            input_path: producer.inputPath,
+          },
+        };
+      };
+
+      const result = await client.execute("list_procedures", {});
+
+      expect(await realpath(producer.inputPath)).not.toBe(
+        await realpath(privateInput),
+      );
+      expect(result.ok).toBe(false);
+      expect(producer.calls.some(({ name }) => name === "list_funcs")).toBe(
+        false,
+      );
+      producer.inputPath = privateInput;
+      await client.close();
+    },
+  );
 
   it("rejects an unrelated document before connecting or opening a provider", async () => {
     const { producer, client } = await fixture();

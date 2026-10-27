@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   discoverCdpEndpoint,
+  discoverCdpBrowserSocket,
   readCdpJson,
   withCdpDiscoveryDeadline,
 } from "./CdpEndpoint.js";
@@ -337,4 +338,68 @@ it("preserves an independent typed cancellation when the discovery deadline also
     1,
   ).catch((cause: unknown) => cause);
   expect(failure).toBe(primary);
+});
+
+it("preserves browser-socket sibling identities and reports malformed optional metadata", async () => {
+  const discovery = await discoverCdpBrowserSocket(
+    {
+      send: async (method) =>
+        method === "Browser.getVersion"
+          ? {
+              protocolVersion: "1.3",
+              product: "Chrome/fixture",
+              revision: "r",
+              userAgent: "fixture",
+              jsVersion: "v8",
+            }
+          : {
+              targetInfos: [
+                {
+                  targetId: "valid",
+                  type: "page",
+                  url: "https://example.test/",
+                  title: "Example",
+                  attached: false,
+                },
+                {
+                  targetId: "partial",
+                  type: "page",
+                  url: "https://example.test/other",
+                  title: 42,
+                  attached: "yes",
+                },
+                { targetId: "broken", type: "page" },
+                {
+                  id: "wrong-identity-field",
+                  type: "page",
+                  url: "https://example.test/",
+                },
+              ],
+            },
+    },
+    "ws://127.0.0.1:9222/devtools/browser/fixture",
+    "list_browser_targets",
+  );
+  expect(discovery.targets).toEqual([
+    {
+      id: "valid",
+      type: "page",
+      url: "https://example.test/",
+      title: "Example",
+      attached: false,
+    },
+    {
+      id: "partial",
+      type: "page",
+      url: "https://example.test/other",
+      title: "",
+      attached: null,
+    },
+  ]);
+  expect(discovery.limitations).toHaveLength(4);
+  expect(
+    discovery.limitations?.every((limitation) =>
+      limitation.startsWith("CDP Target.getTargets row"),
+    ),
+  ).toBe(true);
 });

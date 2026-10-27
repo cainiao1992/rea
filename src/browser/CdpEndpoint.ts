@@ -74,15 +74,7 @@ const browserSocketVersionSchema = z.object({
 });
 
 const browserSocketTargetsSchema = z.object({
-  targetInfos: z.array(
-    z.object({
-      targetId: z.string().min(1),
-      type: z.string().min(1),
-      title: z.string().default(""),
-      url: z.string(),
-      attached: z.boolean().optional(),
-    }),
-  ),
+  targetInfos: z.array(z.unknown()),
 });
 
 /** Validated direct CDP WebSocket bound to one discovered page target. */
@@ -109,6 +101,7 @@ export interface CdpEndpointTarget {
 
 export interface CdpEndpointDiscovery {
   readonly limitations?: readonly string[];
+  readonly ambiguousTargetIds?: readonly string[];
   readonly webSocket: CdpWebSocketEndpoint;
   readonly version: {
     readonly product: string;
@@ -141,12 +134,13 @@ export const discoverCdpEndpoint = async (
     versionInput,
     operation,
   );
-  const { targets, limitations } = parseCdpDiscoveryTargets(
+  const { targets, limitations, ambiguousTargetIds } = parseCdpDiscoveryTargets(
     targetsInput,
     operation,
   );
   return {
     limitations,
+    ambiguousTargetIds,
     webSocket: safeCdpWebSocketEndpoint(
       endpoint,
       version.webSocketDebuggerUrl,
@@ -231,7 +225,7 @@ export const withCdpDiscoveryDeadline = async <T>(
  * apply the discovery deadline through `signal`.
  */
 export const discoverCdpBrowserSocket = async (
-  connection: CdpConnection,
+  connection: Pick<CdpConnection, "send">,
   url: string,
   operation: BrowserObservationOperation,
   signal?: AbortSignal,
@@ -258,7 +252,14 @@ export const discoverCdpBrowserSocket = async (
     targetsInput,
     operation,
   );
+  const parsedTargets = parseCdpDiscoveryTargets(
+    targets.targetInfos,
+    operation,
+    "CDP Target.getTargets",
+  );
   return {
+    limitations: parsedTargets.limitations,
+    ambiguousTargetIds: parsedTargets.ambiguousTargetIds,
     webSocket: { scope: "browser", url },
     version: {
       product: version.product,
@@ -267,8 +268,8 @@ export const discoverCdpBrowserSocket = async (
       user_agent: version.userAgent,
       js_version: version.jsVersion,
     },
-    targets: targets.targetInfos.map((target) => ({
-      id: target.targetId,
+    targets: parsedTargets.targets.map((target) => ({
+      id: target.id,
       type: target.type,
       title: sanitizeTargetTitle(target.title, target.url),
       url: target.url,

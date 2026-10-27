@@ -552,6 +552,11 @@ type FilterPath = FilterPaths[number];
 /** Apply Incur's parsed path grammar while merging sibling array selections. */
 const applyCliOutputFilter = (value: unknown, paths: FilterPaths): unknown => {
   if (paths.length === 0) return value;
+  if (
+    Array.isArray(value) &&
+    paths.some((path) => path[0] !== undefined && "start" in path[0])
+  )
+    return projectArraySlices(value, paths);
   if (Array.isArray(value))
     return value.map((item) => applyCliOutputFilter(item, paths));
   if (
@@ -638,7 +643,10 @@ const projectArraySlices = (
       const siblings = selected.get(index)!;
       const item = source[index];
       if (siblings.some((path) => path.length === 0)) return item;
-      return projectObjectPaths(item, siblings);
+      return Array.isArray(item) &&
+        siblings.some((path) => path[0] !== undefined && "start" in path[0])
+        ? projectArraySlices(item, siblings)
+        : projectObjectPaths(item, siblings);
     });
 };
 

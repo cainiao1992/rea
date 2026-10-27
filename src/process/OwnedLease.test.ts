@@ -1,3 +1,7 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { Server } from "node:net";
+import { promisify } from "node:util";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -15,12 +19,32 @@ const injection = vi.hoisted(() => ({
   admission: "accepted" as "accepted" | "not_private" | "access_denied",
   invalidateOnClose: false,
   closeCalls: 0,
+  recoveryRemoveFailures: 0,
+  staleRemoveFailure: false,
+  socketPermissionsFailure: false,
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
     ...actual,
+    chmod: async (...args: Parameters<typeof actual.chmod>) => {
+      if (injection.socketPermissionsFailure)
+        throw new Error("injected socket permission failure");
+      return actual.chmod(...args);
+    },
+    rm: async (...args: Parameters<typeof actual.rm>) => {
+      if (injection.staleRemoveFailure && String(args[0]).endsWith(".sock"))
+        throw new Error("injected stale socket removal failure");
+      return actual.rm(...args);
+    },
+    rmdir: async (...args: Parameters<typeof actual.rmdir>) => {
+      if (injection.recoveryRemoveFailures > 0) {
+        injection.recoveryRemoveFailures -= 1;
+        throw new Error("injected recovery removal failure");
+      }
+      return actual.rmdir(...args);
+    },
     open: async (...args: Parameters<typeof actual.open>) => {
       const handle = await actual.open(...args);
       if (args[0] !== injection.directory) return handle;
@@ -57,8 +81,178 @@ afterEach(() => {
   injection.admission = "accepted";
   injection.invalidateOnClose = false;
   injection.closeCalls = 0;
+  injection.recoveryRemoveFailures = 0;
+  injection.staleRemoveFailure = false;
+  injection.socketPermissionsFailure = false;
   vi.restoreAllMocks();
 });
+
+describe.skipIf(process.platform === "win32")(
+  "lease socket recovery finalization",
+  () => {
+    it("preserves the failed recovery operation when its directory cleanup also fails", async () => {
+      const directory = await createTestTempDirectory("rea-recovery-primary-");
+      const key = createHash("sha256")
+        .update(JSON.stringify({ application: "linux-hopper-demo" }))
+        .digest("hex")
+        .slice(0, 32);
+      const socketPath = join(directory, `${key}.sock`);
+      await promisify(execFile)(process.execPath, [
+        "--input-type=module",
+        "-e",
+        'import {createServer} from "node:net"; createServer().listen(process.argv[1],()=>process.exit(0));',
+        socketPath,
+      ]);
+      injection.staleRemoveFailure = true;
+      injection.recoveryRemoveFailures = 1;
+      const resources = new ArtifactResourceScope();
+      const failure = await acquireLinuxHopperApplicationLease({
+        directory,
+        runId: "recovery-primary",
+        resources,
+      }).catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(HopperStartError);
+      if (!(failure instanceof HopperStartError)) return;
+      expect(failure.cause).toMatchObject({
+        primary: expect.objectContaining({
+          message: "injected stale socket removal failure",
+        }),
+      });
+      expect(failure.cleanupIncomplete).toBe(true);
+      await resources.retryCleanup();
+      expect(resources.hasPending).toBe(false);
+      expect(failure.cleanupIncomplete).toBe(false);
+    });
+
+    it.each([false, true])(
+      "retains a bound socket when permission hardening and final close fail during recovery=%s",
+      async (recovering) => {
+        const directory = await createTestTempDirectory(
+          "rea-socket-permissions-",
+        );
+        if (recovering) {
+          const key = createHash("sha256")
+            .update(JSON.stringify({ application: "linux-hopper-demo" }))
+            .digest("hex")
+            .slice(0, 32);
+          await promisify(execFile)(process.execPath, [
+            "--input-type=module",
+            "-e",
+            'import {createServer} from "node:net"; createServer().listen(process.argv[1],()=>process.exit(0));',
+            join(directory, `${key}.sock`),
+          ]);
+          injection.recoveryRemoveFailures = 1;
+        }
+        const close = Server.prototype.close;
+        let closeFailures = 1;
+        vi.spyOn(Server.prototype, "close").mockImplementation(function (
+          this: Server,
+          callback,
+        ) {
+          if (closeFailures-- > 0) {
+            callback?.(new Error("injected socket close failure"));
+            return this;
+          }
+          return close.call(this, callback);
+        });
+        injection.socketPermissionsFailure = true;
+        const resources = new ArtifactResourceScope();
+        const failure = await acquireLinuxHopperApplicationLease({
+          directory,
+          runId: "permissions",
+          resources,
+        }).catch((cause: unknown) => cause);
+        expect(failure).toBeInstanceOf(HopperStartError);
+        if (!(failure instanceof HopperStartError)) return;
+        let primary = failure;
+        while (primary.cleanupPrimary instanceof HopperStartError)
+          primary = primary.cleanupPrimary;
+        expect(primary.cause).toMatchObject({
+          message: "injected socket permission failure",
+        });
+        expect(failure.userMessage).toContain("socket permissions");
+        expect(failure.cleanupIncomplete).toBe(true);
+        expect(resources.cleanupResources).toHaveLength(recovering ? 2 : 1);
+        await resources.retryCleanup();
+        expect(failure.cleanupIncomplete).toBe(false);
+        injection.socketPermissionsFailure = false;
+        const next = await acquireLinuxHopperApplicationLease({
+          directory,
+          runId: "next",
+          resources,
+        });
+        expect(next.acquired).toBe(true);
+        if (next.acquired) await next.lease.release();
+      },
+    );
+  },
+);
+
+describe.skipIf(process.platform === "win32")(
+  "lease recovery cleanup retries",
+  () => {
+    it.each(["socket", "directory"] as const)(
+      "retains both failed recovery owners while %s needs another retry",
+      async (remaining) => {
+        const directory = await createTestTempDirectory("rea-recovery-close-");
+        const key = createHash("sha256")
+          .update(JSON.stringify({ application: "linux-hopper-demo" }))
+          .digest("hex")
+          .slice(0, 32);
+        const socketPath = join(directory, `${key}.sock`);
+        await promisify(execFile)(process.execPath, [
+          "--input-type=module",
+          "-e",
+          'import {createServer} from "node:net"; createServer().listen(process.argv[1],()=>process.exit(0));',
+          socketPath,
+        ]);
+        const close = Server.prototype.close;
+        let closeFailures = remaining === "socket" ? 2 : 1;
+        vi.spyOn(Server.prototype, "close").mockImplementation(function (
+          this: Server,
+          callback,
+        ) {
+          if (closeFailures > 0) {
+            closeFailures -= 1;
+            callback?.(new Error("injected socket close failure"));
+            return this;
+          }
+          return close.call(this, callback);
+        });
+        injection.recoveryRemoveFailures = remaining === "directory" ? 2 : 1;
+        const resources = new ArtifactResourceScope();
+        const failure = await acquireLinuxHopperApplicationLease({
+          directory,
+          runId: "recovery",
+          resources,
+        }).catch((cause: unknown) => cause);
+        expect(failure).toBeInstanceOf(HopperStartError);
+        if (!(failure instanceof HopperStartError)) return;
+        expect(failure.cleanupIncomplete).toBe(true);
+        expect(failure.cleanupResources).toEqual(
+          expect.arrayContaining([socketPath, `${socketPath}.recovery`]),
+        );
+        expect(resources.cleanupResources).toHaveLength(2);
+        await expect(resources.retryCleanup()).rejects.toThrow();
+        const remainingPath =
+          remaining === "socket" ? socketPath : `${socketPath}.recovery`;
+        expect(resources.cleanupResources).toEqual([remainingPath]);
+        expect(failure.cleanupResources).toEqual([remainingPath]);
+        expect(failure.cleanupIncomplete).toBe(true);
+        await resources.retryCleanup();
+        expect(resources.hasPending).toBe(false);
+        expect(failure.cleanupIncomplete).toBe(false);
+        const next = await acquireLinuxHopperApplicationLease({
+          directory,
+          runId: "next",
+          resources,
+        });
+        expect(next.acquired).toBe(true);
+        if (next.acquired) await next.lease.release();
+      },
+    );
+  },
+);
 
 describe.skipIf(process.platform === "win32")(
   "lease directory finalization",

@@ -9,6 +9,7 @@ import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.j
 import { HopperStartError } from "../domain/hopperErrors.js";
 import {
   acquireOwnedLease,
+  OwnedLeaseCleanupFailure,
   type LeaseAcquisition,
   type LeaseFailure,
 } from "./OwnedLease.js";
@@ -93,14 +94,17 @@ const hopperLeaseFailure = (
   cause?: unknown,
 ): HopperStartError => {
   const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? cause.fileCleanupFailure.outcome.cause
-      : undefined;
+    cause instanceof OwnedLeaseCleanupFailure
+      ? cause.primary
+      : cause instanceof ArtifactFileCleanupFailure &&
+          cause.fileCleanupFailure.outcome.kind === "failed"
+        ? cause.fileCleanupFailure.outcome.cause
+        : undefined;
   const error = new HopperStartError({
     ...(cause === undefined ? {} : { cause }),
     ...(primary instanceof HopperStartError ? { cleanupPrimary: primary } : {}),
-    ...(cause instanceof ArtifactFileCleanupFailure
+    ...(cause instanceof ArtifactFileCleanupFailure ||
+    cause instanceof OwnedLeaseCleanupFailure
       ? { cleanup: cause.cleanup }
       : {}),
     userMessage:
@@ -122,6 +126,8 @@ const hopperLeaseMessage = (failure: LeaseFailure): string => {
       return "REA's Hopper lease directory permissions could not be secured.";
     case "directory_access_denied":
       return `REA could not access its Hopper lease directory at ${JSON.stringify(failure.directory)}. Check its ownership and parent-directory access. For a directory you own, restore owner-only read, write, and search permissions (0700), then retry.`;
+    case "socket_permissions":
+      return "REA could not secure its lease socket permissions.";
     case "directory_close":
       return "REA could not confirm closure of its Hopper lease directory handle.";
     case "directory_inspect":

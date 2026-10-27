@@ -13,7 +13,8 @@ import {
   ArtifactFileCleanupFailure,
   withArtifactFileHandle,
 } from "../artifacts/ArtifactFileOperation.js";
-import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.js";
+import { ArtifactReaderFailure } from "../artifacts/ArtifactReader.js";
 
 import { safeParseJson } from "../domain/safeJson.js";
 
@@ -41,6 +42,7 @@ export type LeaseFailure =
   | { readonly kind: "directory_access_denied"; readonly directory: string }
   | { readonly kind: "directory_inspect" }
   | { readonly kind: "directory_close" }
+  | { readonly kind: "socket_permissions" }
   | { readonly kind: "recovery_busy"; readonly path: string }
   | { readonly kind: "recovery_create"; readonly path: string }
   | { readonly kind: "recovery_remove"; readonly path: string }
@@ -51,6 +53,21 @@ export type LeaseFailureFactory = (
   failure: LeaseFailure,
   cause?: unknown,
 ) => Error;
+
+/** Recovery finalization retains its operation outcome and every failed owner. */
+export class OwnedLeaseCleanupFailure extends ArtifactReaderFailure {
+  override readonly cleanupLeases;
+  constructor(
+    readonly primary: unknown,
+    failure: ArtifactReaderFailure,
+  ) {
+    super(failure.reason, failure.message, {
+      cause: primary,
+      cleanup: failure.cleanup,
+    });
+    this.cleanupLeases = failure.cleanupLeases;
+  }
+}
 
 /**
  * Hold one named lease for as long as this process keeps it.
@@ -69,52 +86,112 @@ export const acquireOwnedLease = async (input: {
   readonly resources?: ArtifactResourceScope | undefined;
 }): Promise<LeaseAcquisition> => {
   const produced = new WeakSet<Error>();
+  const cleanupCauses = new WeakMap<Error, ArtifactReaderFailure>();
   const fail = (failure: LeaseFailure, cause?: unknown): Error => {
     const error = input.failure(failure, cause);
     produced.add(error);
+    if (cause instanceof ArtifactReaderFailure) cleanupCauses.set(error, cause);
     return error;
   };
   const key = createHash("sha256")
     .update(JSON.stringify(input.identity))
     .digest("hex")
     .slice(0, 32);
+  const resources = input.resources ?? new ArtifactResourceScope();
   const owner = { runId: input.runId, processId: process.pid };
   if (process.platform === "win32") {
     // A named pipe disappears with its last handle, so no stale pipe needs
     // recovery. A pipe that vanished between bind and owner lookup is retried.
     const pipePath = `\\\\.\\pipe\\rea-lease-${key}`;
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const acquisition = await tryAcquireLease(pipePath, owner, fail, false);
+      const acquisition = await tryAcquireLease(
+        pipePath,
+        owner,
+        fail,
+        false,
+        resources,
+      );
       if (typeof acquisition !== "string") return acquisition;
     }
     throw fail({ kind: "unrecoverable" });
   }
   await ensureLeaseDirectory(input.directory, fail, produced, input.resources);
   const socketPath = join(input.directory, `${key}.sock`);
-  const acquisition = await tryAcquireLease(socketPath, owner, fail, true);
+  const acquisition = await tryAcquireLease(
+    socketPath,
+    owner,
+    fail,
+    true,
+    resources,
+  );
   if (typeof acquisition !== "string") return acquisition;
 
   // Serialize stale cleanup through the replacement bind: otherwise two
   // recoverers can unlink the socket that one of them has just acquired.
   const recoveryPath = `${socketPath}.recovery`;
   await reserveRecovery(recoveryPath, fail);
+  const recoveryOwner = {
+    kind: "lease" as const,
+    resource: recoveryPath,
+    lease: { release: () => rmdir(recoveryPath) },
+  };
   let recovered: LeaseAcquisition | "missing" | "stale" | undefined;
+  let primary: unknown;
+  let failed = false;
   try {
-    recovered = await tryAcquireLease(socketPath, owner, fail, true);
+    recovered = await tryAcquireLease(socketPath, owner, fail, true, resources);
     if (recovered === "stale") await rm(socketPath, { force: true });
     if (typeof recovered === "string")
-      recovered = await tryAcquireLease(socketPath, owner, fail, true);
-    if (typeof recovered !== "string") return recovered;
-    throw fail({ kind: "unrecoverable" });
-  } finally {
-    try {
-      await rmdir(recoveryPath);
-    } catch (cause: unknown) {
-      if (typeof recovered !== "string" && recovered?.acquired)
-        await recovered.lease.release();
-      throw fail({ kind: "recovery_remove", path: recoveryPath }, cause);
-    }
+      recovered = await tryAcquireLease(
+        socketPath,
+        owner,
+        fail,
+        true,
+        resources,
+      );
+    if (typeof recovered === "string") throw fail({ kind: "unrecoverable" });
+  } catch (cause: unknown) {
+    failed = true;
+    primary = cause;
   }
+  const directoryCleanup = await resources.release(recoveryOwner);
+  if (directoryCleanup.kind === "failed") {
+    const failures = [directoryCleanup];
+    if (typeof recovered !== "string" && recovered?.acquired) {
+      const socketCleanup = await resources.release({
+        kind: "lease",
+        resource: recovered.lease.socketPath ?? socketPath,
+        lease: recovered.lease,
+      });
+      if (socketCleanup.kind === "failed") failures.push(socketCleanup);
+    }
+    const outcome = failed
+      ? primary
+      : fail(
+          { kind: "recovery_remove", path: recoveryPath },
+          directoryCleanup.cause,
+        );
+    throw fail(
+      { kind: "recovery_remove", path: recoveryPath },
+      new OwnedLeaseCleanupFailure(
+        outcome,
+        resources.cleanupFailure(
+          {
+            kind: "failed",
+            cause:
+              outcome instanceof Error
+                ? (cleanupCauses.get(outcome) ?? outcome)
+                : outcome,
+          },
+          [failures[0]!, ...failures.slice(1)],
+        ),
+      ),
+    );
+  }
+  if (failed) throw primary;
+  if (typeof recovered !== "string" && recovered !== undefined)
+    return recovered;
+  throw fail({ kind: "unrecoverable" });
 };
 
 const reserveRecovery = async (
@@ -142,6 +219,7 @@ const tryAcquireLease = async (
   owner: LeaseOwner,
   fail: (failure: LeaseFailure, cause?: unknown) => Error,
   securePath: boolean,
+  resources: ArtifactResourceScope,
 ): Promise<LeaseAcquisition | "missing" | "stale"> => {
   const server = createServer((socket) => sendOwner(socket, owner));
   // The lease lives exactly as long as its owning process. A lease retained
@@ -154,27 +232,39 @@ const tryAcquireLease = async (
       ? existingOwner
       : { acquired: false, owner: existingOwner };
   }
+  let released = false;
+  const lease: OwnedLease = {
+    socketPath,
+    release: async () => {
+      if (released) return;
+      // Node removes the bound socket; never unlink a later owner's socket.
+      await closeServer(server);
+      released = true;
+    },
+  };
   if (securePath)
     try {
       await chmod(socketPath, 0o600);
     } catch (cause: unknown) {
-      await closeServer(server);
-      throw cause;
+      const primary = fail({ kind: "socket_permissions" }, cause);
+      const cleanup = await resources.release({
+        kind: "lease",
+        resource: socketPath,
+        lease,
+      });
+      if (cleanup.kind === "failed")
+        throw fail(
+          { kind: "socket_permissions" },
+          new OwnedLeaseCleanupFailure(
+            primary,
+            resources.cleanupFailure({ kind: "failed", cause: primary }, [
+              cleanup,
+            ]),
+          ),
+        );
+      throw primary;
     }
-  let released = false;
-  return {
-    acquired: true,
-    lease: {
-      socketPath,
-      release: async () => {
-        if (released) return;
-        // Node removes a bound Unix socket on close. A second unlink here
-        // could remove a new owner's socket bound after that close.
-        await closeServer(server);
-        released = true;
-      },
-    },
-  };
+  return { acquired: true, lease };
 };
 
 const ensureLeaseDirectory = async (

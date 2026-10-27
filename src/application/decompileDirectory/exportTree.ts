@@ -38,6 +38,7 @@ import { isPathWithinRoot } from "../../domain/localPath.js";
 import { err, ok, type Result } from "../../domain/result.js";
 import {
   acquireOwnedLease,
+  OwnedLeaseCleanupFailure,
   type LeaseFailure,
   type OwnedLease,
 } from "../../process/OwnedLease.js";
@@ -886,17 +887,20 @@ const exportLeaseFailure = (
   cause?: unknown,
 ): AnalysisOutputError => {
   const primary =
-    cause instanceof ArtifactFileCleanupFailure &&
-    cause.fileCleanupFailure.outcome.kind === "failed"
-      ? cause.fileCleanupFailure.outcome.cause
-      : undefined;
+    cause instanceof OwnedLeaseCleanupFailure
+      ? cause.primary
+      : cause instanceof ArtifactFileCleanupFailure &&
+          cause.fileCleanupFailure.outcome.kind === "failed"
+        ? cause.fileCleanupFailure.outcome.cause
+        : undefined;
   const error = new AnalysisOutputError(
     "decompile_all",
     "output directory lease could not be acquired",
     {
       ...(cause === undefined ? {} : { cause }),
       ...(primary instanceof AnalysisError ? { cleanupPrimary: primary } : {}),
-      ...(cause instanceof ArtifactFileCleanupFailure
+      ...(cause instanceof ArtifactFileCleanupFailure ||
+      cause instanceof OwnedLeaseCleanupFailure
         ? { cleanup: cause.cleanup }
         : {}),
       userMessage:
@@ -919,6 +923,8 @@ const exportLeaseMessage = (failure: LeaseFailure): string => {
       return `REA could not remove its lease recovery directory at ${JSON.stringify(failure.path)}. Check its write access before retrying.`;
     case "unrecoverable":
       return "REA could not take this output directory's lease. Retry after other decompile_all runs finish.";
+    case "socket_permissions":
+      return "REA could not secure its lease socket permissions.";
     case "directory_close":
       return "REA could not confirm closure of its output lease directory handle.";
     case "directory_access_denied":

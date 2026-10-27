@@ -89,7 +89,7 @@ describe("published performance evidence", () => {
     "tests/support/analysis-efficiency/mcp-integer-report.mjs",
   );
   const report = resolve(
-    "tests/support/analysis-efficiency/mcp-integer-allocation.md",
+    "docs/verification/analysis-efficiency/mcp-integer-allocation.md",
   );
   processTest(
     "keeps generated report facts aligned with committed receipts",

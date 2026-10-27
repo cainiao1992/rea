@@ -7,8 +7,9 @@ installed-client and agent runs.
 
 Historical verification records may refer to `experiments/analysis-efficiency`.
 Those experiment scripts are available in the [archived source tree](https://github.com/morluto/rea/tree/a2e2c29b59e8775b0e6aedb09a9eb16adf32646b/experiments/analysis-efficiency);
-they are not included in current checkouts. Test support remains under
-`tests/support/analysis-efficiency`.
+they are not included in current checkouts. The retained [test support](https://github.com/morluto/rea/blob/main/tests/support/analysis-efficiency/README.md)
+contains deterministic checkers and fixtures. The [allocation report](verification/analysis-efficiency/mcp-integer-allocation.md)
+and its original receipt JSON remain documentation, checked by the report producer.
 
 ## Developer commands
 

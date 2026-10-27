@@ -2498,7 +2498,7 @@ it.each([
 );
 
 it.each([false, true])(
-  "detaches a live inferior with a queued follower: %s",
+  "retains verified detach when MI becomes unavailable with a queued follower: %s",
   async (withFollower) => {
     const tty = "/dev/pts/42";
     const commands: string[] = [];
@@ -2512,7 +2512,7 @@ it.each([false, true])(
       else if (command.includes("list-thread-groups"))
         fake.children[0]?.stdout.write(
           detached
-            ? `${token}^done,groups=[]\n`
+            ? `${token}^error,msg="transport shutting down"\n`
             : `${token}^done,groups=[{id="i1",pid="123"}]\n`,
         );
       else {
@@ -2544,7 +2544,9 @@ it.each([false, true])(
       ok: true,
       value: { target_state: "unknown" },
     });
-    expect(commands).toContain("-list-thread-groups --recurse 1");
+    expect(
+      commands.filter((command) => command.includes("list-thread-groups")),
+    ).toHaveLength(2);
     expect(commands).toContain("-target-detach");
     expect(
       commands.filter((command) => command.includes("target-detach")),

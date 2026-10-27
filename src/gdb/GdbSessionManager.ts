@@ -1963,6 +1963,9 @@ export class GdbSessionManager {
     )
       throw new Error("GDB did not confirm inferior detachment.");
     session.knownInferiorIdentities.clear();
+    // The sole recursively inventoried inferior is now detached. Retain this
+    // fact for owned shutdown even if the MI transport becomes unavailable.
+    session.noInferiorVerified = true;
     return { status: "detached", outputSink: "durable" };
   }
 

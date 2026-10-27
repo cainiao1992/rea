@@ -58,16 +58,24 @@ export const gpuCodeObjectsSummarySchema = gpuCodeObjectsObjectSchema
   });
 export const gpuCodeObjectsItemsSchema = z.union([
   z.array(
-    gpuObjectSchema.partial().required({
-      id: true,
-      kind: true,
-      target: true,
-      location: true,
-      metadata_location: true,
-      payload_target: true,
-      target_consistency: true,
-      inspection: true,
-    }),
+    gpuObjectSchema
+      .partial()
+      .required({
+        id: true,
+        kind: true,
+        target: true,
+        location: true,
+        metadata_location: true,
+        payload_target: true,
+        target_consistency: true,
+        inspection: true,
+      })
+      .extend({
+        // Source defaults qualify historical full rows, never omitted page columns.
+        amd_target_metadata: gpuObjectSchema.shape.amd_target_metadata
+          .removeDefault()
+          .optional(),
+      }),
   ),
   z.array(
     gpuKernelSchema.partial().required({

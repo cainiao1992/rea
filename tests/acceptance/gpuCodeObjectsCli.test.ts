@@ -986,6 +986,36 @@ it("keeps unknown target discovery visible in the default MCP summary", async ()
   }
 });
 
+it("preserves omitted AMD metadata in selected MCP object pages", async () => {
+  const root = await createTestTempDirectory("rea-gpu-metadata-columns-"),
+    path = join(root, "amd");
+  await writeFile(path, amdFixture());
+  const { call } = await connectLocalToolsMcp();
+  const inspected = await call("inspect_gpu_code_objects", {
+    path,
+    analysis: "kernels",
+    view: { collection: "objects", fields: ["amd_target_metadata"] },
+  });
+  expect(inspected.isError, JSON.stringify(inspected)).not.toBe(true);
+  const full = gpuCodeObjectsPageViewResultSchema.parse(
+    parseEvidence(inspected.structuredContent).normalized_result,
+  );
+  expect(full.items[0]).toHaveProperty(
+    "amd_target_metadata.processor",
+    "gfx900",
+  );
+  const selected = await call("inspect_analysis_view", {
+    source: { kind: "retained-evidence", evidence_id: full.parent_evidence_id },
+    view: { kind: "gpu-code-objects", collection: "objects", fields: ["kind"] },
+  });
+  expect(selected.isError, JSON.stringify(selected)).not.toBe(true);
+  const page = gpuCodeObjectsPageViewResultSchema.parse(
+    parseEvidence(selected.structuredContent).normalized_result,
+  );
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]).not.toHaveProperty("amd_target_metadata");
+});
+
 it("retains selected kernel facts and complete PTX for historical MCP pages after source removal", async () => {
   const root = await createTestTempDirectory("rea-gpu-mcp-"),
     path = join(root, "application");

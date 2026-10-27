@@ -17,6 +17,7 @@
  * conflated with malformed input.
  */
 import { type Result, err, ok } from "../result.js";
+import { decodeAsn1Oid } from "../asn1Oid.js";
 import { Asn1BerFailure, Asn1BerReader, type Asn1BerNode } from "../asn1Ber.js";
 
 export type ApkV1BlockError =
@@ -152,24 +153,11 @@ const expectOctetString = (
 
 /** Dotted OID text; arcs are accumulated as BigInt so no arc overflows. */
 const oidText = (content: Uint8Array): string => {
-  if (content.length === 0 || content.length > 64)
-    throw malformed(`object identifier of ${String(content.length)} bytes`);
-  const arcs: bigint[] = [];
-  let value = 0n;
-  for (const [index, byte] of content.entries()) {
-    value = (value << 7n) | BigInt(byte & 0x7f);
-    if ((byte & 0x80) !== 0) {
-      if (index === content.length - 1)
-        throw malformed("object identifier is truncated");
-      continue;
-    }
-    if (arcs.length === 0) {
-      const first = value < 80n ? value / 40n : 2n;
-      arcs.push(first, value - first * 40n);
-    } else arcs.push(value);
-    value = 0n;
-  }
-  return arcs.join(".");
+  const decoded = decodeAsn1Oid(content, { bytes: 64, arcBytes: 64 });
+  if (decoded.ok) return decoded.value;
+  if (decoded.error.kind === "truncated")
+    throw malformed("object identifier is truncated");
+  throw malformed(`object identifier of ${String(content.length)} bytes`);
 };
 
 const algorithmOid = (tlv: Asn1BerNode | undefined, what: string) =>

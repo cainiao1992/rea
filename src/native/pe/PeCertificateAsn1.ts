@@ -1,3 +1,4 @@
+import { decodeAsn1Oid } from "../../domain/asn1Oid.js";
 import {
   Asn1BerFailure,
   Asn1BerReader,
@@ -85,33 +86,25 @@ const chargeDecodedName = (budget: DecodedNameBudget, bytes: number): void => {
 
 /** Decode an OBJECT IDENTIFIER content buffer as dotted decimal. */
 export const decodeOid = (content: Buffer): string => {
-  if (content.length === 0) return fail("Empty OBJECT IDENTIFIER.");
-  if (content.length > MAX_OID_BYTES)
-    return fail(`OBJECT IDENTIFIER exceeds ${String(MAX_OID_BYTES)} bytes.`);
-  // Arcs are unbounded base-128 integers; the first encoded value combines
-  // the first two arcs and can itself span several bytes (2.999 -> 1079).
-  const values: bigint[] = [];
-  let value = 0n;
-  let arcBytes = 0;
-  for (let index = 0; index < content.length; index += 1) {
-    arcBytes += 1;
-    if (arcBytes > MAX_OID_ARC_BYTES)
+  const decoded = decodeAsn1Oid(content, {
+    bytes: MAX_OID_BYTES,
+    arcBytes: MAX_OID_ARC_BYTES,
+  });
+  if (decoded.ok) return decoded.value;
+  switch (decoded.error.kind) {
+    case "empty":
+      return fail("Empty OBJECT IDENTIFIER.");
+    case "byte-limit":
       return fail(
-        `OBJECT IDENTIFIER arc exceeds ${String(MAX_OID_ARC_BYTES)} bytes.`,
+        `OBJECT IDENTIFIER exceeds ${String(decoded.error.limit)} bytes.`,
       );
-    const byte = required(content[index], "Truncated OBJECT IDENTIFIER.");
-    value = (value << 7n) | BigInt(byte & 0x7f);
-    if ((byte & 0x80) === 0) {
-      values.push(value);
-      value = 0n;
-      arcBytes = 0;
-    } else if (index === content.length - 1)
+    case "arc-limit":
+      return fail(
+        `OBJECT IDENTIFIER arc exceeds ${String(decoded.error.limit)} bytes.`,
+      );
+    case "truncated":
       return fail("Truncated OBJECT IDENTIFIER component.");
   }
-  const [combined, ...rest] = values;
-  if (combined === undefined) return fail("Empty OBJECT IDENTIFIER.");
-  const first = combined < 40n ? 0n : combined < 80n ? 1n : 2n;
-  return [first, combined - first * 40n, ...rest].join(".");
 };
 
 const decodeUtf16Be = (bytes: Buffer, budget: DecodedNameBudget): string => {

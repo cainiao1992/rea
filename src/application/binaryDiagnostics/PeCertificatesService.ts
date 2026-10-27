@@ -99,16 +99,34 @@ const validReport = (
   if (
     report.artifact.bytes > maxBytes ||
     report.coverage.examined_entries > maxEntries ||
+    report.coverage.examined_entries !== report.entries.length ||
     report.coverage.certificates !==
       report.entries.reduce(
         (count, entry) => count + (entry.pkcs7?.certificates.length ?? 0),
         0,
-      ) ||
-    report.entries.length > maxEntries
+      )
   )
     return false;
-  if (report.table !== null && !inside(report.table.location)) return false;
+  if (report.table === null) return report.entries.length === 0;
+  if (
+    !inside(report.table.location) ||
+    !inside(report.table.data_directory_location)
+  )
+    return false;
+  const table = report.table;
+  const contains = (
+    outer: { offset: number; bytes: number },
+    inner: { offset: number; bytes: number },
+  ) =>
+    inner.offset >= outer.offset &&
+    inner.offset - outer.offset <= outer.bytes - inner.bytes;
   return report.entries.every(
-    (entry) => inside(entry.location) && inside(entry.payload.location),
+    (entry) =>
+      contains(table.location, entry.location) &&
+      contains(entry.location, entry.payload.location) &&
+      (entry.pkcs7?.certificates.every((certificate) =>
+        contains(entry.payload.location, certificate.location),
+      ) ??
+        true),
   );
 };

@@ -86,10 +86,10 @@ describe("onboarding documentation product facts", () => {
 
 describe("published performance evidence", () => {
   const script = resolve(
-    "experiments/analysis-efficiency/mcp-integer-report.mjs",
+    "tests/support/analysis-efficiency/mcp-integer-report.mjs",
   );
   const report = resolve(
-    "experiments/analysis-efficiency/mcp-integer-allocation.md",
+    "tests/support/analysis-efficiency/mcp-integer-allocation.md",
   );
   processTest(
     "keeps generated report facts aligned with committed receipts",

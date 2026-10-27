@@ -524,10 +524,12 @@ installs its skill copy there.
 ## Factory Droid
 
 For [Factory Droid](https://docs.factory.com/harness/mcp), setup writes
-`mcpServers.rea` into the user-level `~/.factory/mcp.json`. Entries carry
-`command`, `args`, and `env`. Droid discovers personal skills from
-`~/.factory/skills` ([skills](https://docs.factory.com/harness/skills)), so
-setup installs its skill copy there.
+`mcpServers.rea` into the user-level `~/.factory/mcp.json` (the
+`FACTORY_HOME_OVERRIDE` override replaces the home that contains `.factory`).
+Entries carry `command`, `args`, and `env`. Droid discovers personal skills
+from `~/.factory/skills` ([skills](https://docs.factory.com/harness/skills),
+following `FACTORY_HOME_OVERRIDE` when set), so setup installs its skill copy
+there.
 
 ## Trae
 

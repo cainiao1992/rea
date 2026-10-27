@@ -18,7 +18,9 @@ const nameKey = (name: string): string =>
 
 /**
  * TShark visits answer, authority, then additional RRs, emitting one
- * dns.resp.name/type per RR (including OPT), and type-specific value queues.
+ * dns.resp.type per RR (including OPT), and type-specific value queues.
+ * SRV owners use dns.srv.* fields instead of dns.resp.name, so the owner
+ * queue advances only for other RR types.
  * NSEC/NXT bitmaps may add type fields; the cardinality check declines those
  * ambiguous flat inventories instead of reconstructing missing hierarchy.
  * Validate that correspondence before joining any owner to an address.
@@ -59,8 +61,8 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
   const types = field("dns.resp.type").map(dnsType);
   const aliases = field("dns.cname");
   if (
-    owners.length !== answers + authority + additional ||
-    types.length !== owners.length ||
+    types.length !== answers + authority + additional ||
+    owners.length !== types.filter((type) => type !== 33).length ||
     types.some((value) => value === null) ||
     types.filter((type) => type === 1).length !== ipv4.length ||
     types.filter((type) => type === 28).length !== ipv6.length ||
@@ -82,9 +84,10 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
     return unknown();
   let a = 0,
     aaaa = 0,
-    cname = 0;
+    cname = 0,
+    owner = 0;
   const records = types.map((type, index) => ({
-    owner: nameKey(owners[index]!),
+    owner: type === 33 ? "" : nameKey(owners[owner++]!),
     type,
     answer: index < answers,
     value:

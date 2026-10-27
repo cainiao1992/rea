@@ -32,6 +32,82 @@ const cnameAndGlue = {
   "dns.a": ["192.0.2.10", "192.0.2.53"],
 };
 
+// Source-backed selected-field shape: Wireshark 4.x add_rr_to_tree emits
+// dns.srv.* instead of dns.resp.name for SRV owners. Not a provider recording.
+// https://github.com/wireshark/wireshark/blob/v4.4.10/epan/dissectors/packet-dns.c#L1926-L1976
+const srvAndAddresses = {
+  "dns.flags.response": ["1"],
+  "dns.qry.name": ["WWW.Example"],
+  "dns.qry.type": ["255"],
+  "dns.count.queries": ["1"],
+  "dns.count.answers": ["4"],
+  "dns.count.auth_rr": ["0"],
+  "dns.count.add_rr": ["1"],
+  "dns.resp.type": ["33", "1", "33", "28", "1"],
+  "dns.resp.name": ["www.example", "www.example", "ns.example"],
+  "dns.a": ["192.0.2.10", "192.0.2.53"],
+  "dns.aaaa": ["2001:db8::10"],
+};
+
+it("keeps address-free SRV answers complete without requiring dns.resp.name", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        ...srvAndAddresses,
+        "dns.qry.name": ["_sip._tcp.example"],
+        "dns.qry.type": ["33"],
+        "dns.count.answers": ["1"],
+        "dns.count.add_rr": ["0"],
+        "dns.resp.type": ["33"],
+        "dns.resp.name": [],
+        "dns.a": [],
+        "dns.aaaa": [],
+      },
+    ]),
+  );
+  expect(result.partial).toBe(false);
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+});
+
+it("aligns A and AAAA owners around SRV records while retaining additional glue separately", async () => {
+  const result = await parseTsharkJsonOutput(capture([srvAndAddresses]));
+  expect(result.dnsQueries).toEqual([
+    {
+      query: "WWW.Example",
+      response_addresses: ["192.0.2.10", "2001:db8::10"],
+      response_address_count: 2,
+    },
+  ]);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.53"]);
+  expect(result.partial).toBe(true);
+});
+
+it.each([
+  { "dns.resp.name": ["www.example", "ns.example"] },
+  {
+    "dns.resp.name": [
+      "srv.example",
+      "www.example",
+      "www.example",
+      "ns.example",
+    ],
+  },
+  { "dns.resp.type": ["33", "1", "33", "28"] },
+  { "dns.count.answers": ["4", "0"] },
+  { "dns.flags.response": ["1", "1"] },
+])("declines ambiguous SRV owner inventories: %j", async (override) => {
+  const result = await parseTsharkJsonOutput(
+    capture([{ ...srvAndAddresses, ...override }]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+  expect(result.unattributedDnsAddresses).toEqual([
+    "192.0.2.10",
+    "192.0.2.53",
+    "2001:db8::10",
+  ]);
+  expect(result.partial).toBe(true);
+});
+
 it("reports unknown RR coverage when a DNS response omits all count and address fields", async () => {
   const result = await parseTsharkJsonOutput(
     capture([

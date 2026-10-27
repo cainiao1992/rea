@@ -41,6 +41,7 @@ import type { ArtifactResourceScope } from "../artifacts/ArtifactResourceScope.j
 
 import {
   parseClientRegistration,
+  clientRegistrationOwnershipRemediation,
   setupPreservesDisabledActivation,
   type ClientRegistration,
 } from "./ClientRegistration.js";
@@ -332,7 +333,12 @@ export const readClientRegistrationInspections = async (
                 policyBlock === undefined
               ? "aligned"
               : "stale",
-          policyBlock ??
+          (parsed.dialect !== "dsh" && commandFacts.identity !== "owned"
+            ? clientRegistrationOwnershipRemediation(commandFacts.identity, [
+                configPath,
+              ])
+            : undefined) ??
+            policyBlock ??
             (packageVersionDrift
               ? packageVersionRemediation(packageReference ?? "", client)
               : alignment === "unknown"

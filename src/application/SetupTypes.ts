@@ -37,6 +37,11 @@ export interface SetupInitialState {
 export type ClientConfigurationResult =
   | {
       readonly status: "failed";
+      readonly reason: "registration_ownership";
+      readonly detail: string;
+    }
+  | {
+      readonly status: "failed";
       readonly reason: "conflict";
       readonly backupPath?: string;
     }

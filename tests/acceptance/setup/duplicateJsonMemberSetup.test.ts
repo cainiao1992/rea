@@ -40,10 +40,7 @@ for (const [layout, original] of [
     "a repeated server table",
     `{\n  ${shadowParent}\n  "mcpServers": {"peer": {"command": "/usr/bin/true"}}\n}\n`,
   ],
-  [
-    "a repeated rea member",
-    `{\n  "mcpServers": {${shadowLeaf} "rea": {"command": "/usr/bin/true"}}\n}\n`,
-  ],
+  ["a repeated rea member", `{\n  "mcpServers": {${shadowLeaf} ${owned}}\n}\n`],
 ] as const)
   cliTest(
     `Claude Code setup edits the effective member of ${layout}`,
@@ -254,11 +251,11 @@ cliTest(
 );
 
 cliTest(
-  "OpenCode setup replaces every repeated V1 entry while preserving the V2 peer",
+  "OpenCode setup migrates every owned repeated V1 entry while preserving the V2 peer",
   async ({ cli }) => {
     const home = await createTestTempDirectory("rea-json-opencode-migration-");
     const config = join(home, ".config", "opencode", "opencode.json");
-    const original = `{"mcp":{"servers":{"peer":{"type":"local","command":["/usr/bin/true"]}},"rea":${openCodeForeign},"rea":${openCodeForeign}}}\n`;
+    const original = `{"mcp":{"servers":{"peer":{"type":"local","command":["/usr/bin/true"]}},"rea":${openCodeOwned},"rea":${openCodeOwned}}}\n`;
     await writeConfiguration(config, original);
 
     const setup = await runIn(cli, home)(setupArguments("opencode"));

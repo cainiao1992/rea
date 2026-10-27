@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { browserScenarioSchema } from "../domain/browserScenario.js";
 import type { BrowserScenarioAction } from "../domain/browserScenarioValues.js";
 import { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
+import { responsePointerValue } from "./BrowserScenarioResponseValues.js";
 import { performPlaywrightScenarioAction } from "./PlaywrightScenarioActions.js";
 
 const ORIGIN = "https://app.example.test";
@@ -1029,6 +1030,52 @@ describe("saved value credentials and limits", () => {
     const redacted = secrets.redact(`${encoded} operator-7 cookie-key-5d1c`);
     for (const value of [encoded, "operator-7", "cookie-key-5d1c"])
       expect(redacted).not.toContain(value);
+  });
+});
+
+describe("saved response JSON pointers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does not coerce a terminal newline in an array index", () => {
+    expect(responsePointerValue({ items: ["record-7"] }, "/items/0\n")).toBe(
+      undefined,
+    );
+  });
+
+  it.each(["length", "01", "-"])(
+    "refuses the non-index array token %s",
+    async (token) => {
+      stubFetch(201, ['{"items":["record-7","record-8"]}']);
+      const parsed = scenario([
+        requestStep({
+          save: [{ name: "item", json_pointer: `/items/${token}` }],
+        }),
+      ]);
+      const secrets = resolved(parsed);
+      await expect(
+        perform(fakePage({}), parsed.actions[0]!, secrets),
+      ).rejects.toThrow("has no string or number");
+      expect(() => secrets.savedValue("item")).toThrow("No earlier step saved");
+    },
+  );
+
+  it.each([
+    ["/items/0", "record-7"],
+    ["/length", 12],
+    ["/01", "object-key"],
+    ["/a~1b/~0key", "escaped-key"],
+  ])("preserves JSON member identity at %s", async (pointer, expected) => {
+    stubFetch(201, [
+      '{"items":["record-7"],"length":12,"01":"object-key","a/b":{"~key":"escaped-key"}}',
+    ]);
+    const parsed = scenario([
+      requestStep({ save: [{ name: "item", json_pointer: pointer }] }),
+    ]);
+    const secrets = resolved(parsed);
+    await perform(fakePage({}), parsed.actions[0]!, secrets);
+    expect(secrets.savedValue("item")).toBe(expected);
   });
 });
 

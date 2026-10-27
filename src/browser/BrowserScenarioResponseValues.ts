@@ -37,9 +37,10 @@ export const responsePointerValue = (
 ): unknown => {
   let current = value;
   for (const key of pointerTokens(pointer)) {
-    if (Array.isArray(current) && /^(?:0|[1-9][0-9]*)$/u.test(key))
+    if (Array.isArray(current)) {
+      if (!/^(?:0|[1-9][0-9]*)(?![\s\S])/u.test(key)) return undefined;
       current = current[Number(key)];
-    else if (
+    } else if (
       typeof current === "object" &&
       current !== null &&
       Object.hasOwn(current, key)

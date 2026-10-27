@@ -20,7 +20,7 @@ import {
 } from "./apple/KeyedArchiveReader.js";
 import { traceDylibResolution } from "./apple/DylibResolutionReader.js";
 import { dirname } from "node:path";
-import { hashStableRootArtifact } from "./inventory/hashStableRootArtifact.js";
+import { withArtifactTargetIdentity } from "./withArtifactTargetIdentity.js";
 import { inventoryArtifact } from "./inventory/ArtifactInventory.js";
 import { extractArtifact } from "./extraction/ArtifactExtraction.js";
 import { analyzeInterfaceBuilderBundle } from "./apple/InterfaceBuilderAnalysis.js";
@@ -243,7 +243,9 @@ class ArtifactClient implements AnalysisClient {
       }
       if (operation === "decode_interface_builder") {
         const limits = interfaceBuilderLimitsSchema.parse(parameters);
-        const result = await this.withBundleTargetIdentity(
+        const result = await withArtifactTargetIdentity(
+          this.target,
+          this.#resourceScope,
           () =>
             analyzeInterfaceBuilderBundle({
               bundlePath: this.target.sourcePath ?? this.target.path,
@@ -282,7 +284,9 @@ class ArtifactClient implements AnalysisClient {
                 ? {}
                 : { signal: options.signal }),
             })
-          : await this.withBundleTargetIdentity(
+          : await withArtifactTargetIdentity(
+              this.target,
+              this.#resourceScope,
               () =>
                 inspectBundleKeyedArchive({
                   bundlePath: this.target.sourcePath ?? this.target.path,
@@ -407,35 +411,14 @@ class ArtifactClient implements AnalysisClient {
     );
   }
 
-  /** Resource reads belong to the executable identity established by this session. */
-  private async withBundleTargetIdentity<T>(
-    read: () => Promise<T>,
-    signal?: AbortSignal,
-  ): Promise<T> {
-    const verify = async () => {
-      const digest = await hashStableRootArtifact(
-        this.target.path,
-        this.#resourceScope,
-        signal,
-      );
-      if (digest.sha256 !== this.target.sha256)
-        throw new ArtifactReaderFailure(
-          "integrity",
-          `Active target digest changed: expected ${this.target.sha256}, observed ${digest.sha256}`,
-        );
-    };
-    await verify();
-    const result = await read();
-    await verify();
-    return result;
-  }
-
   private async inspectAssetCatalog(
     parameters: Readonly<Record<string, JsonValue>>,
     options?: ExecutionOptions,
   ) {
     const bundlePath = this.target.sourcePath ?? this.target.path;
-    const result = await this.withBundleTargetIdentity(
+    const result = await withArtifactTargetIdentity(
+      this.target,
+      this.#resourceScope,
       () =>
         analyzeAppleAssetCatalogs({
           environment: this.environment,

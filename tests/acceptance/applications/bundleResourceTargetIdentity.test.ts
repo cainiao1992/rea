@@ -11,7 +11,9 @@ import { cliTest } from "../../support/cli/cliFixture.js";
 cliTest.for([
   "decode_interface_builder",
   "inspect_keyed_archive",
-  ...(process.platform === "darwin" ? ["inspect_asset_catalog"] : []),
+  ...(process.platform === "darwin"
+    ? ["inspect_asset_catalog", "inspect_plist"]
+    : []),
 ] as const)(
   "binds live %s Evidence to the open executable through stdio MCP",
   async (operation) => {
@@ -53,6 +55,11 @@ cliTest.for([
     const changedNib = nib.replaceAll("UIViewController", "ChangedController");
     expect(changedNib).not.toBe(nib);
     await writeFile(nibPath, changedNib);
+    if (operation === "inspect_plist")
+      await writeFile(
+        join(contents, "Info.plist"),
+        "<plist><dict><key>CFBundleExecutable</key><string>Probe</string><key>Marker</key><string>ChangedController</string></dict></plist>",
+      );
     const stale = await call(operation, parameters);
     expect(stale.isError).toBe(true);
     expect(JSON.stringify(stale)).toContain("integrity_mismatch");
@@ -68,7 +75,7 @@ cliTest.for([
       expect(JSON.stringify(refreshed.normalized_result)).toContain(
         "ChangedController",
       );
-    if (operation !== "inspect_asset_catalog")
+    if (operation !== "inspect_asset_catalog" && operation !== "inspect_plist")
       expect(JSON.stringify(refreshed.normalized_result)).toContain(
         createHash("sha256").update(changedNib).digest("hex"),
       );

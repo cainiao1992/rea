@@ -855,6 +855,24 @@ jobs:
       # The matching native artifact establishes real Job Object and private
       # runtime boundaries for these fixtures. Ghidra and Java are not needed;
       # real engine claims remain in the separate controlled-provider workflow.
+      # Run native proofs before the broad curated suite so an unrelated
+      # fixture failure cannot hide the real control and recovery checks.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-process-boundary-fixture
+          path: .cache/windows-process-boundary/
+      # Passing the fixture adds the breakaway, caller/child token, environment
+      # semantics and ancestor reparse observations, which the lane skips
+      # entirely when it is absent.
+      - run: >-
+          npm run verify:windows-native -- .
+          "${{ github.workspace }}\.cache\windows-process-boundary\process-boundary.exe"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-native-inspection-fixture
+          path: .cache/windows-native-inspection-fixture/
+      - name: Verify native inspection failure ownership and recovery
+        run: node scripts/verify-windows-native-inspection.mjs
       - name: Run curated Windows capability tests
         run: >-
           npx vitest run --coverage.enabled=false
@@ -907,22 +925,6 @@ jobs:
           tests/process-global/runnerCancellation.test.ts
           tests/process-global/windowsOwnedCommand.test.ts
           tests/conformance/providers/ghidra/realGhidraWindowsWorkflow.test.ts
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: windows-process-boundary-fixture
-          path: .cache/windows-process-boundary/
-      # Passing the fixture adds the breakaway, caller/child token, environment
-      # semantics and ancestor reparse observations, which the lane skips
-      # entirely when it is absent.
-      - run: >-
-          npm run verify:windows-native -- .
-          "${{ github.workspace }}\.cache\windows-process-boundary\process-boundary.exe"
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: windows-native-inspection-fixture
-          path: .cache/windows-native-inspection-fixture/
-      - name: Verify native inspection failure ownership and recovery
-        run: node scripts/verify-windows-native-inspection.mjs
       - name: Verify real Node Inspector discovery and observation
         timeout-minutes: 10
         env:

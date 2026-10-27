@@ -8,6 +8,7 @@ import type {
   WasmInterfaceValueType,
 } from "../domain/wasm/wasmInterface.js";
 import { watString, watStringEnd } from "./WabtString.js";
+import { watCommentEnd } from "./WabtComment.js";
 
 /** Split direct WAT children only; function instruction bodies are never materialized. */
 const parts = (form: string): string[] => {
@@ -19,23 +20,9 @@ const parts = (form: string): string[] => {
       i++;
       continue;
     }
-    if (form.startsWith("(;", i)) {
-      let depth = 1;
-      i += 2;
-      while (i < form.length && depth > 0) {
-        if (form.startsWith("(;", i)) {
-          depth++;
-          i += 2;
-        } else if (form.startsWith(";)", i)) {
-          depth--;
-          i += 2;
-        } else i++;
-      }
-      continue;
-    }
-    if (form.startsWith(";;", i)) {
-      const end = form.indexOf("\n", i);
-      i = end < 0 ? form.length : end + 1;
+    const commentEnd = watCommentEnd(form, i);
+    if (commentEnd !== undefined) {
+      i = commentEnd;
       continue;
     }
     const start = i;
@@ -45,7 +32,9 @@ const parts = (form: string): string[] => {
       let depth = 1;
       i++;
       while (i < form.length && depth > 0) {
-        if (form[i] === '"') i = watStringEnd(form, i + 1);
+        const commentEnd = watCommentEnd(form, i);
+        if (commentEnd !== undefined) i = commentEnd;
+        else if (form[i] === '"') i = watStringEnd(form, i + 1);
         else {
           if (form[i] === "(") depth++;
           else if (form[i] === ")") depth--;

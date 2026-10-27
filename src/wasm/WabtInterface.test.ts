@@ -147,3 +147,43 @@ it("keeps collided labels unknown in each index space and preserves numeric and 
     expect.stringContaining("func index space"),
   ]);
 });
+
+it.each(["\n", "\r", "\r\n"])(
+  "shares comment framing across module and nested interface declarations with %j newlines",
+  (newline) => {
+    const source = `(module
+    (type (func
+      (param (; unmatched ) and quote " (; nested ;) ;) i32)
+      ;; unmatched ( and quote "
+      (result i64)))
+    (import "env" "f" (func (type 0)))
+    (export "f" (func 0))) ;; trailing comment without newline`;
+    const result = parseWabtWat(source.replaceAll("\n", newline));
+    expect(result.imports).toEqual(['(import "env" "f" (func (type 0)))']);
+    expect(result.exports).toEqual(['(export "f" (func 0))']);
+    expect(result.interface.entries).toMatchObject([
+      {
+        name: "f",
+        signature: { kind: "func", params: ["i32"], results: ["i64"] },
+      },
+      {
+        name: "f",
+        signature: { kind: "func", params: ["i32"], results: ["i64"] },
+      },
+    ]);
+  },
+);
+
+it("rejects unfinished nested comments rather than projecting a truncated interface", () => {
+  for (const source of [
+    "(module (type (func (param (; unfinished ) i32))))",
+    "(module) (; outer (; inner ;) still open",
+  ])
+    expect(() => parseWabtWat(source)).toThrow("Incomplete WABT WAT comment");
+});
+
+it("rejects a second module after a CR-terminated line comment", () => {
+  expect(() => parseWabtWat("(module) ;; comment\r(module)")).toThrow(
+    "Unexpected second WABT WAT module",
+  );
+});

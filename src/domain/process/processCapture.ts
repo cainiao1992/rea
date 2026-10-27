@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { observedSymlinkTarget } from "./symlinkTarget.js";
 import { utcDateTimeSchema } from "../offsetDateTime.js";
 import { jsonValueSchema } from "../jsonValue.js";
 
@@ -80,7 +81,9 @@ export type FileState = FileStateIdentity &
     | {
         readonly type: "symlink";
         readonly sha256: null;
-        readonly symlink_target: string;
+        readonly symlink_target: string | null;
+        /** Exact stored target bytes; omitted by legacy captures. */
+        readonly symlink_target_hex?: string | undefined;
       }
     | {
         readonly type: "directory" | "other";
@@ -346,12 +349,35 @@ const fileStateSchema = z.discriminatedUnion("type", [
       .nullable(),
     symlink_target: z.null(),
   }),
-  z.object({
-    ...fileStateShape,
-    type: z.literal("symlink"),
-    sha256: z.null(),
-    symlink_target: z.string(),
-  }),
+  z
+    .object({
+      ...fileStateShape,
+      type: z.literal("symlink"),
+      sha256: z.null(),
+      symlink_target: z.string().nullable(),
+      symlink_target_hex: z
+        .string()
+        .regex(/^(?:[a-f0-9]{2})+$/u)
+        .optional(),
+    })
+    .superRefine((file, context) => {
+      if (file.symlink_target_hex === undefined) {
+        if (file.symlink_target === null)
+          context.addIssue({
+            code: "custom",
+            message: "An unknown symlink target requires its exact bytes",
+          });
+        return;
+      }
+      const { text } = observedSymlinkTarget(
+        Buffer.from(file.symlink_target_hex, "hex"),
+      );
+      if (file.symlink_target !== text)
+        context.addIssue({
+          code: "custom",
+          message: "Symlink target text contradicts its exact bytes",
+        });
+    }),
   z.object({
     ...fileStateShape,
     type: z.enum(["directory", "other"]),

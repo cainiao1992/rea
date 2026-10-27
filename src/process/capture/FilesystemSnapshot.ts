@@ -1,3 +1,4 @@
+import { observedSymlinkTarget } from "../../domain/process/symlinkTarget.js";
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { lstat, open, opendir, readlink, realpath } from "node:fs/promises";
@@ -95,14 +96,19 @@ const observeSymlink = async (
   path: string,
   before: Stats,
   signal?: AbortSignal,
-): Promise<Result<string, EntryOmission>> => {
-  const target = await readEntryObservation(() => readlink(path), signal);
+): Promise<
+  Result<{ readonly text: string | null; readonly hex: string }, EntryOmission>
+> => {
+  const target = await readEntryObservation(
+    () => readlink(path, { encoding: "buffer" }),
+    signal,
+  );
   if (!target.ok) return target;
   const after = await readEntryObservation(() => lstat(path), signal);
   if (!after.ok) return after;
-  return hasSameIdentity(before, after.value, "symlink")
-    ? target
-    : err({ reason: "identity_changed", system_code: null });
+  if (!hasSameIdentity(before, after.value, "symlink"))
+    return err({ reason: "identity_changed", system_code: null });
+  return ok(observedSymlinkTarget(target.value));
 };
 
 type PathLookup =
@@ -501,7 +507,8 @@ export const snapshotRoots = async (
         mode: stats.mode,
         size: stats.size,
         sha256: null,
-        symlink_target: target.value,
+        symlink_target: target.value.text,
+        symlink_target_hex: target.value.hex,
       });
       unobservedSubtrees.push({
         path: `${rootAlias}:${relativePath}`,

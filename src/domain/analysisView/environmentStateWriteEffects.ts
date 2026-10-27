@@ -94,6 +94,10 @@ export interface WriteDraft {
   readonly updates: UpdateCall[];
   /** The last value each sequence took, by field and, for a collection's sequence, collection; the next call must follow it. */
   readonly sequences: Map<string, number>;
+  /** Integers the exemplar showed in fields no rule wrote, above every value its type held, where a later call's sequence may start. */
+  readonly starts: Map<string, number>;
+  /** Collections of accepted create calls, used to check late sequence adoption. */
+  readonly createCollections: string[];
   /** The collection a create writes into when its own path names no state type: the one its returned id was read under. */
   readonly linked?: string | undefined;
   /** Fields an item action's call found already at the value it sets them to. */

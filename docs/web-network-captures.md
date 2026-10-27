@@ -733,8 +733,12 @@ order. Its `effect` is `create` for a `POST` to a type's
 plus one trailing parameter, or to that item path plus one action segment,
 `delete` for a `DELETE` to it, `document` for a `PUT`, `PATCH` or `POST` to a
 document's path, an `update` or `delete` of each entity a write at the
-collection names by id in its body, and otherwise `none` with reason
-`no-state-target`. A plan is built from the tool's first successful call: its
+collection names by id in its body, a `create` for a `POST` whose answer names
+an id (at its top level, in an object member or in the one object of a
+one-element array member) that a later item read of a type first shows (served
+only with the path values its recorded call sent, unless it creates into the
+type's own collection, whose path has no parameters, and a `path` rule stores
+each of its path values), and otherwise `none` with reason `no-state-target`. A plan is built from the tool's first successful call: its
 request body must be a usable JSON object (as response bodies are usable), and
 the written entity must show in that call's response or in a later read before
 the next write. Each field of a created entity gets the first rule that
@@ -743,10 +747,14 @@ value's shape), `echo` of a body member (`sorted` when the application stored
 its strings in code-point order rather than as sent), `copy` of a body string of
 8 or more characters, a `path` value, a `slug` of a body member, a `clock` value within 10
 minutes of the request in its recorded format, a `sequence` one past the
-largest value of its collection or type, a `unique` UUID, opaque token or
+largest value of its collection or type, and never below its `start`, a `unique` UUID, opaque token or
 integer of 10 or more digits that no entity of the type holds (where every one
 holds a distinct integer of the same length, as time-based ids do), a
-`nested-clock` object whose clocks the request stamped, a `template` around
+`nested-clock` object whose clocks the request stamped, a `made-object` no
+other entity of the type holds otherwise, whose `clocks` the request stamped and
+whose other members hold the entity's own identity (`own`), one past the largest
+value held objects show (`counts`, each from a `start`), or what every held
+object shows, a `template` around
 a generated value, a `reference` to an entity, or a `composed` string; other
 fields keep the observed value. When the first read of a created entity before
 the next write shows fields the create's answer lacks, its clocks to another
@@ -781,7 +789,13 @@ when, explained on its own, it agrees with it: both calls show the same fields
 but for a reference whose member a call without it did not send (one an earlier
 create added stays), every field both rule they rule alike (an echo one showed
 sorted stays sorted, unless a call stored its strings out of order as sent),
-and a field neither rules holds one value. Members either call sent are accepted, only those every call sent are
+and a field neither rules holds one value, unless the later call's rule for it
+spells the earlier calls' value too: a `composed` or `template` string, or a
+`sequence` started at that value (`start`), as Vikunja numbers a project's tasks
+past those deleted before the capture. Two `made-object` rules agree in their
+clocks and own members, and a count only the later call shows starts at the
+first object's value; a later create's made object must hold clocks its own
+request stamped, in the rule's format. Members either call sent are accepted, only those every call sent are
 required, and an echoed member a call left out takes the value that call stored
 (`body.defaults`). A member a create sent empty (`""`, `null`, `false`, `[]` or
 `{}`), as a form sends a field left as it was, is not required: a call that

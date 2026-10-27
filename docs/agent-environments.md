@@ -406,7 +406,8 @@ returns that record's recorded response. Selection compares the supplied path
 parameters against the record's path segments at the parameter indexes, then
 the supplied query values against the record's query string, and keeps the
 record with the most matches; ties keep manifest order. A query argument accepts
-one string or an array of strings for repeated values; the array is matched
+one string, a number or boolean sent as its JSON text, or an array of strings for
+repeated values; the array is matched
 against every occurrence in captured order. The raw recorded query remains the
 replay evidence. The result reports
 where the answer came from:
@@ -613,8 +614,9 @@ shape and carries no annotations.
 Path parameters are required strings whose
 description names the segment index, the templating rule and the observed
 values (sampled within the list budget above; the manifest keeps them all);
-query parameter names accept an optional string or array of strings (for
-repeated values in captured order); write methods accept an
+query parameter names accept an optional string, number or boolean (a number or
+boolean is sent as its JSON text) or array of strings (for repeated values in
+captured order); write methods accept an
 optional `body` object described by the recorded top-level key types. Each
 input keeps its own argument: a query name equal to a path parameter's name is
 advertised as `query_<name>`, a query name longer than 64 characters as

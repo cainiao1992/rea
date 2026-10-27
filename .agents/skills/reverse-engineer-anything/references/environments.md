@@ -132,8 +132,10 @@ client with it. Match `wait_for` locators to exactly one element.
    as a secret reference), submit, then `wait_for` an element only a signed-in
    user sees.
 2. Read with `request` steps: each collection the environment needs, twice
-   before any write, so fields that change on their own show up; one item of
-   each.
+   before any write, so fields that change on their own show up; then each
+   object a list shows by id, up to ten per collection. An object known only
+   from a list that leaves out fields its own read shows cannot be read by id
+   or updated in the environment.
 3. Write the way the application's UI does: fill its forms and click its
    buttons, so each request carries the fields the UI sends, including ones
    the server would otherwise derive. Give the click or key press that submits

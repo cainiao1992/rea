@@ -55,6 +55,7 @@ import {
   GENERATED,
 } from "./environmentStateWriteGenerated.js";
 import {
+  createdMadeObject,
   createdNestedClock,
   createdToken,
   isClockNear,
@@ -281,7 +282,10 @@ const generatedRule = (
     return { field, rule: "unique" };
   if (createdToken(field, evidence.entity, evidence.type) === "independent")
     return { field, rule: "unique" };
-  return createdNestedClock(field, value, evidence);
+  return (
+    createdNestedClock(field, value, evidence) ??
+    createdMadeObject(field, value, evidence)
+  );
 };
 
 /** Pinned members less those a reference reads: it rebuilds the object they name for any held entity. */

@@ -18,10 +18,14 @@ import {
 } from "../../domain/analysisView/environmentStateWriteExplain.js";
 import { callRenewal } from "../../domain/analysisView/environmentStateWriteGenerated.js";
 import {
+  heldObjects,
+  madeObjectValue,
   nestedClockValue,
+  nextMadeCount,
   unenveloped,
 } from "../../domain/analysisView/environmentStateWriteStamps.js";
 import {
+  anyLinkedSource,
   linkedCollection,
   sameLinkedSource,
 } from "../../domain/analysisView/environmentStateWriteLinks.js";
@@ -38,6 +42,7 @@ import {
   seededInteger,
   seededLike,
   spelledLike,
+  startedSequence,
 } from "../../domain/analysisView/environmentStateWriteValues.js";
 import {
   at,
@@ -287,16 +292,41 @@ export const generator = (
             exemplar,
             sequence(
               `${request.tool.name} ${rule.field} ${rule.scope === "collection" ? target.name : ""}`,
-              nextHeld(
-                rule.scope === "collection"
-                  ? [...target.collection, ...startedIn(target.name)]
-                  : [...ofType, ...started],
-                rule.field,
-                exemplar,
+              startedSequence(
+                nextHeld(
+                  rule.scope === "collection"
+                    ? [...target.collection, ...startedIn(target.name)]
+                    : [...ofType, ...started],
+                  rule.field,
+                  exemplar,
+                ),
+                rule.start,
               ),
             ),
           ),
         );
+      case "made-object": {
+        const clock = formatClock(write.clockMs, rule.format);
+        if (clock === undefined)
+          return err(
+            `The generated clock for ${rule.field} is outside its recorded four-digit year format.`,
+          );
+        const base = ownMember(target.observed, rule.field);
+        const held = heldObjects(
+          [...ofType, ...started].map((entity) => entity.fields),
+          rule.field,
+        );
+        return madeObjectValue(base, rule, clock, (count) =>
+          sequence(
+            `${request.tool.name} ${rule.field}/${count.member}`,
+            nextMadeCount(
+              held,
+              count,
+              isObject(base) ? ownMember(base, count.member) : undefined,
+            ),
+          ),
+        );
+      }
       case "unique":
         return unused(rule.field, (attempt) =>
           generatedIntegerDigits(exemplar) === undefined
@@ -438,12 +468,13 @@ const writtenCollection = (
     return ok(
       createdCollection(serving, tool, request.args, plan.target ?? ""),
     );
-  // No read showed where other path arguments create.
-  return sameLinkedSource(
-    tool.path_template,
-    exemplarPath(serving, plan),
-    pathArguments(tool, request.args),
-  )
+  // No read showed where other path arguments create, unless they cannot change it.
+  return anyLinkedSource(plan, tool.path_template) ||
+    sameLinkedSource(
+      tool.path_template,
+      exemplarPath(serving, plan),
+      pathArguments(tool, request.args),
+    )
     ? ok(linked)
     : err(
         refused(
@@ -455,7 +486,7 @@ const writtenCollection = (
 
 /**
  * The path values a create's path fields take, decoded once as the gate learned them: a linked
- * create accepts its exemplar's source only, so it takes that; another the collection this call
+ * create that accepts its exemplar's source only takes that; another the collection this call
  * selects, else its own arguments.
  */
 const createdPathValues = (
@@ -466,7 +497,8 @@ const createdPathValues = (
 ): ReadonlyMap<string, string> => {
   const { tool, plan } = request;
   const exemplar =
-    linkedCollection(plan, tool.path_template) === undefined
+    linkedCollection(plan, tool.path_template) === undefined ||
+    anyLinkedSource(plan, tool.path_template)
       ? undefined
       : exemplarPath(serving, plan);
   return (
@@ -521,6 +553,7 @@ const answerCreate = (
     created,
     values.forTarget({ name: collection, collection: members, observed }),
     heldEntity(serving),
+    idField,
   );
   if (!fields.ok) return err(refused(tool, fields.error));
   const field = unloadableMember(fields.value);

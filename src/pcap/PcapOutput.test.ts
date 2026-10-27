@@ -114,6 +114,25 @@ it.each([
   expect(result.partial).toBe(true);
 });
 
+it("retains exact nonempty DNS questions when response ownership is unresolved", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      {
+        "dns.flags.response": ["1"],
+        "dns.qry.name": ["", "WWW.Example", "www.example", "WWW.Example"],
+        "dns.a": ["192.0.2.10"],
+      },
+    ]),
+  );
+  expect(result.dnsQueries).toEqual([
+    { query: "WWW.Example", response_addresses: [], response_address_count: 0 },
+    { query: "www.example", response_addresses: [], response_address_count: 0 },
+  ]);
+  expect(result.dnsQueryCount).toBe(2);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.10"]);
+  expect(result.partial).toBe(true);
+});
+
 it("reports unknown RR coverage when a DNS response omits all count and address fields", async () => {
   const result = await parseTsharkJsonOutput(
     capture([

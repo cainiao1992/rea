@@ -1,5 +1,6 @@
 type Fields = (name: string) => readonly string[];
-interface Attribution {
+interface DnsPacketFacts {
+  readonly questions: readonly string[];
   readonly incomplete: boolean;
   readonly assigned: readonly (readonly [string, string])[];
   readonly unattributed: readonly string[];
@@ -25,11 +26,16 @@ const nameKey = (name: string): string =>
  * ambiguous flat inventories instead of reconstructing missing hierarchy.
  * Validate that correspondence before joining any owner to an address.
  */
-export const attributeDnsAddresses = (field: Fields): Attribution => {
+export const parseDnsPacketFields = (field: Fields): DnsPacketFacts => {
+  const questions = field("dns.qry.name");
+  const retainedQuestions = [
+    ...new Set(questions.filter((value) => value !== "")),
+  ];
   const ipv4 = field("dns.a");
   const ipv6 = field("dns.aaaa");
   const addresses = [...ipv4, ...ipv6].filter((value) => value !== "");
-  const unknown = (): Attribution => ({
+  const unknown = (): DnsPacketFacts => ({
+    questions: retainedQuestions,
     assigned: [],
     unattributed: addresses,
     incomplete:
@@ -50,8 +56,9 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
     return Number.isInteger(value) && value <= 65535 ? value : null;
   };
   const response = field("dns.flags.response");
-  const questions = field("dns.qry.name");
   const questionTypes = field("dns.qry.type");
+  const questionType =
+    questionTypes.length === 1 ? dnsType(questionTypes[0]) : null;
   const answers = count("dns.count.answers");
   const authority = count("dns.count.auth_rr");
   const additional = count("dns.count.add_rr");
@@ -74,7 +81,12 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
   )
     return unknown();
   if (addresses.length === 0)
-    return { assigned: [], unattributed: [], incomplete: false };
+    return {
+      questions: retainedQuestions,
+      assigned: [],
+      unattributed: [],
+      incomplete: false,
+    };
   // Only IN establishes Internet address semantics. An ANY-class question
   // also permits IN answers; other classes retain the producer values without
   // interpreting their class-specific RDATA as a resolved Internet address.
@@ -90,7 +102,7 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
     questions.length !== 1 ||
     questions[0] === "" ||
     questionTypes.length !== 1 ||
-    ![1, 28, 255].includes(dnsType(questionTypes[0]) ?? -1)
+    ![1, 28, 255].includes(questionType ?? -1)
   )
     return unknown();
   let a = 0,
@@ -140,12 +152,16 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
       record.dnsClass === 1 &&
       record.owner !== "" &&
       reachable.has(record.owner) &&
-      (dnsType(questionTypes[0]) === 255 ||
-        dnsType(questionTypes[0]) === record.type) &&
+      (questionType === 255 || questionType === record.type) &&
       !links.has(record.owner)
     )
       assigned.push([questions[0]!, record.value!]);
     else unattributed.push(record.value!);
   }
-  return { assigned, unattributed, incomplete: unattributed.length > 0 };
+  return {
+    questions: retainedQuestions,
+    assigned,
+    unattributed,
+    incomplete: unattributed.length > 0,
+  };
 };

@@ -7,10 +7,7 @@ import {
 import { hashStableRootArtifactHandle } from "../inventory/hashStableRootArtifact.js";
 import { absoluteCallerPath } from "../../filesystem/callerPath.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
-import {
-  createArtifactReader,
-  type ArtifactReaderFormat,
-} from "../createArtifactReader.js";
+import { createArtifactReader } from "../createArtifactReader.js";
 import { resolveAsarHeaderAdmission } from "../AsarHeader.js";
 import {
   ArtifactEmbeddedFormatProbes,
@@ -89,7 +86,7 @@ const extractArtifactInScope = async (
   const sourcePath = await resolveArtifactSourcePath(input.inputPath);
   if (input.expectedRootSha256 !== undefined)
     await assertArtifactSelectedSource(sourcePath, input.selectedPath);
-  const admission = await requireExtractableFormat(sourcePath, input, signal);
+  const probeFacts = await requireExtractableFormat(sourcePath, input, signal);
   const { snapshot, transferredSource } =
     await scanArtifactInventoryForExtractionInScope(
       input.inputPath,
@@ -104,7 +101,7 @@ const extractArtifactInScope = async (
           resolveAsarHeaderAdmission(input.environment),
         integrity: input.integrityPolicy,
       },
-      admission.probeFacts,
+      probeFacts,
     );
   const activeSource =
     transferredSource === undefined
@@ -117,7 +114,6 @@ const extractArtifactInScope = async (
       snapshot,
       signal,
       activeSource,
-      admission.probeFacts,
     );
   } catch (cause: unknown) {
     if (activeSource !== undefined && cause instanceof ArtifactReaderFailure)
@@ -160,7 +156,6 @@ export const materializeArtifactInventoryInScope = async (
   snapshot: ArtifactInventorySnapshot,
   signal?: AbortSignal,
   transferredSource?: ActiveArtifactInventorySource,
-  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
 ): Promise<ArtifactExtractionResult> => {
   abortIfNeeded(signal);
   // A directory source must never acquire its own output as a new member on
@@ -277,7 +272,6 @@ export const materializeArtifactInventoryInScope = async (
     selected,
     signal,
     transferredSource,
-    probeFacts,
   });
 };
 
@@ -301,7 +295,6 @@ const materializeSelection = async ({
   selected,
   signal,
   transferredSource,
-  probeFacts,
 }: {
   readonly input: ArtifactExtractionInput;
   readonly sourcePath: string;
@@ -309,7 +302,6 @@ const materializeSelection = async ({
   readonly selected: readonly SelectedOccurrence[];
   readonly signal: AbortSignal | undefined;
   readonly transferredSource: ActiveArtifactInventorySource | undefined;
-  readonly probeFacts: ArtifactEmbeddedFormatProbeFacts | undefined;
 }): Promise<ArtifactExtractionResult> => {
   const byPath = new Map<string, SelectedOccurrence>();
   for (const item of selected) {
@@ -327,13 +319,11 @@ const materializeSelection = async ({
       transferredSource.admission.source,
       "Artifact extraction",
     );
-  const reader = await createReader(
+  const reader = createReader(
     sourcePath,
     input,
     inventory.manifest.root_format,
-    signal,
     transferredSource,
-    probeFacts,
   );
   const readerOwner: ArtifactResourceOwner = {
     kind: "reader" as const,
@@ -577,18 +567,9 @@ const requireExtractableFormat = async (
     | "expectedRootSha256"
   >,
   signal?: AbortSignal,
-  previous?: ArtifactEmbeddedFormatProbeFacts,
-): Promise<{
-  readonly directory: boolean;
-  readonly probeFacts?: ArtifactEmbeddedFormatProbeFacts;
-}> => {
+): Promise<ArtifactEmbeddedFormatProbeFacts | undefined> => {
   const format = input.inputFormat;
   const directory = (await lstat(path)).isDirectory();
-  if (directory && previous !== undefined)
-    throw new ArtifactReaderFailure(
-      "integrity",
-      `Root artifact changed before inventory: ${path}`,
-    );
   // A thin Mach-O has no child entries of its own: inventory lists only its
   // root unless it carries an embedded pack, so it takes the same pack probe
   // as ELF and PE while only the universal container has a slice reader.
@@ -604,12 +585,7 @@ const requireExtractableFormat = async (
       input.resourceScope,
       signal,
       async (source) => {
-        const probes = new ArtifactEmbeddedFormatProbes(
-          path,
-          source,
-          signal,
-          previous,
-        );
+        const probes = new ArtifactEmbeddedFormatProbes(path, source, signal);
         const pack =
           (await probes.godotPck()) !== undefined ||
           ((format === "elf" || format === "pe" || format === "mach-o") &&
@@ -637,57 +613,45 @@ const requireExtractableFormat = async (
         input.selectedPath ?? input.inputPath,
         `Artifact format has no extraction reader: ${format}`,
       );
-    return { directory, probeFacts: detected.probeFacts };
+    return detected.probeFacts;
   }
-  return { directory };
+  return undefined;
 };
 
-const createReader = async (
+/** Reader selection belongs to inventory classification, not the adapter hint. */
+const createReader = (
   path: string,
   input: Pick<
     ArtifactExtractionInput,
-    | "inputPath"
-    | "selectedPath"
-    | "inputFormat"
-    | "environment"
-    | "resourceScope"
-    | "asarHeaderAdmission"
+    "inputPath" | "selectedPath" | "environment" | "asarHeaderAdmission"
   >,
   containerFormat: ArtifactGraphManifest["root_format"],
-  signal?: AbortSignal,
   transferredSource?: ActiveArtifactInventorySource,
-  probeFacts?: ArtifactEmbeddedFormatProbeFacts,
-): Promise<ArtifactReader> => {
-  let format: ArtifactReaderFormat;
-  if (transferredSource !== undefined && isZipPackageFormat(containerFormat))
-    format = containerFormat;
-  else if (
-    containerFormat === "godot-pck" ||
-    containerFormat === "pyinstaller" ||
-    containerFormat === "node-sea"
-  )
-    format = containerFormat;
-  else if (
-    (await requireExtractableFormat(path, input, signal, probeFacts)).directory
-  )
-    format = "directory";
-  else if (
-    input.inputFormat === "asar" ||
-    isZipPackageFormat(input.inputFormat)
-  )
-    format = input.inputFormat;
-  else format = "mach-o-universal";
-  return createArtifactReader(path, format, {
-    environment: input.environment,
-    unreadableDirectories: "fail",
-    selectedPath: absoluteCallerPath(input.selectedPath ?? input.inputPath),
-    admission: transferredSource?.admission,
-    asarHeaderAdmission:
-      format === "asar"
-        ? (input.asarHeaderAdmission ??
-          resolveAsarHeaderAdmission(input.environment))
-        : undefined,
-  });
+): ArtifactReader => {
+  // DMG inventory may mount read-only, but extraction has no DMG authority.
+  const reader =
+    containerFormat === "dmg"
+      ? undefined
+      : createArtifactReader(path, containerFormat, {
+          environment: input.environment,
+          unreadableDirectories: "fail",
+          selectedPath: absoluteCallerPath(
+            input.selectedPath ?? input.inputPath,
+          ),
+          admission: transferredSource?.admission,
+          asarHeaderAdmission:
+            containerFormat === "asar"
+              ? (input.asarHeaderAdmission ??
+                resolveAsarHeaderAdmission(input.environment))
+              : undefined,
+        });
+  if (reader === undefined)
+    throw new AnalysisUnsupportedTargetError(
+      "extract_artifact",
+      input.selectedPath ?? input.inputPath,
+      `Artifact format has no extraction reader: ${containerFormat}`,
+    );
+  return reader;
 };
 
 const preflight = (entry: ArtifactEntry): void => {

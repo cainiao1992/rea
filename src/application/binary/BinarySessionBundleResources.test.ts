@@ -84,6 +84,7 @@ it("opens a resource-only bundle without executable identity and keeps snapshot 
   const opened = await session.openBundleResources(rootPath);
   expect(opened.ok).toBe(true);
   if (!opened.ok) throw opened.error;
+  expect(session.allowsSnapshotReplay("inspect_plist")).toBe(false);
   expect(opened.value.executableSha256).toBeNull();
   expect(openedRoot).toBe(opened.value.canonicalPath);
   expect(

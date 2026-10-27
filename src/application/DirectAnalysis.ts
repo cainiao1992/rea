@@ -8,6 +8,10 @@ import type { JsonValue } from "../domain/jsonValue.js";
 import type { DirectAnalysisDependencies } from "./DirectAnalysisDependencies.js";
 import type { BinarySession } from "./binary/BinarySession.js";
 import type { SessionProviderRoute } from "./binary/SessionProviderRouter.js";
+import {
+  routeAllowsSnapshotReplay,
+  routeProviderIdentity,
+} from "./binary/SessionProviderPolicy.js";
 import type { ResolvedSessionOpen } from "./binary/BinarySessionOpen.js";
 import { silentLogger } from "../logger.js";
 import type { Logger } from "pino";
@@ -406,7 +410,9 @@ const runAnalysis = async (
         !requiresNativeSourceAdmissionBeforeReplay(
           route.binding?.identity.id,
         ) &&
-        allowsSnapshotReplay(route, tool)
+        tool !== "trace_native_ui_action" &&
+        tool !== "decompile_all" &&
+        routeAllowsSnapshotReplay(route, tool)
       ) {
         const cached = snapshotEvidenceForQuery(snapshot, {
           target: preview.value.target,
@@ -415,7 +421,7 @@ const runAnalysis = async (
           parameters: arguments_,
           provider: isWorkflowEvidenceTool(tool)
             ? REA_WORKFLOW_PROVIDER
-            : providerIdentityForRoute(route, tool),
+            : routeProviderIdentity(route, tool),
           evidenceProfile,
         });
         if (cached !== undefined)
@@ -749,24 +755,6 @@ const inspectBundleResourceInput = async (
   }
 };
 
-const allowsSnapshotReplay = (
-  route: SessionProviderRoute,
-  tool:
-    | NativeToolName
-    | ArtifactAnalysisOperation
-    | ManagedToolName
-    | DirectAnalysisTool,
-): boolean => {
-  if (tool === "trace_native_ui_action" || tool === "decompile_all")
-    return false;
-  const descriptor = route.capabilities?.get(tool);
-  return descriptor === undefined
-    ? ![...(route.capabilities?.values() ?? [])].some(
-        ({ cachePolicy }) => cachePolicy === "live",
-      )
-    : descriptor.cachePolicy !== "live";
-};
-
 const analysisProfileForRoute = (
   route: SessionProviderRoute,
   tool:
@@ -788,7 +776,7 @@ const analysisProfileForRoute = (
   }
   if (isWorkflowEvidenceTool(tool))
     return workflowAnalysisProfile(profile, tool);
-  const provider = providerIdentityForRoute(route, tool);
+  const provider = routeProviderIdentity(route, tool);
   return provider.id === profile.provider.id ? profile : undefined;
 };
 
@@ -799,13 +787,6 @@ const nativeDispatchBindingProfile = (
   if (operation !== "inspect_native_dispatch_metadata") return undefined;
   return profilelessNativeDispatchProfile(route);
 };
-
-/** Mirror BinarySession.providerIdentity for a route not opened yet. */
-const providerIdentityForRoute = (
-  route: SessionProviderRoute,
-  operation: string,
-): ProviderIdentity =>
-  route.capabilities?.get(operation)?.provider ?? route.identity;
 
 const analysisProfileForEvidence = (
   session: BinarySession,

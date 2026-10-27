@@ -1,3 +1,4 @@
+import { analysisViewCoverageSchema } from "./analysisViewCoverage.js";
 import {
   javaScriptRouteInventorySourceSchema,
   javaScriptRouteInventorySchema,
@@ -480,14 +481,6 @@ export const inspectAnalysisViewInputSchema = z.strictObject({
   view: analysisViewRequestSchema,
 });
 
-const coverageSchema = z.strictObject({
-  status: z.enum(["complete-within-view", "page", "empty"]),
-  examined: z.int().nonnegative(),
-  total: z.int().nonnegative(),
-  next_offset: z.int().nonnegative().nullable(),
-  exhausted: z.boolean(),
-});
-
 const artifactSchema = z.strictObject({
   path: z
     .string()
@@ -566,7 +559,7 @@ const viewResultBase = {
   parent_digest: digestSchema,
   view_digest: digestSchema,
   artifact: artifactSchema,
-  coverage: coverageSchema,
+  coverage: analysisViewCoverageSchema,
   limitations: z.array(z.string()),
   unknowns: z.array(z.string()),
 } as const;
@@ -1432,7 +1425,6 @@ export type InspectAnalysisViewInput = z.output<
   typeof inspectAnalysisViewInputSchema
 >;
 export type AnalysisViewResult = z.output<typeof analysisViewResultSchema>;
-export type AnalysisViewCoverage = z.output<typeof coverageSchema>;
 
 /** Parent record already resolved from inline Evidence or a session reference. */
 export interface AnalysisViewParent {

@@ -10,7 +10,10 @@ import type {
   UnsignedAnalysisView,
 } from "./analysisView.js";
 import { completeWithinViewCoverage } from "./analysisViewCoverage.js";
-import { analysisTextPage } from "./analysisViewText.js";
+import {
+  analysisTextPage,
+  analysisTextPageItemSchema,
+} from "./analysisViewText.js";
 
 const packageSchema = androidResultSchemas.inspect_android_package;
 
@@ -30,9 +33,7 @@ export const androidViewRequestSchema = z.strictObject({
   limit: z.int().positive(),
 });
 
-export const androidManifestViewItemSchema = z.strictObject({
-  text: z.string(),
-  unit: z.literal("utf16-code-units"),
+export const androidManifestViewItemSchema = analysisTextPageItemSchema.extend({
   source_status: packageSchema.shape.manifest.shape.status,
   reported_total_bytes: packageSchema.shape.manifest.shape.reported_total_bytes,
 });

@@ -17,7 +17,10 @@ import {
   completeWithinViewCoverage,
   pageViewCoverage,
 } from "./analysisViewCoverage.js";
-import { analysisTextPage } from "./analysisViewText.js";
+import {
+  analysisTextPage,
+  analysisTextPageItemSchema,
+} from "./analysisViewText.js";
 
 /** Source forms and text from completed WASM Evidence; this never executes a VM. */
 export const wasmViewRequestSchema = z.strictObject({
@@ -43,7 +46,7 @@ export const wasmViewItemSchema = z.union([
   wasmArtifactSchema.shape.candidates,
   wasmArtifactSchema.shape.glue,
   wasmArtifactSchema.shape.tool_profile,
-  z.strictObject({ text: z.string(), unit: z.literal("utf16-code-units") }),
+  analysisTextPageItemSchema,
 ]);
 
 /** Counts are observations of the completed producer, independent of runtime semantics. */

@@ -42,6 +42,7 @@ import {
 } from "../domain/artifactExpansionBudget.js";
 import type { StableRegularFileDescriptor } from "../filesystem/RegularFile.js";
 import { ArtifactFileSource } from "./ArtifactFileSource.js";
+import { readFileHandleRange } from "../filesystem/readFileHandleRange.js";
 
 const ZIP_UTF8_DECODER = new TextDecoder("utf-8", {
   fatal: true,
@@ -100,22 +101,12 @@ class NodeFileReader extends Reader<string> {
         "limit",
         `ZIP metadata read requires ${readBytes} bytes, exceeding the ${this.maximumReadBytes}-byte read budget`,
       );
-    const bytes = Buffer.alloc(readBytes);
-    let offset = 0;
-    while (offset < bytes.length) {
-      const { bytesRead } = await handle.read(
-        bytes,
-        offset,
-        bytes.length - offset,
-        index + offset,
+    const bytes = await readFileHandleRange(handle, index, readBytes);
+    if (bytes.length !== readBytes)
+      throw new ArtifactReaderFailure(
+        "integrity",
+        `ZIP source ended before its admitted extent: ${this.path}`,
       );
-      if (bytesRead === 0)
-        throw new ArtifactReaderFailure(
-          "integrity",
-          `ZIP source ended before its admitted extent: ${this.path}`,
-        );
-      offset += bytesRead;
-    }
     await this.verify();
     return bytes;
   }

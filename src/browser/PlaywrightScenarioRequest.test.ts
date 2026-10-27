@@ -584,6 +584,54 @@ describe("request step confinement", () => {
       expect(calls.at(-1)!.url, path).toBe(`${ORIGIN}${sent}`);
     }
   });
+});
+
+describe("request page value admission", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("preserves exact local storage pointer values and refuses lossy numbers before dispatch", async () => {
+    const calls = stubFetch(200);
+    const parsed = scenario([
+      requestStep({
+        headers: [
+          {
+            name: "X-Account",
+            value: {
+              source: "local_storage",
+              key: "auth",
+              json_pointer: "/id",
+            },
+          },
+        ],
+      }),
+    ]);
+    for (const literal of ["9007199254740993", "1e400", "-0"]) {
+      await expect(
+        perform(
+          fakePage({ storage: { auth: `{"id":${literal}}` } }),
+          parsed.actions[0]!,
+          resolved(parsed),
+        ),
+      ).rejects.toThrow("cannot be read exactly");
+    }
+    expect(calls).toEqual([]);
+    for (const [literal, expected] of [
+      ["9007199254740991", "9007199254740991"],
+      ['"9007199254740993"', "9007199254740993"],
+      ["42", "42"],
+    ]) {
+      await perform(
+        fakePage({
+          storage: { auth: `{"id":${literal},"unselected":9007199254740993}` },
+        }),
+        parsed.actions[0]!,
+        resolved(parsed),
+      );
+      expect(calls.at(-1)!.init.headers).toEqual([["X-Account", expected]]);
+    }
+  });
 
   it("refuses page values a header cannot carry, and stored values it cannot read", async () => {
     const calls = stubFetch(200);

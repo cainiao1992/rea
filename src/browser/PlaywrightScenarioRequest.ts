@@ -7,6 +7,7 @@ import {
   MAX_SAVED_RESPONSE_CHARACTERS,
   MAX_SAVED_RESPONSE_BYTES,
   responsePointerValue,
+  parseScenarioValueJson,
   readResponseValues,
   readBoundedResponseBody,
 } from "./BrowserScenarioResponseValues.js";
@@ -44,14 +45,6 @@ const originOf = (url: string): string | undefined => {
   } catch {
     return undefined;
   }
-};
-
-/** The string or number at a JSON pointer, as text. */
-const pointerText = (value: unknown, pointer: string): string | undefined => {
-  const found = responsePointerValue(value, pointer);
-  return typeof found === "string" || typeof found === "number"
-    ? String(found)
-    : undefined;
 };
 
 interface PageValueStep {
@@ -105,15 +98,21 @@ const readPageValue = async (
       );
     if (value.json_pointer === undefined) read = stored;
     else {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(stored);
-      } catch {
+      const parsed = parseScenarioValueJson(stored);
+      if (!parsed.ok) {
         throw new ScenarioRequestError(
           `Request step ${stepId}: local storage ${value.key} is not JSON.`,
         );
       }
-      read = pointerText(parsed, value.json_pointer);
+      const selected = responsePointerValue(parsed.value, value.json_pointer);
+      if (typeof selected === "number" && !Number.isFinite(selected))
+        throw new ScenarioRequestError(
+          `Request step ${stepId}: local storage ${value.key} has a number at ${value.json_pointer} that cannot be read exactly.`,
+        );
+      read =
+        typeof selected === "string" || typeof selected === "number"
+          ? String(selected)
+          : undefined;
       if (read === undefined)
         throw new ScenarioRequestError(
           `Request step ${stepId}: local storage ${value.key} has no string or number at ${value.json_pointer}.`,

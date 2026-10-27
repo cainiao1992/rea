@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   gpuCodeObjectsSchema,
   gpuCodeObjectsObjectSchema,
-  gpuCodeObjectsSelectionSchema,
+  gpuCodeObjectsSelectionSchemas,
   gpuObjectSchema,
   gpuKernelSchema,
   gpuTargetSchema,
@@ -31,16 +31,16 @@ import { AnalysisResourceConstraintError } from "../analysisErrorCore.js";
 export const gpuCodeObjectsViewRequestSchema = z.discriminatedUnion(
   "collection",
   [
-    gpuCodeObjectsSelectionSchema.options[0].extend({
+    gpuCodeObjectsSelectionSchemas.objects.extend({
       kind: z.literal("gpu-code-objects"),
     }),
-    gpuCodeObjectsSelectionSchema.options[1].extend({
+    gpuCodeObjectsSelectionSchemas.kernels.extend({
       kind: z.literal("gpu-code-objects"),
     }),
-    gpuCodeObjectsSelectionSchema.options[2].extend({
+    gpuCodeObjectsSelectionSchemas.ptx.extend({
       kind: z.literal("gpu-code-objects"),
     }),
-    gpuCodeObjectsSelectionSchema.options[3].extend({
+    gpuCodeObjectsSelectionSchemas.targets.extend({
       kind: z.literal("gpu-code-objects"),
     }),
   ],

@@ -22,12 +22,14 @@ const cnameAndGlue = {
   "dns.flags.response": ["1"],
   "dns.qry.name": ["www.example"],
   "dns.qry.type": ["1"],
+  "dns.qry.class": ["0x0001"],
   "dns.count.queries": ["1"],
   "dns.count.answers": ["2"],
   "dns.count.auth_rr": ["0"],
   "dns.count.add_rr": ["1"],
   "dns.resp.name": ["www.example", "edge.example", "ns.example"],
   "dns.resp.type": ["5", "1", "1"],
+  "dns.resp.class": ["0x0001", "0x0001", "0x0001"],
   "dns.cname": ["edge.example"],
   "dns.a": ["192.0.2.10", "192.0.2.53"],
 };
@@ -39,11 +41,13 @@ const srvAndAddresses = {
   "dns.flags.response": ["1"],
   "dns.qry.name": ["WWW.Example"],
   "dns.qry.type": ["255"],
+  "dns.qry.class": ["0x0001"],
   "dns.count.queries": ["1"],
   "dns.count.answers": ["4"],
   "dns.count.auth_rr": ["0"],
   "dns.count.add_rr": ["1"],
   "dns.resp.type": ["33", "1", "33", "28", "1"],
+  "dns.resp.class": ["0x0001", "0x0001", "0x0001", "0x0001", "0x0001"],
   "dns.resp.name": ["www.example", "www.example", "ns.example"],
   "dns.a": ["192.0.2.10", "192.0.2.53"],
   "dns.aaaa": ["2001:db8::10"],
@@ -56,9 +60,11 @@ it("keeps address-free SRV answers complete without requiring dns.resp.name", as
         ...srvAndAddresses,
         "dns.qry.name": ["_sip._tcp.example"],
         "dns.qry.type": ["33"],
+        "dns.qry.class": ["0x0001"],
         "dns.count.answers": ["1"],
         "dns.count.add_rr": ["0"],
         "dns.resp.type": ["33"],
+        "dns.resp.class": ["0x0001"],
         "dns.resp.name": [],
         "dns.a": [],
         "dns.aaaa": [],
@@ -131,6 +137,7 @@ it("keeps a query with an additional OPT record complete", async () => {
         "dns.count.answers": ["0"],
         "dns.resp.name": [""],
         "dns.resp.type": ["41"],
+        "dns.resp.class": [],
         "dns.cname": [],
         "dns.a": [],
       },
@@ -159,7 +166,9 @@ it("accepts hexadecimal RR type codes without changing recorded identities", asy
       {
         ...cnameAndGlue,
         "dns.qry.type": ["0x0001"],
+        "dns.qry.class": ["0x0001"],
         "dns.resp.type": ["0x0005", "0x0001", "0x0001"],
+        "dns.resp.class": ["0x0001", "0x0001", "0x0001"],
       },
     ]),
   );
@@ -176,6 +185,7 @@ it("retains direct answers with a root-owned OPT and compares DNS names without 
         "dns.count.answers": ["1"],
         "dns.resp.name": ["www.example", ""],
         "dns.resp.type": ["1", "41"],
+        "dns.resp.class": ["0x0001"],
         "dns.cname": [],
         "dns.a": ["192.0.2.10"],
       },
@@ -197,6 +207,7 @@ it("joins mixed answer types using their own queues and preserves multiple valid
       {
         ...cnameAndGlue,
         "dns.qry.type": ["255"],
+        "dns.qry.class": ["0x0001"],
         "dns.count.answers": ["5"],
         "dns.count.add_rr": ["0"],
         "dns.resp.name": [
@@ -207,6 +218,7 @@ it("joins mixed answer types using their own queues and preserves multiple valid
           "edge.example",
         ],
         "dns.resp.type": ["5", "28", "1", "28", "1"],
+        "dns.resp.class": ["0x0001", "0x0001", "0x0001", "0x0001", "0x0001"],
         "dns.a": ["192.0.2.10", "192.0.2.11"],
         "dns.aaaa": ["2001:db8::10", "2001:db8::11"],
       },
@@ -265,6 +277,7 @@ it("does not follow conflicting CNAME declarations", async () => {
           "other.example",
         ],
         "dns.resp.type": ["5", "5", "1", "1"],
+        "dns.resp.class": ["0x0001", "0x0001", "0x0001", "0x0001"],
         "dns.cname": ["edge.example", "other.example"],
       },
     ]),
@@ -294,6 +307,7 @@ it.each([
     "dns.count.answers": ["1"],
     "dns.resp.name": ["www.example"],
     "dns.resp.type": ["2"],
+    "dns.resp.class": ["0x0001"],
   },
 ])(
   "keeps valid empty or non-address answers complete: %j",
@@ -363,12 +377,14 @@ it.each(["before", "after"] as const)(
       "dns.flags.response": ["True"],
       "dns.a": ["203.0.113.5"],
       "dns.qry.type": ["1"],
+      "dns.qry.class": ["0x0001"],
       "dns.count.queries": ["1"],
       "dns.count.answers": ["1"],
       "dns.count.auth_rr": ["0"],
       "dns.count.add_rr": ["0"],
       "dns.resp.name": ["api.example"],
       "dns.resp.type": ["1"],
+      "dns.resp.class": ["0x0001"],
     };
     const result = await parseTsharkJsonOutput(
       capture(position === "before" ? [empty, response] : [response, empty]),
@@ -418,24 +434,28 @@ it("binds interleaved DNS answers to the question in their response packet", asy
         "dns.flags.response": ["True"],
         "dns.a": ["192.0.2.10"],
         "dns.qry.type": ["1"],
+        "dns.qry.class": ["0x0001"],
         "dns.count.queries": ["1"],
         "dns.count.answers": ["1"],
         "dns.count.auth_rr": ["0"],
         "dns.count.add_rr": ["0"],
         "dns.resp.name": ["alpha.example"],
         "dns.resp.type": ["1"],
+        "dns.resp.class": ["0x0001"],
       },
       {
         "dns.qry.name": ["beta.example"],
         "dns.flags.response": ["True"],
         "dns.a": ["192.0.2.20"],
         "dns.qry.type": ["1"],
+        "dns.qry.class": ["0x0001"],
         "dns.count.queries": ["1"],
         "dns.count.answers": ["1"],
         "dns.count.auth_rr": ["0"],
         "dns.count.add_rr": ["0"],
         "dns.resp.name": ["beta.example"],
         "dns.resp.type": ["1"],
+        "dns.resp.class": ["0x0001"],
       },
     ]),
   );
@@ -517,12 +537,14 @@ it("preserves all DNS addresses and their exact examined count", async () => {
         "dns.flags.response": ["True"],
         "dns.a": [`192.0.2.${String(index)}`],
         "dns.qry.type": ["1"],
+        "dns.qry.class": ["0x0001"],
         "dns.count.queries": ["1"],
         "dns.count.answers": ["1"],
         "dns.count.auth_rr": ["0"],
         "dns.count.add_rr": ["0"],
         "dns.resp.name": ["rotating.example"],
         "dns.resp.type": ["1"],
+        "dns.resp.class": ["0x0001"],
       })),
     ),
   );
@@ -674,3 +696,79 @@ it("includes decoded HTTP/2 URIs with shared credential handling and reports unr
     ).partial,
   ).toBe(true);
 });
+
+// Wireshark 4.4.10 emits dns.aaaa without a class guard, and uses masked
+// dns.qry.class/dns.resp.class for mDNS. These are source-backed fixtures,
+// not recorded provider runs.
+// https://github.com/wireshark/wireshark/blob/v4.4.10/epan/dissectors/packet-dns.c#L3022-L3030
+// https://github.com/wireshark/wireshark/blob/v4.4.10/epan/dissectors/packet-dns.c#L6265-L6308
+const classedAddressReply = {
+  "dns.flags.response": ["1"],
+  "dns.qry.name": ["host.example"],
+  "dns.qry.type": ["28"],
+  "dns.qry.class": ["0x0001"],
+  "dns.count.queries": ["1"],
+  "dns.count.answers": ["1"],
+  "dns.count.auth_rr": ["0"],
+  "dns.count.add_rr": ["0"],
+  "dns.resp.name": ["host.example"],
+  "dns.resp.type": ["28"],
+  "dns.resp.class": ["0x0001"],
+  "dns.aaaa": ["2001:db8::9"],
+};
+
+it.each([
+  { "dns.qry.class": ["0x0003"] },
+  { "dns.qry.class": [] },
+  { "dns.qry.class": ["invalid"] },
+  { "dns.qry.class": ["1", "1"] },
+  { "dns.resp.class": ["0x0003"] },
+  { "dns.resp.class": [] },
+  { "dns.resp.class": ["invalid"] },
+  { "dns.resp.class": ["1", "1"] },
+])(
+  "retains addresses with unsupported or unknown DNS classes: %j",
+  async (override) => {
+    const result = await parseTsharkJsonOutput(
+      capture([{ ...classedAddressReply, ...override }]),
+    );
+    expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+    expect(result.unattributedDnsAddresses).toEqual(["2001:db8::9"]);
+    expect(result.partial).toBe(true);
+  },
+);
+
+it("does not follow a CNAME from another DNS class", async () => {
+  const result = await parseTsharkJsonOutput(
+    capture([
+      { ...cnameAndGlue, "dns.resp.class": ["0x0003", "0x0001", "0x0001"] },
+    ]),
+  );
+  expect(result.dnsQueries[0]?.response_addresses).toEqual([]);
+  expect(result.unattributedDnsAddresses).toEqual(["192.0.2.10", "192.0.2.53"]);
+  expect(result.partial).toBe(true);
+});
+
+it.each(["0x0001", "0x00ff"])(
+  "accepts IN answers for question class %s around OPT and SRV",
+  async (questionClass) => {
+    const result = await parseTsharkJsonOutput(
+      capture([
+        {
+          ...classedAddressReply,
+          "frame.protocols": ["ip:udp:mdns"],
+          "dns.qry.class": [questionClass],
+          "dns.qry.qu": ["1"],
+          "dns.resp.cache_flush": ["1", "0"],
+          "dns.count.answers": ["3"],
+          "dns.resp.type": ["41", "33", "28"],
+          "dns.resp.name": ["", "host.example"],
+          "dns.resp.class": ["0x0001", "0x0001"],
+        },
+      ]),
+    );
+    expect(result.dnsQueries[0]?.response_addresses).toEqual(["2001:db8::9"]);
+    expect(result.unattributedDnsAddresses).toEqual([]);
+    expect(result.partial).toBe(false);
+  },
+);

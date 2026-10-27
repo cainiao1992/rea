@@ -60,6 +60,9 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
   const owners = field("dns.resp.name");
   const types = field("dns.resp.type").map(dnsType);
   const aliases = field("dns.cname");
+  // OPT stores a UDP payload size instead of dns.resp.class. mDNS uses
+  // these same class fields with QU/cache-flush bits masked by the producer.
+  const classes = field("dns.resp.class").map(dnsType);
   if (
     types.length !== answers + authority + additional ||
     owners.length !== types.filter((type) => type !== 33).length ||
@@ -72,7 +75,15 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
     return unknown();
   if (addresses.length === 0)
     return { assigned: [], unattributed: [], incomplete: false };
+  // Only IN establishes Internet address semantics. An ANY-class question
+  // also permits IN answers; other classes retain the producer values without
+  // interpreting their class-specific RDATA as a resolved Internet address.
+  const questionClasses = field("dns.qry.class");
   if (
+    classes.length !== types.filter((type) => type !== 41).length ||
+    classes.some((value) => value === null) ||
+    questionClasses.length !== 1 ||
+    ![1, 255].includes(dnsType(questionClasses[0]) ?? -1) ||
     response.length !== 1 ||
     !["1", "True"].includes(response[0]!) ||
     count("dns.count.queries") !== 1 ||
@@ -85,10 +96,12 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
   let a = 0,
     aaaa = 0,
     cname = 0,
-    owner = 0;
+    owner = 0,
+    rrClass = 0;
   const records = types.map((type, index) => ({
     owner: type === 33 ? "" : nameKey(owners[owner++]!),
     type,
+    dnsClass: type === 41 ? null : classes[rrClass++],
     answer: index < answers,
     value:
       type === 1
@@ -102,7 +115,7 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
   const reachable = new Set([nameKey(questions[0]!)]);
   const links = new Map<string, Set<string>>();
   for (const record of records)
-    if (record.answer && record.type === 5) {
+    if (record.answer && record.type === 5 && record.dnsClass === 1) {
       if (record.owner === "") return unknown();
       const targets = links.get(record.owner) ?? new Set<string>();
       targets.add(nameKey(record.value!));
@@ -124,6 +137,7 @@ export const attributeDnsAddresses = (field: Fields): Attribution => {
     if (record.type !== 1 && record.type !== 28) continue;
     if (
       record.answer &&
+      record.dnsClass === 1 &&
       record.owner !== "" &&
       reachable.has(record.owner) &&
       (dnsType(questionTypes[0]) === 255 ||

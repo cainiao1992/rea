@@ -1226,6 +1226,17 @@ it("checks the observed slice header against the caller-selected FAT architectur
   ]);
   expect(failure(bytes, "amd64").reason).toBe("malformed-container");
 });
+it.each([1, 0x80000000])(
+  "checks the complete FAT CPU subtype including capability bits (%i)",
+  (subtype) => {
+    const thin = createIl2cppBinaryFixture();
+    thin.writeUInt32LE(subtype, 8);
+    const bytes = createUniversalFixture([{ cpu: 0x0100000c, bytes: thin }]);
+    expect(failure(bytes, "arm64").reason).toBe("malformed-container");
+    bytes.writeUInt32BE(subtype, 12);
+    expect(link(bytes, "arm64").method_addresses).toEqual(expectedAddresses);
+  },
+);
 it("still validates version 27 type indices when rendered names are unavailable", () => {
   const decoded = readIl2cppMetadataForLinking(
     createIl2cppMetadataFixture({ version: 27 }).bytes,

@@ -1,6 +1,7 @@
 import {
   classifyFatContainerEvidence,
   readFatContainerHeader,
+  readMachoHeaderPrefixFacts,
   validateFatSlice,
 } from "../domain/apple/machoContainer.js";
 import { binaryMetadataArchitecture } from "../domain/binaryMetadataArchitecture.js";
@@ -77,10 +78,15 @@ const selectImage = (
       "slice-not-found",
       `universal Mach-O holds ${available.join(", ")}, not ${architecture}`,
     );
-  const issue = validateFatSlice(slice, bytes.length, fat.tableEnd);
+  const image = bytes.subarray(slice.offset, slice.offset + slice.size);
+  const embedded = readMachoHeaderPrefixFacts(image).identity;
+  const issue =
+    embedded === null
+      ? `FAT architecture ${slice.index} has a truncated Mach-O identity`
+      : validateFatSlice(slice, bytes.length, fat.tableEnd, embedded);
   if (issue !== null)
     throw new Il2cppBinaryFormatFailure("malformed-container", issue);
-  return bytes.subarray(slice.offset, slice.offset + slice.size);
+  return image;
 };
 
 export interface NativeImage {
@@ -118,14 +124,6 @@ export function* openImageSteps(
       );
     throw cause;
   }
-  if (
-    architecture !== undefined &&
-    (container.format !== "macho" || container.architecture !== architecture)
-  )
-    throw new Il2cppBinaryFormatFailure(
-      "malformed-container",
-      "Selected FAT declaration disagrees with the slice header architecture.",
-    );
   if (container.bits !== 64 || container.byte_order !== "little")
     throw new Il2cppBinaryFormatFailure(
       "unsupported-container",

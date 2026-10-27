@@ -509,8 +509,8 @@ export class HopperApplicationLauncher implements BridgeLauncher {
       return err(hopperLaunchFailure(cause, signal));
     } finally {
       // Remove the token-bearing bootstrap file on every non-success path.
-      // Only the launched process needs the file; all error returns, early
-      // cancellations, and thrown exceptions must not leave it on disk.
+      // This is best effort: the caller owns session.directory and performs
+      // authoritative private-runtime cleanup, retaining it when removal fails.
       if (!launched)
         await rm(bootstrapPath, { force: true }).catch(() => undefined);
     }
@@ -578,7 +578,7 @@ export class HopperApplicationLauncher implements BridgeLauncher {
       await chmod(bootstrapPath, 0o600);
       return ok(bootstrapPath);
     } catch (cause: unknown) {
-      // Clean up any partially written bootstrap file that may contain the token.
+      // Best effort; the caller also owns cleanup of the private runtime root.
       await rm(bootstrapPath, { force: true }).catch(() => undefined);
       return err(new HopperStartError({ cause }));
     }

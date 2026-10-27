@@ -229,7 +229,9 @@ const inspectPeFile = async (
   if (observed.state !== "signature-needed" && observed.state !== "declared")
     return;
   const peOffset = observed.offset;
-  const coff = await read(peOffset, 24);
+  // The MZ pointer requests signature evidence, not a PE/COFF extent. Preserve
+  // short NE/LE/LX signatures and let the COFF owner diagnose truncated PE.
+  const coff = await read(peOffset, Math.min(24, size - peOffset));
   const confirmed = observeMzWindowsHeader(prefix, size, {
     offset: peOffset,
     bytes: coff,

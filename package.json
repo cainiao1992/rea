@@ -100,6 +100,7 @@
     "third_party/pwndbg/README.md",
     "third_party/pwndbg/LICENSE.md",
     "licenses",
+    "assets/rea-plugin.png",
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
     ".codex-plugin/mcp.json",

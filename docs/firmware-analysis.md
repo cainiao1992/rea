@@ -317,8 +317,8 @@ portable and requires no external tool. See
 The root facts record the 64-byte header (architecture, OS, type, and
 compression as raw values and names, load and entry addresses, image name,
 and timestamp) with the header and data CRC32 verified; the stored payload
-is extractable as `payload.bin`, and multi-file images additionally expose
-each sub-image as `image-<n>.bin` from the stored size table. Declared
+is extractable as `payload.bin`, and multi-file and script images additionally
+expose each sub-image as `image-<n>.bin` from the stored size table. Declared
 addresses are facts from the header, not proven entry points, and compressed
 payloads stay as stored. Intel HEX/S-record and FIT images are separate
 readers and are not covered here. See [U-Boot legacy uImage](uimage.md) for

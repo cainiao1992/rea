@@ -17,6 +17,14 @@ export const UIMAGE_MAX_SUB_IMAGES = 4096;
 /** Bytes of payload prefix that can hold a maximal multi-image size table. */
 export const UIMAGE_MULTI_TABLE_WINDOW = (UIMAGE_MAX_SUB_IMAGES + 1) * 4;
 
+/**
+ * Multi (4) and script (6) payloads begin with the size table: mkimage writes
+ * it for both, and U-Boot's `source` skips it because "scripts are just
+ * multi-image files with one component".
+ */
+export const hasUImageSizeTable = (type: number): boolean =>
+  type === 4 || type === 6;
+
 export interface UImageSubImage {
   readonly index: number;
   /** Byte offset of the sub-image payload relative to the carrier start. */

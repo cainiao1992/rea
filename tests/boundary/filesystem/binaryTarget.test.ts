@@ -662,6 +662,48 @@ describe("binary target I/O: filesystem and app bundle target resolution", () =>
     });
   });
 
+  it.skipIf(process.platform === "win32")(
+    "preserves a literal backslash in a POSIX app executable name",
+    async () => {
+      const directory = await createTestTempDirectory("rea-target-");
+      const app = join(directory, "Back.app");
+      const programs = join(app, "Contents", "MacOS");
+      const executable = join(programs, "App\\Name");
+      await mkdir(programs, { recursive: true });
+      await writeFile(
+        join(app, "Contents", "Info.plist"),
+        "<plist><dict><key>CFBundleExecutable</key><string>App\\Name</string></dict></plist>",
+      );
+      await writeFile(executable, thinMach(0xfeedfacf, 0x0100000c));
+      const result = await parseBinaryTarget(app, {
+        cwd: directory,
+        hostArchitecture: "arm64",
+      });
+      expect(result.ok && result.value).toMatchObject({
+        path: await realpath(executable),
+        format: "mach-o",
+      });
+    },
+  );
+
+  it.skipIf(process.platform !== "win32")(
+    "rejects a Windows separator in an app executable declaration",
+    async () => {
+      const directory = await createTestTempDirectory("rea-target-");
+      const app = join(directory, "Broken.app");
+      await mkdir(join(app, "Contents", "MacOS"), { recursive: true });
+      await writeFile(
+        join(app, "Contents", "Info.plist"),
+        "<plist><dict><key>CFBundleExecutable</key><string>..\\escape</string></dict></plist>",
+      );
+      const result = await parseBinaryTarget(app, { cwd: directory });
+      expect(result).toMatchObject({
+        ok: false,
+        error: { reason: "app has an unsafe CFBundleExecutable" },
+      });
+    },
+  );
+
   it.each([
     ["missing plist", undefined],
     ["missing executable name", "<plist><dict></dict></plist>"],

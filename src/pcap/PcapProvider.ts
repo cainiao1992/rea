@@ -1,3 +1,4 @@
+import { PCAP_HTTP_URI_FIELDS } from "./PcapHttpUri.js";
 import {
   type ExecutionOptions,
   type ProviderAvailability,
@@ -17,7 +18,10 @@ import {
   AnalysisProtocolError,
   AnalysisResourceConstraintError,
 } from "../domain/analysisErrorCore.js";
-import { AnalysisError } from "../domain/analysisErrorBase.js";
+import {
+  AnalysisError,
+  type AnalysisCapturedOutput,
+} from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { err, ok, type Result } from "../domain/result.js";
@@ -90,9 +94,7 @@ const FIELDS = [
   "dns.a",
   "dns.aaaa",
   "tls.handshake.extensions_server_name",
-  "http.request.full_uri",
-  "http.request.uri",
-  "http2.request.full_uri",
+  ...Object.keys(PCAP_HTTP_URI_FIELDS),
   "http2.headers.path",
 ];
 
@@ -126,7 +128,7 @@ class PcapCommandCleanupError extends ProviderCleanupError {}
 const probeCleanupFailure = (
   operation: PcapOperation,
   cleanup: PcapCommandCleanup,
-  output: { readonly stdout: string; readonly stderr: string },
+  output: AnalysisCapturedOutput,
 ): ProviderCleanupError =>
   new ProviderCleanupError(
     "pcap",
@@ -135,9 +137,7 @@ const probeCleanupFailure = (
       reason: cleanup.reason,
       previous_error: null,
       captured_output: {
-        stdout: output.stdout,
-        stderr: output.stderr,
-        truncated: cleanup.capturedOutput.truncated,
+        ...output,
       },
     },
     { operation },
@@ -147,7 +147,7 @@ const pcapCommandCleanupError = (
   operation: PcapOperation,
   snapshotPath: string | undefined,
   cleanup: PcapCommandCleanup,
-  capturedOutput: { readonly stdout: string; readonly stderr: string },
+  capturedOutput: AnalysisCapturedOutput,
   partialObservation?: ReturnType<typeof pcapPartialEvidence>,
 ) =>
   new PcapCommandCleanupError(
@@ -162,9 +162,7 @@ const pcapCommandCleanupError = (
       reason: cleanup.reason,
       previous_error: null,
       captured_output: {
-        stdout: capturedOutput.stdout,
-        stderr: capturedOutput.stderr,
-        truncated: cleanup.capturedOutput.truncated,
+        ...capturedOutput,
       },
     },
     {
@@ -183,10 +181,8 @@ const assertValidPcapCommandText = (
     operation,
     `${stage} output is not valid UTF-8; retained text contains replacement characters.`,
     {
-      capturedOutput: {
-        stdout: output.stdout,
-        stderr: output.stderr,
-        truncated: output.cleanup?.capturedOutput.truncated ?? false,
+      get capturedOutput() {
+        return output.capturedOutput;
       },
       diagnostics: {
         stage,
@@ -314,6 +310,8 @@ export class PcapProvider {
       }
       output = await runPcapCommand({
         operation,
+        redactHttpTransportCredentials:
+          stage === "tshark" && operation === "inspect_pcap_capture",
         command: selected?.invocationPath ?? command,
         arguments: args,
         limits,
@@ -346,10 +344,8 @@ export class PcapProvider {
       commandReturned = true;
       if (selected !== undefined) {
         await assertArtifactCommandPath(selected, operation, {
-          capturedOutput: {
-            stdout: output.stdout,
-            stderr: output.stderr,
-            truncated: output.cleanup?.capturedOutput.truncated ?? false,
+          get capturedOutput() {
+            return output.capturedOutput;
           },
         });
         const after = await this.readToolIdentity(
@@ -362,10 +358,8 @@ export class PcapProvider {
           selected.identity,
           wiresharkExecutableIdentity(after),
           {
-            capturedOutput: {
-              stdout: output.stdout,
-              stderr: output.stderr,
-              truncated: output.cleanup?.capturedOutput.truncated ?? false,
+            get capturedOutput() {
+              return output.capturedOutput;
             },
           },
         );
@@ -406,7 +400,11 @@ export class PcapProvider {
       throw cause;
     }
     if (inputPath === undefined && cleanup !== undefined) {
-      const failure = probeCleanupFailure(operation, cleanup, output);
+      const failure = probeCleanupFailure(
+        operation,
+        cleanup,
+        output.capturedOutput,
+      );
       if (retainedCommand !== undefined) retainedCommand.failure = failure;
       throw failure;
     }
@@ -889,7 +887,7 @@ export class PcapProvider {
           pendingCommand.resources,
           {
             reason: pendingCommand.reason,
-            captured_output: pendingCommand.capturedOutput,
+            captured_output: { ...pendingCommand.capturedOutput },
           },
           { operation: request.operation },
         );
@@ -988,7 +986,7 @@ export class PcapProvider {
           request.operation,
           snapshot.path,
           command.cleanup,
-          command,
+          command.capturedOutput,
         ),
         request.operation,
       );
@@ -1018,7 +1016,7 @@ export class PcapProvider {
         request.operation,
         snapshot.path,
         info.cleanup,
-        info,
+        info.capturedOutput,
         pcapPartialEvidence(
           request,
           provider,
@@ -1190,7 +1188,7 @@ export class PcapProvider {
         request.operation,
         snapshot.path,
         cleanupCommand.cleanup,
-        cleanupCommand,
+        cleanupCommand.capturedOutput,
         pcapPartialEvidence(
           request,
           provider,

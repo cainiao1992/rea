@@ -146,7 +146,7 @@ const immutableSpawn = (
     projectedResultBindings: candidate.projectedResultBindings,
     command,
     argvCount,
-    environmentSupplied: objectHasProperty(options, "env"),
+    environmentSupplied: environmentSupplied(options, context),
     stdioMode: stdioMode(options, candidate.method, context),
     resolution: command === null ? "partial" : "complete",
   };
@@ -403,13 +403,21 @@ const spawnArguments = (
   };
 };
 
-const objectHasProperty = (object: t.Node | undefined, name: string): boolean =>
-  t.isObjectExpression(object) &&
-  object.properties.some(
-    (property) =>
-      !t.isSpreadElement(property) &&
-      semanticStaticPropertyName(property.key, property.computed) === name,
-  );
+/**
+ * Node replaces a falsy `options.env` with a copy of the parent environment, so
+ * a nullish, empty-string, zero or `false` value passes the whole environment
+ * through instead of supplying one.
+ */
+const environmentSupplied = (
+  options: t.Node | undefined,
+  context: ChildSpawnContext,
+): boolean => {
+  const lookup = staticObjectProperty(options, "env", context.isNullish);
+  if (lookup.status !== "explicit") return false;
+  const value = unwrapJavaScriptExpression(lookup.value).node;
+  if (context.isNullish(value)) return false;
+  return staticJavaScriptTruthiness(value) !== false;
+};
 
 const stdioMode = (
   options: t.Node | undefined,

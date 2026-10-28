@@ -304,7 +304,7 @@ const evaluateBinding = (
       }),
     }));
     if (
-      qualifications.some(
+      qualifications.every(
         ({ authoritySatisfied, proofs }) =>
           authoritySatisfied && proofs.every((proof) => proof.ok),
       )

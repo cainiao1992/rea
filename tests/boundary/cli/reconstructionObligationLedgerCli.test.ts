@@ -346,6 +346,10 @@ describe("reconstruction proof applicability through CLI", () => {
         expect(obligation.diagnostics.map(({ code }) => code).sort()).toEqual(
           [...codes].sort(),
         );
+        expect(ledger.summary.required_open).toBe(status === "ready" ? 0 : 1);
+        for (const fixture of input.manifest.bindings[0]!.fixtures)
+          for (const evidenceId of fixture.evidence_ids)
+            expect(ledger.evidence_links).toContain(evidenceId);
         if (reason === null) expect(obligation.diagnostics).toEqual([]);
         else
           expect(

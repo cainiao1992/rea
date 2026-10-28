@@ -127,7 +127,11 @@ rea inspect-native-data-type <binary> --address <typed-data-address> --provider 
 
 Instruction facts include bytes, length, decoder text, ordered register/scalar/
 address tokens, typed references and flow destinations. Mid-instruction, data,
-outside-memory and undecodable addresses have separate outcomes. Effective
+outside-memory and unlisted addresses have separate outcomes. For Ghidra,
+`not-in-listing` means the address is in memory without a listed instruction or
+defined data. REA does not attempt a decode there: the memory may be uninitialized
+or contain valid instructions. Older Evidence may report `undecodable` for this
+same ambiguous case; it does not establish that a decode failed. Effective
 memory base/index/displacement roles remain unavailable. Ghidra reports its program
 language variant in `mode`; other providers retain their own mode label. Ghidra
 MIPS results additionally expose `decoder_context`
@@ -138,7 +142,7 @@ that do not expose this facet. The context is an analysis observation, not proof
 of a runtime processor state.
 
 `inspect_native_instruction` also returns `incoming_references` to the exact
-queried address, including data, interior-instruction and undecodable addresses.
+queried address, including data, interior-instruction and unlisted addresses.
 Ghidra enumerates its ReferenceManager, excludes synthetic entry-point
 references, and returns deterministic source-address ordering while retaining
 distinct operand references from the same source. `[]` means that enumeration

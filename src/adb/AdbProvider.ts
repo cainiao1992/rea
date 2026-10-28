@@ -4,6 +4,10 @@ import {
 } from "../filesystem/callerPath.js";
 import { execFileFailureCapturedOutput } from "../process/ExecFileOutput.js";
 import { collectNumericIssues } from "./AdbNumericIssues.js";
+import {
+  adbFilesystemErrorCode,
+  adbInputFileError,
+} from "./AdbFilesystemAdmission.js";
 import { analysisClientFailureForOperation } from "../providers/AnalysisClientFailure.js";
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
@@ -452,6 +456,18 @@ const prepareOutputDirectory = async (
     await mkdir(root, { recursive: true });
     await access(root, fsConstants.W_OK);
   } catch (cause) {
+    const code = adbFilesystemErrorCode(cause);
+    if (code === "EEXIST" || code === "ENOTDIR")
+      return err(
+        new AnalysisInputError(operation, { cause }, [
+          {
+            path: ["output_directory"],
+            reason: "invalid_value",
+            message: "The selected output path or a parent is not a directory.",
+            observed: { path: directory, code },
+          },
+        ]),
+      );
     return err(
       new AnalysisOutputError(
         operation,
@@ -2465,16 +2481,13 @@ export class AdbProvider {
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const localPath = absoluteCallerPath(input.local_path);
-    const info = await stat(localPath).then(
-      (value) => value,
-      () => null,
+    const invalid = await adbInputFileError(
+      operation,
+      "local_path",
+      input.local_path,
+      localPath,
     );
-    if (info === null || !info.isFile())
-      return err(
-        new AnalysisInputError(operation, {
-          cause: new Error(`The local file does not exist: ${localPath}`),
-        }),
-      );
+    if (invalid !== undefined) return err(invalid);
     return this.#withRuntimeRoot(
       operation,
       {
@@ -2671,16 +2684,13 @@ export class AdbProvider {
     signal: AbortSignal | undefined,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const apkPath = absoluteCallerPath(input.apk_path);
-    const info = await stat(apkPath).then(
-      (value) => value,
-      () => null,
+    const invalid = await adbInputFileError(
+      operation,
+      "apk_path",
+      input.apk_path,
+      apkPath,
     );
-    if (info === null || !info.isFile())
-      return err(
-        new AnalysisInputError(operation, {
-          cause: new Error(`The local APK does not exist: ${apkPath}`),
-        }),
-      );
+    if (invalid !== undefined) return err(invalid);
     return this.#withRuntimeRoot(
       operation,
       {

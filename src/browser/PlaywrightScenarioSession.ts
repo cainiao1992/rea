@@ -27,6 +27,7 @@ import { capturePlaywrightStepArtifacts } from "./PlaywrightScenarioArtifacts.js
 import { PlaywrightScenarioEvents } from "./PlaywrightScenarioEvents.js";
 import { PlaywrightScenarioStorage } from "./PlaywrightScenarioStorage.js";
 import { PlaywrightScenarioServiceWorkers } from "./PlaywrightScenarioServiceWorkers.js";
+import { scenarioCommandTimeoutMs } from "./ScenarioCommandDeadline.js";
 import {
   withPlaywrightExecutionBoundary,
   PLAYWRIGHT_CLEANUP_CONFIRMATION_TIMEOUT_MS,
@@ -270,7 +271,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
             waitUntil: "load",
             timeout: 0,
           }),
-        scenario.command_timeout_ms,
+        scenarioCommandTimeoutMs(scenario),
         options.signal,
       );
       await withPlaywrightExecutionBoundary(

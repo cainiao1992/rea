@@ -77,6 +77,13 @@ export const SCOPES = {
   ],
   // Apple artifact CLI/MCP lane on macOS, including its focused regressions.
   apple: [
+    "src/hopper/BridgeLauncher.ts",
+    "src/domain/hopperErrors.ts",
+    "tests/boundary/providers/hopper/hopperMacLaunchArguments.test.ts",
+    "tests/acceptance/providers/hopperStartupRecovery.test.ts",
+    "tests/boundary/providers/hopper/hopperClient.helperFailure.test.ts",
+    "tests/boundary/providers/hopper/bridgeBootstrapCleanup.test.ts",
+    "tests/boundary/providers/hopper/bridgeTargetLease.integration.test.ts",
     "src/artifacts/NativeDmg*.ts",
     "src/native/Apple*",
     "src/native/NativeMacOS*",

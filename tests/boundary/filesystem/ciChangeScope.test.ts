@@ -771,6 +771,16 @@ it.each([
     "tests/boundary/process/windowsExecutableSelection.test.ts",
     { code: true, runtime: true, package: true },
   ],
+  ["src/hopper/BridgeLauncher.ts", { code: true, apple: true }],
+  ["src/domain/hopperErrors.ts", { code: true, apple: true }],
+  [
+    "tests/boundary/providers/hopper/hopperMacLaunchArguments.test.ts",
+    { code: true, apple: true },
+  ],
+  [
+    "tests/boundary/providers/hopper/hopperClient.helperFailure.test.ts",
+    { code: true, apple: true },
+  ],
   [
     "src/windows/Example.ts",
     { code: true, runtime: true, package: true, apple: false, evm: false },

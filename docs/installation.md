@@ -857,9 +857,13 @@ stage `connection`.
 If macOS denies Apple Events, allow the application that starts REA under
 **System Settings → Privacy & Security → Automation**, then retry. REA releases
 the target reservation when the native helper reports its complete authorization
-rejection and its arguments cannot alter the helper's generated AppleScript.
-Arguments containing quotes, backslashes, or line breaks remain unchanged but
-cannot establish that a failed handoff opened no document. Other failed handoffs
+rejection after literal argument admission. Before application handoff, REA refuses
+double quotes, backslashes, or line breaks in the final launcher path or arguments,
+with `details.launch_rejection.boundary: "argument_encoding"` and the affected source/index.
+Select literal-safe launcher/runtime paths and loader arguments, or another
+compatible provider. REA preserves original file names and evidence: a quoted
+executable name can still work when its prepared image path is literal-safe;
+database paths must themselves be representable. Other failed handoffs
 retain ownership until document closure is confirmed. If a timed-out bridge
 becomes ready later, `close_binary` connects to that run, authenticates its
 identity, and requests document shutdown. Once its listener is ready, the bridge

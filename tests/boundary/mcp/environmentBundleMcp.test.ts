@@ -17,6 +17,7 @@ import { advertisedMcpToolSchemas } from "../../fixtures/advertisedMcpTool.js";
 import {
   analysisViewCaptureEvidence,
   environmentManifestCaptureFixture,
+  timedCaptureEvidence,
 } from "../../fixtures/analysisView.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
@@ -67,6 +68,42 @@ const loopbackCapture = (): Evidence =>
       ),
     ) as ReturnType<typeof environmentManifestCaptureFixture>,
   );
+
+it("reports an unmodelled literal delete without claiming recorded reads are absent", async () => {
+  const { client, session } = await connect();
+  const capture = timedCaptureEvidence([
+    ["GET", "/api/folders", [{ uid: "f1", title: "General" }]],
+    ["GET", "/api/folders/f1", { uid: "f1", title: "General" }],
+    ["DELETE", "/api/folders/f1", null, 204],
+    ["GET", "/api/folders/f1", { message: "not found" }, 404],
+    ["GET", "/api/folders", []],
+  ]);
+  expect(session.recordEvidence(capture).ok).toBe(true);
+  const root = await createTestTempDirectory("rea-bundle-mcp-target-");
+  const response = await client.callTool({
+    name: TOOL,
+    arguments: {
+      source: { kind: "retained-evidence", evidence_id: capture.evidence_id },
+      output_directory: join(root, "bundle"),
+      dry_run: true,
+    },
+  });
+  expect(response.isError, JSON.stringify(response)).not.toBe(true);
+  const report = toolContract(TOOL).outputSchema.parse(
+    response.structuredContent,
+  );
+  if (report.coverage === null) throw new Error("Expected coverage");
+  expect(report.coverage.writes.withheld).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        reason: "no-state-target",
+        hint: expect.stringContaining(
+          "could not be linked to a modelled state target",
+        ),
+      }),
+    ]),
+  );
+});
 
 it("writes the bundle environment-build writes from retained capture Evidence", async () => {
   const { client, session } = await connect();

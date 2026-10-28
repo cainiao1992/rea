@@ -174,7 +174,7 @@ what to record next; hints never change what is served:
 
 | Reason                | Hint                                                                                                                                                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `no-state-target`     | The write's path names no collection or item the capture reads. Read the collection or item it changes.                                                                                                                                          |
+| `no-state-target`     | The write could not be linked to a modelled target. Check the path template and recorded views; record missing reads. Some route forms may not be supported.                                                                                     |
 | `no-call`             | No recorded call of this tool was modelled, for example because every call failed. Record a successful call.                                                                                                                                     |
 | `body-unusable`       | The retained request or response cannot be modelled. Record a successful call with a complete supported request and reproducible response.                                                                                                       |
 | `no-observation`      | Nothing showed the entity or document this write changed. Read a created entity back by id right after the write; for an update or delete the state must already hold the entity, so read it before the write or record the create that made it. |
@@ -723,6 +723,8 @@ and `POST` tools the capture shows only reading (a lookup answering as a `GET`
 did, an RPC tunnel naming read operations, a session renewal), stay served and
 answer from their recordings with the reason `query-body`; they are not write
 tools.
+`HEAD`, `OPTIONS` and `TRACE` tools also replay their captured responses; their
+state views report `method-replay` and coverage counts them as recorded reads.
 
 A line establishes whole-collection membership only from the beginning:
 `offset`, `start`, `_start` and `page` must be zero when present. Positive or

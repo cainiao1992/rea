@@ -1771,6 +1771,72 @@ it("reports environment coverage identically from retained, portable and file MC
   await client.ping();
 });
 
+it("accounts for every safe HTTP method in environment state and coverage", async () => {
+  const { client } = await connect();
+  const { ajv, outputSchema } = await advertisedMcpToolSchemas(
+    client,
+    "inspect_analysis_view",
+    schemaValidation.assertions,
+  );
+  const entries = ["GET", "HEAD", "OPTIONS", "TRACE"].map((method) => ({
+    request: { method, url: "https://sample.test/api/items" },
+    response: {
+      status: 200,
+      content:
+        method === "GET"
+          ? {
+              mimeType: "application/json",
+              text: '{"items":[{"id":"a"}]}',
+              size: 22,
+            }
+          : { mimeType: "application/json", size: 0 },
+    },
+  }));
+  const parent = analysisViewCaptureEvidence(
+    environmentManifestCaptureFixture(entries),
+  );
+  const results = [];
+  for (const kind of [
+    "environment-manifest",
+    "environment-state",
+    "environment-coverage",
+  ]) {
+    const response = await client.callTool({
+      name: "inspect_analysis_view",
+      arguments: {
+        source: { kind: "inline", evidence: parent },
+        view: { kind, template_rules: [] },
+      },
+    });
+    expect(response.isError).not.toBe(true);
+    expect(
+      ajv.validate(outputSchema, response.structuredContent),
+      JSON.stringify(ajv.errors),
+    ).toBe(true);
+    results.push(parseEvidence(response.structuredContent).normalized_result);
+  }
+  expect(results[0]).toMatchObject({
+    tools: expect.arrayContaining([
+      expect.objectContaining({ method: "GET" }),
+      expect.objectContaining({ method: "HEAD" }),
+      expect.objectContaining({ method: "OPTIONS" }),
+      expect.objectContaining({ method: "TRACE" }),
+    ]),
+  });
+  expect(results[1]).toMatchObject({
+    views: expect.arrayContaining([
+      { tool: "head_items", shape: "recorded", reason: "method-replay" },
+      { tool: "options_items", shape: "recorded", reason: "method-replay" },
+      { tool: "trace_items", shape: "recorded", reason: "method-replay" },
+    ]),
+  });
+  expect(results[2]).toMatchObject({
+    reads: { state: 1, recorded: 3, recorded_reasons: { "method-replay": 3 } },
+    writes: { served: [], withheld: [] },
+    coverage: { examined: 4, total: 4, exhausted: true },
+  });
+});
+
 it("projects an environment manifest identically from retained, portable and file MCP Evidence", async () => {
   const { client, session } = await connect();
   const { ajv, inputSchema, outputSchema } = await advertisedMcpToolSchemas(

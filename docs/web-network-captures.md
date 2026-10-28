@@ -689,7 +689,8 @@ with a `value` or `absent: true`), and serving replays calls matching them and
 calls asking for fields the checked lines do not show.
 Otherwise the tool is a recorded view
 with reason `envelope-varies`, `fields-differ` or `list-differs`; the other
-reasons are `query-body` (a query `POST`, or one the capture shows only reading), `no-init-recording`,
+reasons are `query-body` (a query `POST`, or one the capture shows only reading),
+`method-replay` (a safe `HEAD`, `OPTIONS` or `TRACE` call), `no-init-recording`,
 `body-unusable`, `no-identity` (an item read without a proved identity),
 `path-varies` (another read under more than one path, as a template with a
 parameter before its end), `query-varies` (another read of one path under

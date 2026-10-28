@@ -235,17 +235,17 @@ Re-record a withheld write at most twice, and only for a recording gap. Stop at
 once when the reason is application behaviour, and report the write as
 withheld with its hint:
 
-| Reason                | What to do                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `no-state-target`     | Re-record: read the collection or item the write changes.                                     |
-| `no-observation`      | Re-record: read the entity back by id after the write; read it first for an update or delete. |
-| `unconfirmed`         | Re-record: read the entity and its list after the write.                                      |
-| `incomplete-entities` | Re-record: read the entity through every view that lists it.                                  |
-| `unexplained-change`  | Re-record once with a second, different call of the same write.                               |
-| `no-call`             | Re-record once with a write that succeeds.                                                    |
-| `side-effect`         | Stop: the application changes other entities.                                                 |
-| `contradicted`        | Stop: a later read disagrees with the modelled effect.                                        |
-| `body-unusable`       | Re-record a UI write once with `request` steps (its body was not exposed); else stop.         |
+| Reason                | What to do                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `no-state-target`     | Check the path template and recorded views; record missing reads. The route form may not be supported as a mutation target. |
+| `no-observation`      | Re-record: read the entity back by id after the write; read it first for an update or delete.                               |
+| `unconfirmed`         | Re-record: read the entity and its list after the write.                                                                    |
+| `incomplete-entities` | Re-record: read the entity through every view that lists it.                                                                |
+| `unexplained-change`  | Re-record once with a second, different call of the same write.                                                             |
+| `no-call`             | Re-record once with a write that succeeds.                                                                                  |
+| `side-effect`         | Stop: the application changes other entities.                                                                               |
+| `contradicted`        | Stop: a later read disagrees with the modelled effect.                                                                      |
+| `body-unusable`       | Re-record a UI write once with `request` steps (its body was not exposed); else stop.                                       |
 
 Use new scratch names on each attempt, and delete what an earlier attempt
 created before recording again (through the UI, or a `request` step with the

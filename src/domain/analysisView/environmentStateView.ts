@@ -220,6 +220,7 @@ const viewSchema = z.discriminatedUnion("shape", [
     shape: z.literal("recorded"),
     reason: z.enum([
       "query-body",
+      "method-replay",
       "no-init-recording",
       "body-unusable",
       "no-identity",

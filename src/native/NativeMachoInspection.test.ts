@@ -86,6 +86,29 @@ describe("Mach-O tool architecture selection", () => {
     ]);
   });
 
+  it("uses the subtype-specific tool name when lipo calls ARM64 V8 arm64", async () => {
+    const lipo =
+      "architecture x86_64\n cputype CPU_TYPE_X86_64\n cpusubtype CPU_SUBTYPE_X86_64_ALL\n offset 4096\n size 4096\n align 2^12\n" +
+      "architecture arm64\n cputype CPU_TYPE_ARM64\n cpusubtype CPU_SUBTYPE_ARM64_V8\n offset 8192\n size 4096\n align 2^12\n";
+    const { commands } = await inspect(lipo, "arm64");
+    expect(commands.find(({ tool }) => tool === "otool")?.args).toContain(
+      "arm64v8",
+    );
+  });
+
+  it("refuses an ambiguous selector instead of assigning another row's offset", async () => {
+    const row =
+      "architecture arm64\n cputype CPU_TYPE_ARM64\n cpusubtype CPU_SUBTYPE_ARM64_ALL\n offset 4096\n size 4096\n align 2^12\n";
+    const { result, commands } = await inspect(row + row, "arm64");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({
+      _tag: "AnalysisOutputError",
+      reason: expect.stringContaining("multiple slices addressable as arm64"),
+    });
+    expect(commands.map(({ tool }) => tool)).toEqual(["lipo"]);
+  });
+
   it.each([
     { names: ["arm64v8", "arm64e"], selected: "arm64e" },
     { names: ["arm64e", "arm64v8"], selected: "arm64e" },
@@ -161,6 +184,29 @@ describe("Mach-O inspection container format", () => {
       }),
     });
   };
+
+  it.each([false, true])(
+    "keeps the selected subtype's offset when lipo repeats an architecture name (reversed=%s)",
+    async (reversed) => {
+      const v8 =
+        "architecture arm64\n cputype CPU_TYPE_ARM64\n cpusubtype CPU_SUBTYPE_ARM64_V8\n offset 16384\n size 4096\n align 2^12\n";
+      const all =
+        "architecture arm64\n cputype CPU_TYPE_ARM64\n cpusubtype CPU_SUBTYPE_ARM64_ALL\n offset 32768\n size 4096\n align 2^12\n";
+      const result = await runInspection(
+        `Fat header in: /fixture/app\nfat_magic 0xcafebabe\nnfat_arch 2\n${reversed ? all + v8 : v8 + all}`,
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.result).toMatchObject({
+        selected_architecture: { name: "arm64", container_file_offset: 32768 },
+      });
+      expect(result.value.locations).toContainEqual({
+        kind: "file-offset-range",
+        start: 32768,
+        end: 40960,
+      });
+    },
+  );
 
   it.each([
     {

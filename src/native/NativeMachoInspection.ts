@@ -15,7 +15,8 @@ import { err, ok, type Result } from "../domain/result.js";
 import type { NativeCommandCapture } from "./CommandRunner.js";
 import {
   MACHO_ARCHITECTURE_POLICIES,
-  selectMachoArchitectureName,
+  machoToolArchitectureName,
+  selectMachoArchitecture,
 } from "./MachoArchitectureSelection.js";
 import {
   parseDyldExportAddressRow,
@@ -109,8 +110,15 @@ export const inspectNativeMacho = async (
         `lipo did not list ${selection.architecture}; refusing to read another slice`,
       ),
     );
+  if (selection.status === "ambiguous")
+    return err(
+      new AnalysisOutputError(
+        "inspect_macho",
+        `lipo listed multiple slices addressable as ${selection.architecture}; refusing to associate a slice offset with an ambiguous tool selection`,
+      ),
+    );
   const selectedArchitecture =
-    selection.status === "selected" ? selection.architecture : null;
+    selection.status === "selected" ? selection.toolName : null;
   const runSliceCommand = ([tool, prefix]: readonly [
     string,
     readonly string[],
@@ -274,15 +282,17 @@ export const inspectNativeMacho = async (
     );
   }
   const selectedArchitectureName =
-    selectedArchitecture ??
+    (selection.status === "selected" ? selection.architecture.name : null) ??
     (architectures.length === 1 ? (architectures[0]?.name ?? null) : null);
   const containerOffset =
     selectedArchitectureName === null
       ? undefined
       : format === "thin"
         ? 0
-        : (architectures.find(({ name }) => name === selectedArchitectureName)
-            ?.file_offset ?? undefined);
+        : ((selection.status === "selected"
+            ? selection.architecture
+            : architectures[0]
+          )?.file_offset ?? undefined);
   const normalized = normalizeMacho(
     captures,
     format,
@@ -621,7 +631,12 @@ const selectedArchitectureArguments = (
 
 type ArchitectureSelection =
   | { readonly status: "unfiltered" }
-  | { readonly status: "selected"; readonly architecture: string }
+  | {
+      readonly status: "selected";
+      readonly architecture: LipoArchitecture;
+      readonly toolName: string;
+    }
+  | { readonly status: "ambiguous"; readonly architecture: string }
   | { readonly status: "absent"; readonly architecture: string };
 
 const selectArchitecture = (
@@ -641,9 +656,26 @@ const selectArchitecture = (
   const policy = MACHO_ARCHITECTURE_POLICIES[target.architecture];
   const selected =
     policy === undefined
-      ? available.find(({ name }) => name === normalized)?.name
-      : selectMachoArchitectureName(policy, available);
-  if (selected !== undefined)
-    return { status: "selected", architecture: selected };
+      ? available.find(({ name }) => name === normalized)
+      : selectMachoArchitecture(policy, available);
+  if (selected !== undefined) {
+    const toolName =
+      policy === undefined
+        ? selected.name
+        : machoToolArchitectureName(policy, selected);
+    const selector = toolArchitectureName("otool", toolName);
+    if (
+      available.some((candidate) => {
+        if (candidate === selected) return false;
+        const candidateName =
+          policy === undefined
+            ? candidate.name
+            : machoToolArchitectureName(policy, candidate);
+        return toolArchitectureName("otool", candidateName) === selector;
+      })
+    )
+      return { status: "ambiguous", architecture: selector };
+    return { status: "selected", architecture: selected, toolName };
+  }
   return { status: "absent", architecture: normalized };
 };

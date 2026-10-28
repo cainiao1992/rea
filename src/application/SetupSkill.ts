@@ -20,6 +20,7 @@ import { preserveCurrentRecoveryBackup } from "./SetupRecoveryBackup.js";
 import {
   SkillFilePublication,
   SkillFilePreparationFailure,
+  SkillDestinationChangedError,
   type SkillFileSnapshot,
   type SkillPublicationCleanupOwner,
 } from "./SkillFilePublication.js";
@@ -146,6 +147,8 @@ export class SetupSkillInstallError extends Error {
   }
 
   get remediation(): string {
+    if (this.cause instanceof SkillDestinationChangedError)
+      return `${this.message}\nStop concurrent setup activity, inspect the destination and any reported rollback failures, then retry setup.`;
     return `${this.message}\n${this.remediationAction}`;
   }
 }

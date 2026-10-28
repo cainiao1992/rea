@@ -165,6 +165,15 @@ into the current shell:
 eval "$(rea completions bash)"
 ```
 
+For zsh, initialize completion before loading the hook. If your shell already
+runs `compinit`, place the hook after that existing initialization:
+
+```zsh
+autoload -Uz compinit
+compinit
+eval "$(rea completions zsh)"
+```
+
 The Bash hook supports macOS system Bash 3.2. It uses optional completion
 features when the shell provides them and falls back to portable registration.
 Completion includes standard global options and the active command's options;

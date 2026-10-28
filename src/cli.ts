@@ -68,7 +68,7 @@ import { registerCutterCommands } from "./cli/cutterCommands.js";
 import { excludeDeclaredSensitiveArguments } from "./cli/explicitSensitiveArguments.js";
 import { rejectSurplusCliArguments } from "./cli/strictPositionals.js";
 import { presentCliArgumentErrors } from "./cli/argumentErrors.js";
-import { createCliCompletions } from "./cli/completions.js";
+import { completionHelpNote, createCliCompletions } from "./cli/completions.js";
 import { registerGuidedWorkflowCommands } from "./cli/guidedWorkflowCommands.js";
 
 export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
@@ -205,16 +205,21 @@ export const createCli = (
     cli as unknown as Parameters<typeof createCliCompletions>[0],
     environment,
   );
-  cli.serve = (arguments_ = process.argv.slice(2), options) =>
-    complete(arguments_, options ?? {})
-      ? Promise.resolve()
-      : serveStrict(
-          normalizeCliArguments(arguments_),
-          options ?? {},
-          (tokens, selected) =>
-            serveDeclared(tokens, selected, (declared, declaredOptions) =>
-              serve(adaptCliOutputArgumentsForIncur(declared), declaredOptions),
-            ),
-        );
+  cli.serve = (arguments_ = process.argv.slice(2), options) => {
+    if (complete(arguments_, options ?? {})) return Promise.resolve();
+    const normalized = normalizeCliArguments(arguments_);
+    const result = serveStrict(normalized, options ?? {}, (tokens, selected) =>
+      serveDeclared(tokens, selected, (declared, declaredOptions) =>
+        serve(adaptCliOutputArgumentsForIncur(declared), declaredOptions),
+      ),
+    );
+    const note = completionHelpNote(normalized);
+    if (note === undefined) return result;
+    return result.then(() => {
+      const write =
+        options?.stdout ?? ((text: string) => process.stdout.write(text));
+      write(`\n${note}`);
+    });
+  };
   return cli;
 };

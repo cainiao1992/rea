@@ -489,6 +489,7 @@ export class PlaywrightScenarioSession implements BrowserScenarioSessionPort {
           secrets: this.secrets,
           startOrigin: this.startOrigin,
           signal,
+          onOpaqueRedirect: () => this.eventCapture.opaqueRequestRedirect(),
         }),
       "timeout_ms" in action ? action.timeout_ms : undefined,
       signal,

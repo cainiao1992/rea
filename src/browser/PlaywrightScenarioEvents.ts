@@ -126,6 +126,7 @@ export class PlaywrightScenarioEvents {
   private readonly stopListeners = new Map<object, Set<() => void>>();
   private sealed = false;
   private sourcePrivacyIncomplete = false;
+  private opaqueRedirectObserved = false;
   private eventPrivacyFinalized = false;
 
   constructor(options: EventCaptureOptions) {
@@ -202,6 +203,12 @@ export class PlaywrightScenarioEvents {
     this.stepIndex = index;
   }
 
+  /** Manual page fetch can conceal a redirect response from Playwright. */
+  opaqueRequestRedirect(): void {
+    if (!this.sealed && this.enabled.has("network"))
+      this.opaqueRedirectObserved = true;
+  }
+
   nextSequence(): number {
     return this.sequence + 1;
   }
@@ -234,6 +241,10 @@ export class PlaywrightScenarioEvents {
         `Popup ${family} events before Page discovery are unavailable; later events are retained.`,
     );
     const gaps = [...popupGaps, ...(this.network?.limitations() ?? [])];
+    if (this.opaqueRedirectObserved)
+      gaps.push(
+        "A request step received an opaque redirect; its response status and Location may be unavailable in network events.",
+      );
     if (this.sourcePrivacyIncomplete)
       gaps.push(
         "Source transaction URLs or content were withheld because marked response values were unavailable.",

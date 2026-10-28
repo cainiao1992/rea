@@ -28,7 +28,8 @@ import {
 import { createLogger } from "./logger.js";
 import { parseLogLevel } from "./config/processStart.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
-import { npxRegistrationCommand } from "./application/ClientRegistrationIdentity.js";
+import { currentClientRegistrationCommand } from "./application/ClientRegistrationIdentity.js";
+import { clientRegistrationCommandText } from "./cli/clientRegistrationCommandText.js";
 import { registerSetupCommands } from "./cli/setupCommands.js";
 import { registerCoreAnalysisCommands } from "./cli/coreAnalysisCommands.js";
 import { registerUtilityCommands } from "./cli/utilityCommands.js";
@@ -106,7 +107,9 @@ export const createCli = (
         .describe("Write measured command timing to stderr."),
     }),
     mcp: {
-      command: npxRegistrationCommand().join(" "),
+      command: clientRegistrationCommandText(
+        currentClientRegistrationCommand({ environment }),
+      ),
       instructions:
         "Ask what software, artifact, protocol, or behavior the user wants to understand, then choose the available investigation capabilities that can produce evidence.",
     },

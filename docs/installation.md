@@ -273,7 +273,7 @@ After reviewing an update plan, rerun that same prefixed setup command without
 `--dry-run` and approve its exact changes. Profile removal likewise needs the
 prefix on `claude mcp remove --scope user rea` and any `rea uninstall` command;
 keep the broader client scope of uninstall in mind. Restart the selected
-profile after changing its pinned registration.
+profile after changing its registration.
 
 `claude mcp remove` removes only the registration. To remove REA from this
 profile without running the broader uninstall flow, first back up the profile's
@@ -323,22 +323,18 @@ commands. Record an existing selection first if you intend to restore it after
 finishing. The configuration path below is the default profile's
 `~/.claude.json`; a different active profile uses its own config root instead.
 
-Register with the variable unset:
-
-<!-- x-release-please-start-version -->
+Register with the variable unset, substituting the absolute runtime and entry
+script from your existing installation or setup dry-run:
 
 ```bash
-claude mcp add --scope local rea -- npx -y rea-agents@6.8.0 mcp
+claude mcp add --scope local rea -- "/absolute/path/to/node" "/absolute/path/to/rea/scripts/rea.mjs" mcp
 ```
 
-On native Windows, use the same project directory and wrap the package-runner
-shim so the stdio client can launch it:
+On native Windows, use the same project directory and absolute paths:
 
 ```powershell
-claude mcp add --scope local rea -- cmd.exe /d /c npx -y rea-agents@6.8.0 mcp
+claude mcp add --scope local rea -- "C:\Program Files\nodejs\node.exe" "C:\tools\rea\scripts\rea.mjs" mcp
 ```
-
-<!-- x-release-please-end -->
 
 Local scope stores the entry under that directory's path in `~/.claude.json`,
 so other projects don't load it. This route doesn't install the bundled skill.
@@ -346,7 +342,7 @@ Avoid `--scope project`, which writes `.mcp.json` into the repository where it
 can be committed or copied. `rea doctor` and `rea uninstall` read only the
 user-level entry, so they don't report or remove a local-scope registration;
 remove it with `claude mcp remove --scope local rea` from the same directory.
-`rea update` doesn't refresh it either, so it stays on the version it names.
+`rea update` doesn't refresh it either, so it continues using the selected installation.
 To move it to a newer release, first back up the project entry in
 `~/.claude.json` and record its environment and other metadata. In particular,
 preserve caller-selected overrides such as `REA_MCP_INPUT_SCHEMA_PROFILE` and
@@ -553,8 +549,8 @@ non-TTY, and JSON modes without applying configuration changes.
 ## Released package and main
 
 Repository main documents its current code and generated catalog. `@latest`
-selects the npm release, and persistent MCP registrations are pinned to the
-version that performed setup. Installing newer instructions does not update a
+selects the npm release, and managed MCP registrations bind the installation
+that performed setup. Installing newer instructions does not update a
 running server or its registration.
 
 The npm release checked on **2026-10-11** was **6.4.0**, published from
@@ -1101,14 +1097,15 @@ rea providers --json
 ```
 
 `rea setup` can configure supported Windows agents and install the bundled
-REA skill after approval. Direct registrations use Node to launch REA's entry
-script; package-runner registrations use the pinned `npx` or `bunx` command. Hopper
+REA skill after approval. Managed registrations use the absolute selected Node or
+Bun runtime and REA entry script, including when setup ran through a package runner. Hopper
 installation remains unavailable on Windows. Setup never installs Ghidra,
 Java, or Python. It preserves valid detected Ghidra/JDK settings in agent
 registrations. See [Windows Ghidra P0](windows-ghidra-p0.md) for provider diagnostics.
 
-The separate `rea mcp add` builtin currently uses Incur's package-runner child
-launcher, which can fail on Windows with `MCP_ADD_FAILED: spawn npx ENOENT`
+The separate `rea mcp add` builtin delegates most clients to Incur's package-runner
+child launcher. Run that acquisition from a trusted directory; prefer managed
+`rea setup` when supported. That child launcher can fail on Windows with `MCP_ADD_FAILED: spawn npx ENOENT`
 before registering a client. REA's setup path is unaffected. For a client supported
 by setup, review `rea setup --client opencode --skill=false --dry-run --json`
 (substitute its client ID), then use the same scoped command without `--dry-run`
@@ -1653,40 +1650,45 @@ For a client that supports Registry discovery, search for `io.github.morluto/rea
 and select the npm package. The published metadata launches the existing stdio
 server through `npx` with the `mcp` command.
 
-For a client that requires manual configuration, use:
+For supported clients, prefer `rea setup`: it records the absolute JavaScript
+runtime and entry script of the REA installation performing setup. Client starts
+then use that installation directly, keeping the client's working directory
+without running npm or Bun package resolution there. Registry clients control
+their own package acquisition; Registry metadata cannot name local absolute paths.
 
-<!-- x-release-please-start-version -->
+For manual stdio configuration, substitute the absolute paths of an existing
+installation (use the command shown in a setup dry-run):
 
 ```json
 {
   "mcpServers": {
     "rea": {
-      "command": "npx",
-      "args": ["-y", "rea-agents@6.8.0", "mcp"]
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/rea/scripts/rea.mjs", "mcp"]
     }
   }
 }
 ```
 
-<!-- x-release-please-end -->
+Run current setup to migrate recognized older `npx`/`bunx` registrations, with
+backups, then restart the client. Unrelated or unidentified registrations remain
+untouched. Setup does not prewarm a separate package-runner command.
 
-Persistent registrations should use one exact package version. `rea setup`
-writes the same package-runner shape, or `bunx rea-agents@<version> mcp` when
-setup runs through `bunx`, and pins it to the exact version that performed
-setup. Run current setup to refresh an older registration, then restart the
-client.
-
-Package runners key their package cache by the requested spec, so the entry
-installed for the `@latest` invocation that ran setup cannot serve the pinned
-registration. Setup therefore materializes the pinned entry once, best-effort
-with a bounded timeout, before finishing. When that step cannot run, for
-example offline, the first client start performs the one-time install inside
-the client's MCP startup deadline and may need one more restart.
+If setup itself runs from a package-runner cache, the registration depends on
+that cache entry and the selected runtime remaining installed. Removing either
+makes startup fail; it does not download or resolve another package. Restore the
+same installation and rerun setup. Changing package requests, cache roots, or
+runtimes can create a different installation identity. If the old entry cannot be
+identified, restore it first or manually remove the confirmed REA registration
+before running setup again. A global installation provides a more durable path.
 
 ## Package runners and global installation
 
-A package-runner invocation can use a REA version installed in the current project. To
-request the latest release explicitly, use:
+Package runners can select project-local packages and read project configuration,
+even for explicit version requests. Acquire REA from a trusted working directory,
+outside the target project, and pass absolute target paths to analysis commands.
+REA cannot validate package acquisition that happens before its entrypoint starts.
+To request the latest release explicitly, use:
 
 ```bash
 npx rea-agents@latest setup
@@ -1703,16 +1705,14 @@ For an intentional rollback, make the package request explicit:
 npm exec --yes --package=rea-agents@2.4.0 -- rea setup
 ```
 
-Setup continues to pin persistent MCP registrations to the exact version that
-performed setup. Running current setup later migrates unversioned or older
-managed registrations through the normal reviewed setup transaction.
+Setup binds persistent MCP registrations to the installation that performed setup.
+Running current setup later migrates recognized legacy package-runner registrations
+through the normal reviewed setup transaction.
 
 With Bun, `bunx rea-agents setup` (or `bunx rea-agents@latest setup`) is the
-equivalent entry point. Setup run through `npx` registers
-`npx -y rea-agents@<version> mcp`; setup run through `bunx` or `bun x` registers
-`bunx rea-agents@<version> mcp`. On Windows, setup wraps either command in
-`cmd.exe /d /c` so clients can start the runner's command shim. Neither
-registration points into the runner's temporary package cache.
+equivalent acquisition entry point. Managed registrations use the selected Bun
+executable and REA entry script directly. Windows registrations likewise use
+absolute runtime and script paths, without a package-runner command shim.
 
 REA supports Node.js 22.x (>=22.23.4), 24.x (>=24.22.1), and 26.12.1+. Node.js 23, 25, earlier 26.x releases, and prereleases are unsupported. It uses the npm already paired with that runtime and never upgrades Node.js, npm, or Homebrew.
 
@@ -1746,8 +1746,9 @@ Review the plan, approve the selected client changes, then restart those clients
 This registers the installed entrypoint directly; installing the global package
 alone does not replace existing `npx` registrations. Each client still has its own
 REA process and analysis state. Direct registrations follow the installed CLI;
-use `rea update` to update it. Running setup through `npx` again selects the pinned
-package-runner command. Do not register paths inside npm's temporary package cache.
+use `rea update` to update it. Running setup through `npx` again selects the
+installation that executes setup, potentially in npm's temporary package cache;
+retain that cache entry for as long as the registration uses it.
 
 ### npm workspace errors before REA starts
 

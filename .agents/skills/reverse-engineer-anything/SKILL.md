@@ -56,7 +56,7 @@ A plugin-only doctor result of `missing` does not call for `rea setup`.
 REA setup never installs or upgrades Node.js, npm, Homebrew, Java, Ghidra, IDA,
 JADX, Kuna, Binwalk, or Unblob. Use existing prerequisites; do not install unrelated
 software to repair MCP registration. For an unsupported client, use manual stdio
-registration with a version-pinned `rea-agents` package or continue through the CLI.
+registration with an existing installation’s absolute runtime and entry script, or continue through the CLI.
 
 A concrete CLI fallback for an operator-supplied JavaScript tree or ASAR is:
 
@@ -69,7 +69,10 @@ graph, limitations, and unknowns with the same care as an MCP result; the CLI
 returns the Evidence record directly. This fallback does not establish that
 MCP is configured. Native CLI tasks still require their selected engine.
 Prefer an existing `rea` CLI. When none is installed and REA package acquisition
-is within the authorized scope, use `npx -y rea-agents@latest` in its place.
+is within the authorized scope, use `npx -y rea-agents@latest` in its place from a
+trusted directory outside the target project, with absolute target paths. Managed
+setup binds the current installation directly; retain its runtime and package
+cache entry, or restore that installation before repairing its registration.
 For setup-owned registration, configuration repair starts with a read-only setup plan; show paths, backups and
 skill replacement before applying authorized changes. Preserve existing approval
 and target-execution boundaries.

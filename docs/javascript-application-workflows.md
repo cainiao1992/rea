@@ -198,6 +198,10 @@ rereading mutable files. A seed may identify a semantic or application node,
 literal, function fingerprint, property, endpoint, event, or boundary field.
 For a recovered parse, coercion, or validation boundary, its field value is the
 static operation's method name (for example, `Number`).
+When a recovered boundary call directly supplies a scalar binding, the graph
+connects the boundary to that binding; unresolved boundary calls remain
+candidates. A boundary nested inside another expression or compound assignment
+does not establish a direct result binding.
 The query declares backward provenance, forward influence, callers, or
 ownership and can restrict admitted relation kinds. REA returns every matching
 seed and the complete reachable subgraph; callers do not choose node, relation,

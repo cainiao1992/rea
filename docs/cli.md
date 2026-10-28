@@ -311,6 +311,12 @@ rea extract-artifact ./firmware.bin --json
 See [U-Boot uImage](uimage.md) for verified CRCs, physical component ranges,
 unknown names, resource limits and retained views. Compressed bytes stay stored.
 
+`inspect-artifact` and `extract-artifact` also read ZIP members compressed with
+Zstandard (standard method 93). They retain the shared ZIP CRC, declared-size,
+overlap and archive expansion checks. The native streaming decoder keeps the
+existing 128 MiB Zstandard window cap; frames requiring a larger window are
+refused. Deprecated method 20 and other unregistered ZIP codecs remain unsupported.
+
 Inspect local model declarations without loading weights:
 
 ```bash

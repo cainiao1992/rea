@@ -260,6 +260,16 @@ rea extract-artifact ./application --json
 See [Node.js SEA](node-sea.md) for supported layouts, script and asset paths,
 fuse observations, and the real-fixture verification lane.
 
+Inventory and extract Intel HEX or S-record regions:
+
+```sh
+rea inspect-artifact ./firmware.hex --json
+rea extract-artifact ./firmware.hex --json
+```
+
+See [Intel HEX and S-record images](hex-records.md) for recognition, region
+names, metadata and limits.
+
 Inspect local model declarations without loading weights:
 
 ```bash

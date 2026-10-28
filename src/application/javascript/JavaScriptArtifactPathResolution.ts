@@ -636,7 +636,11 @@ const contextualCandidate = (
   }
   const hasUrlPathSemantics =
     context === "module-specifier" && input.moduleKind === "import";
-  if (hasUrlPathSemantics) declared = htmlUrlText(declared);
+  if (hasUrlPathSemantics) {
+    declared = htmlUrlText(declared);
+    if (isRelativeJavaScriptModuleSpecifier(input.declaredPath))
+      declared = declared.replaceAll("\\", "/");
+  }
   const rejected = rejectDeclaration(
     declared,
     declaresLiteralPercent(input) || hasUrlPathSemantics,

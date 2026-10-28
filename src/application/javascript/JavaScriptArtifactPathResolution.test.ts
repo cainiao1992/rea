@@ -154,6 +154,41 @@ describe("Windows CommonJS request classification", () => {
   });
 });
 
+describe("relative ESM URL separators", () => {
+  it.each([
+    ["./dir\\dep.mjs", "resolved", "app/dir/dep.mjs"],
+    ["../shared\\dep.mjs", "resolved", "shared/dep.mjs"],
+    ["./unused\\..\\dir\\dep.mjs", "resolved", "app/dir/dep.mjs"],
+    ["./..\\..\\outside.mjs", "rejected", null],
+    ["./dir%5cdep.mjs", "rejected", null],
+    ["./dir%2fdep.mjs", "rejected", null],
+    ["./dir\\dep%00.mjs", "rejected", null],
+    [".\\dir\\dep.mjs", "rejected", null],
+  ] as const)(
+    "resolves %s with module URL rules",
+    (declaredPath, status, target) => {
+      expect(
+        resolve({
+          declaredPath,
+          sourcePath: "app/main.mjs",
+          context: "module-specifier",
+          moduleKind: "import",
+          files: fileMap([
+            file("app/main.mjs", "root"),
+            file("app/dir/dep.mjs", "root"),
+            file("shared/dep.mjs", "root"),
+            file("outside.mjs", "root"),
+          ]),
+        }),
+      ).toMatchObject({
+        declared_path: declaredPath,
+        resolution_status: status,
+        resolved_path: target,
+      });
+    },
+  );
+});
+
 describe("literal POSIX inventory base segments", () => {
   it("validates the final URL after a parent reference removes the encoded base segment", () => {
     expect(

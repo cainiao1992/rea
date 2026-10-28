@@ -17,7 +17,10 @@ import type {
   AnalysisViewRequest,
   UnsignedAnalysisView,
 } from "./analysisView.js";
-import { analysisViewInputError } from "./analysisViewErrors.js";
+import {
+  ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
+  analysisViewInputError,
+} from "./analysisViewErrors.js";
 import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import {
   boundedViewMessages,
@@ -260,11 +263,7 @@ export const projectAndroidJniView = (
         "transport",
         "JNI view exceeds its 1 MiB serialized allowance.",
         { parent_evidence_id: parent.evidenceId, limit_bytes: 1024 * 1024 },
-        {
-          retryable: false,
-          remediationAction:
-            "Select a smaller collection page and requested fields, or read the complete retained Evidence.",
-        },
+        ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
       ),
     );
   return ok(result);

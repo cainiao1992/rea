@@ -26,7 +26,10 @@ import type {
   AnalysisViewRequest,
   UnsignedAnalysisView,
 } from "./analysisView.js";
-import { analysisViewInputError } from "./analysisViewErrors.js";
+import {
+  ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
+  analysisViewInputError,
+} from "./analysisViewErrors.js";
 import {
   boundedViewMessages,
   completeWithinViewCoverage,
@@ -404,6 +407,7 @@ export const projectJavaScriptRoutesView = (
           limit_bytes: PAGE_BYTES,
           collection: view.collection,
         },
+        ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
       ),
     );
   if (view.collection === "summary") {

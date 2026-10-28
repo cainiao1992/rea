@@ -17,7 +17,10 @@ import type {
   AnalysisViewRequest,
   UnsignedAnalysisView,
 } from "./analysisView.js";
-import { analysisViewInputError } from "./analysisViewErrors.js";
+import {
+  ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
+  analysisViewInputError,
+} from "./analysisViewErrors.js";
 import { createAnalysisViewResultReader } from "./analysisViewParent.js";
 import {
   boundedViewMessages,
@@ -305,6 +308,7 @@ export const projectGpuCodeObjectsView = (
           "memory",
           "PTX page exceeds the 1 MiB response budget; lower limit",
           { maximum_page_bytes: 1024 * 1024 },
+          ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
         ),
       );
     return ok({
@@ -411,6 +415,7 @@ export const projectGpuCodeObjectsView = (
         "memory",
         "GPU page exceeds the 1 MiB response budget; select fewer fields or rows",
         { maximum_page_bytes: 1024 * 1024 },
+        ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
       ),
     );
   return ok({

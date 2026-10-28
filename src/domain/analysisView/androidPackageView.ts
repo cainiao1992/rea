@@ -21,7 +21,10 @@ import {
   completeWithinViewCoverage,
   pageViewCoverage,
 } from "./analysisViewCoverage.js";
-import { analysisViewInputError } from "./analysisViewErrors.js";
+import {
+  ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
+  analysisViewInputError,
+} from "./analysisViewErrors.js";
 import {
   analysisTextPage,
   analysisTextPageItemSchema,
@@ -233,6 +236,7 @@ export const projectAndroidPackageView = (
           limit_bytes: PAGE_BYTES,
           facet: view.facet,
         },
+        ANALYSIS_VIEW_PAGE_BUDGET_RECOVERY,
       ),
     );
   // Admit caller selections and provenance before building filter indexes or output rows.

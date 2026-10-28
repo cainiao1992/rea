@@ -144,7 +144,10 @@ import {
   nativeInventoryOperationSchema,
 } from "../native/nativeInventory.js";
 
-import { absoluteLocalPathStringSchema } from "../localPath.js";
+import {
+  evidenceFileReferenceSchema,
+  retainedEvidenceReferenceSchema,
+} from "../evidenceReference.js";
 import { z } from "zod";
 import {
   browserScenarioSummarySchema,
@@ -480,25 +483,12 @@ inlineEvidenceInputSchema._zod.processJSONSchema =
 
 /** Unauthenticated inline input, an exact same-session retained reference, or one local Evidence file. */
 export const analysisViewSourceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("retained-evidence"),
-    evidence_id: prefixedDigestSchema("ev"),
-  }),
+  retainedEvidenceReferenceSchema,
   z.strictObject({
     kind: z.literal("inline"),
     evidence: inlineEvidenceInputSchema,
   }),
-  z.strictObject({
-    kind: z.literal("evidence-file"),
-    path: absoluteLocalPathStringSchema.describe(
-      "Absolute local path of one completed Evidence JSON file, or of an Evidence bundle written by --evidence_output or export_evidence_bundle. REA reads and authenticates it, then projects it like retained Evidence, so large captures are not charged as inline input.",
-    ),
-    evidence_id: prefixedDigestSchema("ev")
-      .exactOptional()
-      .describe(
-        "The record to project when the file is an Evidence bundle, such as a summary's normalized_result.parent_evidence_id. A bundle holding exactly one record needs no selection.",
-      ),
-  }),
+  evidenceFileReferenceSchema,
 ]);
 
 /** Public inspect_analysis_view input. */

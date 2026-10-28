@@ -58,7 +58,8 @@ export const registerEvidenceCommands = (
       ),
   });
   cli.command(CLI_COMMANDS.compare, {
-    description: "Compare two canonical Evidence bundles",
+    description:
+      "Compare two canonical Evidence bundles by record identity; use compare-artifacts for artifact inventory contents",
     args: z.object({
       left: z.string().describe("Left Evidence bundle JSON path"),
       right: z.string().describe("Right Evidence bundle JSON path"),

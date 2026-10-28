@@ -38,6 +38,7 @@ export const CLI_COMMANDS = Object.freeze({
   importReferenceSource: "import-reference-source",
   inspectArtifact: "inspect-artifact",
   extractArtifact: "extract-artifact",
+  compareArtifacts: "compare-artifacts",
   decodeInterfaceBuilder: "decode-interface-builder",
   inspectKeyedArchive: "inspect-keyed-archive",
   traceDylibResolution: "trace-dylib-resolution",

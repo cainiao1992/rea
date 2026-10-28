@@ -7,7 +7,6 @@ import type {
   ArtifactOccurrence,
 } from "./artifactGraph.js";
 import { AnalysisInputError } from "./analysisErrorCore.js";
-import { evidenceSchema } from "./evidence.js";
 import {
   ArtifactInventoryCarrierError,
   hasCompleteInventoryCoverage,
@@ -50,12 +49,6 @@ const comparisonDimensionSchema = z.enum([
   "availability",
   "integrity",
 ]);
-/** Strict Evidence-backed input for deterministic artifact comparison. */
-export const artifactComparisonInputSchema = z.strictObject({
-  left: evidenceSchema,
-  right: evidenceSchema,
-});
-
 /** One path-classified artifact change with citations to both observations. */
 const artifactChangeSchema = z.object({
   classification: changeKindSchema,

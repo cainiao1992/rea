@@ -69,7 +69,6 @@ const MCP_TOOLS_WITHOUT_DEDICATED_CLI = Object.freeze([
   "binary_session",
   "export_evidence_bundle",
   "import_evidence_bundle",
-  "compare_artifacts",
   "compare_functions",
   "find_changed_behavior",
   "build_call_path",

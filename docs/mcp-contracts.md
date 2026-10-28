@@ -26,8 +26,21 @@ can be passed directly to `compare_functions`, and `inspect_artifact` Evidence
 to `compare_artifacts`. Use `get_evidence_bundle` when the task needs broader
 retained session history or an explicit bundle for transfer.
 
+`compare_artifacts` does not need that Evidence sent back. Name each side once
+with a source that `inspect_analysis_view` also accepts:
+`{"kind": "retained-evidence", "evidence_id": "<id>"}` for a record retained in
+this session, or `{"kind": "evidence-file", "path": "/absolute/evidence.json"}`
+for a saved record or bundle. Add `evidence_id` to select one record from a
+bundle that holds more than one. Complete inline Evidence is still accepted as
+the third form. The comparison cites the records that the sources resolve to,
+so all three forms give the same comparison Evidence. A retained reference that
+the session cannot resolve is refused with `evidence_integrity_mismatch` and
+`details.reason: "missing"`.
+
 `compare_artifacts` can also resolve an artifact summary to its exact retained
-parent in the session. Supported historical summaries keep their original
+parent in the session, or from the authenticated bundle containing a file-selected
+summary. File-local records take precedence over the session lookup. Unrelated
+records are not retained by the file resolver. Supported historical summaries keep their original
 Evidence identity and omissions; a missing or mismatched parent is rejected.
 
 `analyze_function` does not deliver its complete record by default. Without

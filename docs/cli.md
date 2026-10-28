@@ -614,6 +614,11 @@ rea compare left.json right.json --record_pairs '[{"left_evidence_id":"ev_<left-
 Migration: replace `rea compare-bundles` with `rea compare`; the former command
 has been removed. The MCP tool remains `compare_bundles`.
 
+`rea compare` compares records by Evidence identity and explicit pairs. It does
+not read artifact contents: the inventories of two builds are unresolved
+records, or one opaque change when you pair them. Use `compare-artifacts`,
+described at the end of this section, to compare their contents.
+
 `--record_pairs` supplies an explicit JSON array of observation pairs, matching
 MCP `compare_bundles.record_pairs`. Pair IDs must exist on their named sides and
 be one-to-one. Without pairs, one-sided membership remains unknown; REA does
@@ -636,6 +641,24 @@ the request's `retained-evidence` source ID from that authenticated bundle,
 including bundles exported from an MCP session. The same view JSON works for
 every supported parent kind; no target is reopened and no record is selected
 by file order. Omit `--evidence-bundle` when the request supplies inline Evidence.
+
+Compare two artifact inventories with `compare-artifacts`. It takes the same
+`left` and `right` input as MCP `compare_artifacts`: complete Evidence, or an
+`evidence-file` source with an optional `evidence_id` that selects one record
+from a bundle. Relative paths resolve from the working directory:
+
+```bash
+rea inspect-artifact old.zip --json > old.json
+rea inspect-artifact new.zip --json > new.json
+rea compare-artifacts '{"left":{"kind":"evidence-file","path":"old.json"},"right":{"kind":"evidence-file","path":"new.json"}}' --json
+```
+
+A one-shot command keeps no session Evidence, so it refuses a
+`retained-evidence` source with `details.reason: "missing"`. Select the record
+from a saved bundle instead.
+For an artifact summary selected from a bundle, include its complete parent
+inventory in the same bundle. The command resolves that parent from the
+authenticated file records; a summary-only file cannot supply missing facts.
 
 ## Import historical source
 

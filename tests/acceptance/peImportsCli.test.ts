@@ -15,6 +15,49 @@ import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
 cliTest(
+  "distinguishes pefile's bounded name read from an invalid import name",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pe-import-name-");
+    const call = await cli.sharedMcpCall!();
+    for (const [label, name, reason] of [
+      ["long", "A".repeat(513), /512-byte read limit/u],
+      [
+        "invalid",
+        "Has Space",
+        /characters pefile treats as invalid and omits/u,
+      ],
+    ] as const) {
+      const path = join(root, `${label}.exe`);
+      await writeFile(
+        path,
+        peImportImage({
+          sectionBytes: 0x1000,
+          dlls: [{ name: "k.dll", functions: [{ name }] }],
+        }),
+      );
+      const cliResult = await cli.run({
+        arguments: ["inspect-pe-imports", path, "--json"],
+      });
+      expect(cliResult.exitCode, cliResult.stderr).toBe(0);
+      const mcpResult = await call("inspect_pe_imports", { path });
+      expect(mcpResult.isError).not.toBe(true);
+      for (const value of [cliResult.json, mcpResult.structuredContent]) {
+        const report =
+          toolContract("inspect_pe_imports").outputSchema.parse(
+            value,
+          ).normalized_result;
+        expect(report.coverage.status).toBe("complete");
+        expect(report.imports[0]?.functions[0]?.name).toBe(name);
+        expect(report.imphash).toMatchObject({
+          md5: null,
+          reason: expect.stringMatching(reason),
+        });
+      }
+    }
+  },
+);
+
+cliTest(
   "reports native and managed Linux AMD64 PE imports through CLI and stdio MCP",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-pe-imports-cli-");

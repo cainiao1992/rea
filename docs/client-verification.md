@@ -255,9 +255,9 @@ seeds caller model settings and a stale Cordis registration in an isolated
 and scoped doctor. It checks the backup and unrelated patches before booting
 Harness with the generated registration. After native execution it uninstalls
 through the public CLI and checks that only caller patches remain. `HOME` and
-`USERPROFILE` point to the disposable account. The native default
-`~/.agents/skills` search path discovers
-the installed skill without a `DSH_AGENTS_HOME` override. A separate Git root prevents inherited project skills from
+`USERPROFILE` point to the disposable account. Harness discovers the installed
+skill through its own user root, `$DSH_HOME/skills`, without a shared agents
+root override. A separate Git root prevents inherited project skills from
 masking a missing installation. The default `call` mode checks skill loading,
 complete catalog discovery, the actual forwarded input schemas and regexes,
 and full JavaScript Evidence for a Unicode path. Use `-- chat` for ordinary

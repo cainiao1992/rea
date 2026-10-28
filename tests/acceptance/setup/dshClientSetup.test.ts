@@ -15,32 +15,29 @@ cliTest.for([
     harness: "",
     agents: " \t ",
     dshRoot: "home/.dsh",
-    agentsRoot: "home/.agents",
   },
   {
     label: "tilde roots",
     harness: "~/selected harness",
     agents: "~\\shared agents",
     dshRoot: "home/selected harness",
-    agentsRoot: "home/shared agents",
   },
   {
     label: "relative roots",
     harness: "./selected harness",
     agents: "../shared agents",
     dshRoot: "workspace/selected harness",
-    agentsRoot: "shared agents",
   },
 ])(
   "DSH CLI uses Harness path semantics through setup, doctor and uninstall for $label",
-  async ({ harness, agents, dshRoot, agentsRoot }, { cli }) => {
+  async ({ harness, agents, dshRoot }, { cli }) => {
     const root = await createTestTempDirectory("rea-dsh-paths-");
     const home = join(root, "home");
     const cwd = join(root, "workspace");
     const config = join(root, dshRoot, "cordis.patch.yml");
     const skillRoot = join(
       root,
-      agentsRoot,
+      dshRoot,
       "skills",
       "reverse-engineer-anything",
     );
@@ -59,6 +56,7 @@ cliTest.for([
           HOME: home,
           USERPROFILE: home,
           DSH_HOME: harness,
+          // Set to prove the dsh journey ignores the shared agents root.
           DSH_AGENTS_HOME: agents,
         },
       });
@@ -120,10 +118,7 @@ cliTest(
     const home = await createTestTempDirectory("rea-dsh-lifecycle-");
     const profile = join(home, "selected harness");
     const config = join(profile, "cordis.patch.yml");
-    const skill = join(
-      home,
-      ".agents/skills/reverse-engineer-anything/SKILL.md",
-    );
+    const skill = join(profile, "skills/reverse-engineer-anything/SKILL.md");
     await mkdir(profile);
     const original = `# caller home patch
 - insert:
@@ -164,7 +159,10 @@ cliTest(
       appliedActions: [],
       plannedActions: expect.arrayContaining([
         expect.objectContaining({ id: "configure_client:dsh", target: config }),
-        expect.objectContaining({ id: "install_skill" }),
+        expect.objectContaining({
+          id: "install_skill:dsh",
+          target: dirname(skill),
+        }),
       ]),
     });
     expect(await readFile(config, "utf8")).toBe(original);

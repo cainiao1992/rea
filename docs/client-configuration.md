@@ -670,12 +670,11 @@ patches and comments. `rea doctor --client dsh` checks that same entry id.
 `--client` flag. The home patch applies to every Harness profile, so the
 registration is written once and no per-profile edit is needed.
 
-Setup, doctor and uninstall resolve `DSH_HOME` and `DSH_AGENTS_HOME` as Harness
-does: unset, empty or whitespace-only values use `~/.dsh` and `~/.agents`,
-respectively. Bare `~`, `~/` and `~\` expand to the user home; other relative
-values resolve against the command's working directory. Nonblank values retain
-their original spaces, and the agents root is independent of the Harness home.
-Run REA and Harness from the same working directory when using relative overrides.
+Setup, doctor and uninstall resolve `DSH_HOME` as Harness does: an unset, empty
+or whitespace-only value uses `~/.dsh`. Bare `~`, `~/` and `~\` expand to the
+user home; other relative values resolve against the command's working
+directory. Nonblank values retain their original spaces. Run REA and Harness
+from the same working directory when using relative overrides.
 The written entry is:
 
 ```yaml
@@ -698,9 +697,10 @@ For a global npm installation, the launcher is under
 `$(npm root -g)/rea-agents/scripts/rea.mjs`. Restart Harness after setup; it
 exposes tools as `mcp__rea__<tool_name>`. Run `rea setup --skill --dry-run`,
 review the destination, then `rea setup --skill --yes` to install the workflow
-in `~/.agents/skills` (`$DSH_AGENTS_HOME/skills` when configured); Harness
-discovers that directory, and its native `skill` tool can load
-`reverse-engineer-anything`.
+in `$DSH_HOME/skills` (`~/.dsh/skills` when `DSH_HOME` is unset). Harness ranks
+that user root above the shared `~/.agents/skills` root, so a Harness-only
+installation stays out of every other client's catalog; its native `skill` tool
+loads `reverse-engineer-anything` from there.
 
 REA's optional [native client verification](testing.md#end-to-end-integration-and-golden-evidence)
 checks headless chat, skill loading, all tool input schemas and actual analysis

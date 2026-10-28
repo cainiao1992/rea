@@ -222,16 +222,13 @@ const qwenCodeDirectory = ({ home, env }: ClientPathContext): string => {
 const grokDirectory = ({ home, env }: ClientPathContext): string =>
   env.GROK_HOME || join(home, ".grok");
 
-/** Match Harness home-paths for both independent roots; trim only to detect blanks. */
-const dshDirectory = (
-  home: string,
-  override: string | undefined,
-  fallback: string,
-): string => {
+/** Match Harness home-paths for the Harness home; trim only to detect blanks. */
+const dshHomeDirectory = ({ home, env }: ClientPathContext): string => {
+  const override = env.DSH_HOME;
   const selected =
     override !== undefined && override.trim().length > 0
       ? override
-      : join(home, fallback);
+      : join(home, ".dsh");
   const expanded =
     selected === "~"
       ? home
@@ -240,9 +237,6 @@ const dshDirectory = (
         : selected;
   return resolve(expanded);
 };
-
-const dshHomeDirectory = ({ home, env }: ClientPathContext): string =>
-  dshDirectory(home, env.DSH_HOME, ".dsh");
 
 const dshPatchDirectory = (context: ClientPathContext): string =>
   join(dshHomeDirectory(context), "cordis.patch.yml");
@@ -735,10 +729,10 @@ export const SUPPORTED_CLIENT_DEFINITIONS = [
   {
     name: "dsh",
     displayName: "DeepSeek Harness",
-    // The home Cordis patch applies to every profile; the skill directory is
-    // shared agent storage Harness discovers.
-    skillPath: ({ home, env }: ClientPathContext) =>
-      join(dshDirectory(home, env.DSH_AGENTS_HOME, ".agents"), "skills"),
+    // Harness ranks its own user skill root above the shared agents root, so
+    // the skill stays under the Harness home instead of every client's catalog.
+    skillPath: (context: ClientPathContext) =>
+      join(dshHomeDirectory(context), "skills"),
     configPath: dshPatchDirectory,
     markerPath: dshHomeDirectory,
     format: "dsh",

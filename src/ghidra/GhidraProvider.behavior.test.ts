@@ -4620,6 +4620,26 @@ it("reports every Windows existing-project capability unavailable before open", 
   }
 });
 
+it("reports an unsupported existing-project target as an invalid REA_GHIDRA_PROJECT_PATH setting", async () => {
+  const ghidra = provider(installationHost(), undefined, {
+    REA_GHIDRA_PROJECT_PATH: join(process.cwd(), "selected.gpr"),
+  });
+  try {
+    const resolved = await ghidra.resolveAnalysisProfile({
+      ...executableTarget("elf", "x86_64"),
+      format: "dos-com",
+    } as unknown as BinaryTarget);
+    expect(resolved.ok).toBe(false);
+    if (resolved.ok) return;
+    expect(resolved.error).toMatchObject({
+      _tag: "ConfigurationError",
+      settings: [{ setting: "REA_GHIDRA_PROJECT_PATH" }],
+    });
+  } finally {
+    await ghidra.closeOwnedResources();
+  }
+});
+
 it("keeps saved project reports as shared historical Evidence without applying fresh overrides", async () => {
   const root = await mkdtemp(join(tmpdir(), "rea-history-project-"));
   await mkdir(join(root, "history.rep"));

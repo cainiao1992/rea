@@ -196,6 +196,21 @@ it.skipIf(process.platform === "win32")(
   },
 );
 
+it("reports a missing project marker as an invalid REA_GHIDRA_PROJECT_PATH selection", async () => {
+  const root = await createTestTempDirectory("rea-ghidra-project-missing-");
+  await expect(
+    resolveGhidraProject(
+      { path: join(root, "missing", "app.gpr") },
+      { path: join(root, "target") },
+      resources,
+    ),
+  ).rejects.toMatchObject({
+    _tag: "ConfigurationError",
+    settings: [{ setting: "REA_GHIDRA_PROJECT_PATH" }],
+    diagnostics: { system_code: "ENOENT" },
+  });
+});
+
 it.skipIf(process.platform === "win32")(
   "follows native parent symlinks and preserves missing marker failures",
   async () => {

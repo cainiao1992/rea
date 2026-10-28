@@ -776,3 +776,22 @@ describe("required CLI selector discovery", () => {
     },
   );
 });
+
+it("advertises and rejects an empty native-value procedure before opening a target", async () => {
+  const cli = createCli({});
+  const schema = await advertisedSchema(cli, "trace-native-values");
+  expect(schema.args?.properties.procedure).toMatchObject({ minLength: 1 });
+  const result = await serve(cli, [
+    "trace-native-values",
+    "/missing",
+    "",
+    "--json",
+  ]);
+  expect(result.exitCode).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    code: "VALIDATION_ERROR",
+    fieldErrors: expect.arrayContaining([
+      expect.objectContaining({ path: "procedure" }),
+    ]),
+  });
+});

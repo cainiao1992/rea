@@ -1,5 +1,6 @@
 import { projectCliAnalysisResult } from "./projectCliAnalysisResult.js";
 import { nativeDispatchMetadataInputSchema } from "../domain/native/objcSwiftMetadata.js";
+import { nativeValueTraceInputSchema } from "../domain/native/nativeValueTrace.js";
 import { z } from "incur";
 import {
   bytePatternFields,
@@ -177,9 +178,9 @@ export const registerCoreNativeCommands = (
     description: "Trace bounded native def-use and call dependencies",
     args: z.object({
       path: z.string().describe("Local native executable or app path"),
-      procedure: z
-        .string()
-        .describe("Explicit native procedure symbol or address"),
+      procedure: nativeValueTraceInputSchema.shape.procedure.describe(
+        "Explicit native procedure symbol or address",
+      ),
     }),
     options: z.object({
       maxDepth: z

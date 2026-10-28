@@ -18,6 +18,7 @@ import { streamChunkToBuffer } from "./StreamBytes.js";
 
 import {
   ArtifactPathRegistry,
+  DestinationPathUnrepresentableFailure,
   destinationCaseCollision,
   normalizeArtifactPath,
 } from "./ArtifactPaths.js";
@@ -269,6 +270,8 @@ export class SafeOutputTree {
           constants.O_NOFOLLOW,
         0o600,
       ).catch(async (cause: unknown) => {
+        if (hasUnrepresentableName(cause))
+          throw new DestinationPathUnrepresentableFailure(path, { cause });
         if (isAlreadyExists(cause))
           await throwIfDestinationCaseCollision(parent.path, path, cause);
         throw new ArtifactReaderFailure(
@@ -571,6 +574,10 @@ export class SafeOutputTree {
       const creation = await mkdir(current, { mode: 0o700 }).then(
         () => ({ kind: "created" }) as const,
         (cause: unknown) => {
+          if (hasUnrepresentableName(cause))
+            throw new DestinationPathUnrepresentableFailure(logicalPath, {
+              cause,
+            });
           if (!isAlreadyExists(cause)) throw cause;
           return { kind: "existing", cause } as const;
         },
@@ -777,3 +784,6 @@ const throwIfDestinationCaseCollision = async (
   );
   if (failure !== undefined) throw failure;
 };
+
+const hasUnrepresentableName = (cause: unknown): boolean =>
+  cause instanceof Error && "code" in cause && cause.code === "ENAMETOOLONG";

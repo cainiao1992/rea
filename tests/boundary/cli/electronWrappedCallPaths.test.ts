@@ -242,41 +242,107 @@ cliTest(
   },
 );
 
+const fallthroughCases = [
+  {
+    name: "conditional early return",
+    body: 'if(x)return;e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: ["!(x)"],
+    coverage: "partial",
+  },
+  {
+    name: "equivalent nested branch",
+    body: 'if(!x){e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: ["!x"],
+    coverage: "partial",
+  },
+  {
+    name: "conditional break to enclosing label",
+    body: 'guard:{if(!x)break guard;e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: ["!(!x)"],
+    coverage: "partial",
+  },
+  {
+    name: "nested label breaking enclosing label",
+    body: 'guard:{if(!x)inner:{break guard;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: ["!(!x)"],
+    coverage: "partial",
+  },
+  {
+    name: "nested label breaking itself",
+    body: 'guard:{if(!x)inner:{break inner;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "inner break skips unreachable throw",
+    body: 'guard:{if(x)inner:{break inner;throw 0;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "loop may break inner label before throw",
+    body: 'guard:{if(x)inner:{while(true){break inner;}throw 0;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "try may break inner label before throw",
+    body: 'guard:{if(x)inner:{try{break inner;}finally{}throw 0;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "ordinary loop before return retains guard",
+    body: 'if(x){while(false){}return;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: ["!(x)"],
+    coverage: "partial",
+  },
+  {
+    name: "true guard and ordinary loop before return",
+    body: 'if(true){while(false){}return;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "ordinary loop before throw retains guard",
+    body: 'if(x){for(const item of [])cleanup(item);throw 0;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: ["!(x)"],
+    coverage: "partial",
+  },
+  {
+    name: "loop local label cannot skip return",
+    body: 'if(x){while(false){local:{break local;}}return;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: ["!(x)"],
+    coverage: "partial",
+  },
+  {
+    name: "break to inner label does not guard outer continuation",
+    body: 'outer:{inner:{if(x)break inner;}e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "definite early return",
+    body: 'return;e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: [],
+    coverage: "complete",
+  },
+  {
+    name: "unguarded exposure",
+    body: 'e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
+    conditions: [],
+    coverage: "complete",
+  },
+] as const;
+
 cliTest(
   "preserves early-return predicates on recovered bridge paths through CLI and stdio MCP",
   async ({ cli }) => {
-    const cases = [
-      {
-        name: "conditional early return",
-        body: 'if(x)return;e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
-        conditions: ["!(x)"],
-        coverage: "partial",
-      },
-      {
-        name: "equivalent nested branch",
-        body: 'if(!x){e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});}',
-        conditions: ["!x"],
-        coverage: "partial",
-      },
-      {
-        name: "definite early return",
-        body: 'return;e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
-        conditions: [],
-        coverage: "complete",
-      },
-      {
-        name: "unguarded exposure",
-        body: 'e.contextBridge.exposeInMainWorld("api",{copy:()=>e.ipcRenderer.send("x")});',
-        conditions: [],
-        coverage: "complete",
-      },
-    ] as const;
-
     for (const surface of ["CLI", "stdio MCP"] as const) {
       const connection =
         surface === "stdio MCP" ? await connectLocalToolsMcp() : undefined;
       const artifacts = new Set<string>();
-      for (const fixture of cases) {
+      for (const fixture of fallthroughCases) {
         const root = await createTestTempDirectory(
           "rea-electron-early-return-",
         );
@@ -300,7 +366,10 @@ cliTest(
             observation.properties.entry === "api.copy" &&
             observation.properties.step_kind === "terminal",
         );
-        if (fixture.name === "definite early return") {
+        if (
+          fixture.name === "definite early return" ||
+          fixture.name === "true guard and ordinary loop before return"
+        ) {
           expect(terminal).toBeUndefined();
           continue;
         }
@@ -311,6 +380,22 @@ cliTest(
             ({ expression }) => expression,
           ),
         ).toEqual(fixture.conditions);
+        if (fixture.name === "conditional break to enclosing label") {
+          const edges = application.graph.edges.filter(
+            (edge) =>
+              edge.evidence.extractor.operation ===
+              "trace-electron-wrapper-path",
+          );
+          expect(edges.length).toBeGreaterThan(0);
+          for (const edge of edges) {
+            const conditions = z
+              .array(callPathConditionSchema)
+              .parse(edge.properties.conditions);
+            expect(conditions.map(({ expression }) => expression)).toEqual(
+              fixture.conditions,
+            );
+          }
+        }
         expect(terminalEvidence.evidence.coverage.status).toBe(
           fixture.coverage,
         );

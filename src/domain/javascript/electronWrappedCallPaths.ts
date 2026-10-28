@@ -256,6 +256,7 @@ export function* collectElectronWrappedCallPathsSteps(
   let remainingVisits = 1_000_000;
   const prefixes = new ElectronCallPathBlockPrefixes(
     () => --remainingVisits >= 0,
+    state.parentsByNode,
   );
   const resolver = new JavaScriptSymbolicBindings(state, program, identity);
   const paths: ElectronCallPath[] = [];
@@ -1172,7 +1173,7 @@ export function* collectElectronWrappedCallPathsSteps(
       for (const statement of node.body) {
         walk(statement, env, next);
         const fallthrough = sequentialFallthrough(
-          prefixes.statement(statement),
+          prefixes.statement(statement, node) ?? null,
           env,
           next,
         );

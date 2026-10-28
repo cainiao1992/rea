@@ -1,6 +1,47 @@
 import { describe, expect, it } from "vitest";
 import { analyzeJavaScriptStaticSource } from "./javascriptStaticAnalysis.js";
 
+it("retains the continuing predicate after a break to an enclosing label", () => {
+  const result = analyzeJavaScriptStaticSource(`const e=require("electron");
+    guard: {
+      if (!ready) break guard;
+      e.ipcMain.on("guarded", event => event.sender.copy());
+    }
+  `);
+  expect(
+    result.electron.call_paths?.map(({ conditions }) =>
+      conditions.map(({ expression }) => expression),
+    ),
+  ).toEqual([["!(!ready)"], ["!(!ready)"]]);
+});
+
+it("retains a labelled-break guard on preload bridge paths", () => {
+  const result = analyzeJavaScriptStaticSource(`
+    const { contextBridge, ipcRenderer } = require("electron");
+    const ready = process.env.APP_READY;
+    guard: {
+      if (!ready) break guard;
+      contextBridge.exposeInMainWorld("api", { ping: () => ipcRenderer.invoke("ping") });
+    }
+  `);
+  expect(
+    result.electron.call_paths?.map(({ conditions }) =>
+      conditions.map(({ expression }) => expression),
+    ),
+  ).toEqual([["!(!ready)"]]);
+});
+
+it("does not treat a break to an inner label as an exit from its outer block", () => {
+  const result = analyzeJavaScriptStaticSource(`const e=require("electron");
+    outer: {
+      inner: { if (stop) break inner; }
+      e.ipcMain.on("after", event => event.sender.copy());
+    }
+  `);
+  expect(result.electron.call_paths).toHaveLength(1);
+  expect(result.electron.call_paths?.[0]?.conditions).toEqual([]);
+});
+
 it("preserves every direct observation in a long flat sibling block", () => {
   const channels = Array.from({ length: 256 }, (_, index) => `flat:${index}`);
   const result = analyzeJavaScriptStaticSource(`const e=require("electron"); {

@@ -170,7 +170,9 @@ Setup leaves existing skill copies in other locations untouched.
 Setup refuses symbolic links at the selected skill directory or its managed
 `references` directory, matching uninstall and update's ownership rules. Use a
 regular skill directory, or select `--skill=false` to configure the client
-registration without installing the bundled skill.
+registration without installing the bundled skill. A non-directory ancestor is
+reported as `ENOTDIR`; preserve the blocking file and correct the directory path
+before rerunning setup.
 The final selected directories are checked before approval and again before
 setup changes any client or Hopper installation. Unselected client destinations
 do not block other setup choices. Doctor reports linked or non-directory skill

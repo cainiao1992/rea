@@ -232,6 +232,8 @@ Use the development toolchain pinned in `.nvmrc` and
 `package.json#packageManager`. Run `nvm use` before installing dependencies;
 installed-package runtime support is documented in
 [installation](docs/installation.md#start-setup).
+Use Node.js and npm for source builds and verifier scripts; the installed
+package's Bun runtime support does not extend to those development scripts.
 
 ```bash
 npm ci

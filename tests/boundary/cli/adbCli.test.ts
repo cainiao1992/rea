@@ -155,10 +155,95 @@ it.each([
 
 it("validates device serials before contacting any device", async () => {
   const result = await serve(["inspect-adb-device", "bad serial", "--json"]);
+  expect(result.exitCode).toBe(1);
   expect(JSON.parse(result.stdout)).toMatchObject({
-    code: "invalid_request",
-    category: "invalid_input",
+    code: "VALIDATION_ERROR",
   });
+});
+
+it("retains safe structured constraints for ADB selectors", async () => {
+  const cases = [
+    {
+      argv: ["inspect-adb-device", "bad serial"],
+      path: "serial",
+      expected: "regex",
+    },
+    {
+      argv: ["inspect-adb-device", "S".repeat(257)],
+      path: "serial",
+      maximum: 256,
+    },
+    {
+      argv: ["inspect-adb-package", "S", "bad package"],
+      path: "package",
+      expected: "regex",
+    },
+    {
+      argv: ["inspect-adb-package", "S", "a".repeat(257)],
+      path: "package",
+      maximum: 256,
+    },
+    {
+      argv: ["start-adb-activity", "S", "bad action"],
+      path: "action",
+      expected: "regex",
+    },
+    {
+      argv: ["start-adb-activity", "S", "a".repeat(257)],
+      path: "action",
+      maximum: 256,
+    },
+    {
+      argv: ["start-adb-activity", "S", "x", "--component", "bad component"],
+      path: "component",
+      expected: "regex",
+    },
+    {
+      argv: ["start-adb-activity", "S", "x", "--component", "a".repeat(513)],
+      path: "component",
+      maximum: 512,
+    },
+    {
+      argv: ["start-adb-activity", "S", "x", "--data-uri", "bad uri"],
+      path: "data-uri",
+      expected: "regex",
+    },
+    {
+      argv: ["start-adb-activity", "S", "x", "--data-uri", "a".repeat(2049)],
+      path: "data-uri",
+      maximum: 2048,
+    },
+  ];
+  for (const { argv, path, expected, maximum } of cases) {
+    const result = await serve([...argv, "--json"], {
+      REA_ADB_PATH: "/path/that/does/not/exist",
+    });
+    expect(result.exitCode, path).toBe(1);
+    expect(JSON.parse(result.stdout), path).toMatchObject({
+      code: "VALIDATION_ERROR",
+      fieldErrors: [
+        expect.objectContaining({
+          path,
+          ...(expected === undefined ? { maximum } : { expected }),
+        }),
+      ],
+    });
+    expect(result.stdout).not.toContain(argv.at(-1));
+  }
+  const both = await serve(
+    ["start-adb-activity", "bad serial", "bad action", "--json"],
+    { REA_ADB_PATH: "/path/that/does/not/exist" },
+  );
+  expect(both.exitCode).toBe(1);
+  expect(JSON.parse(both.stdout)).toMatchObject({
+    code: "VALIDATION_ERROR",
+    fieldErrors: expect.arrayContaining([
+      expect.objectContaining({ path: "serial", expected: "regex" }),
+      expect.objectContaining({ path: "action", expected: "regex" }),
+    ]),
+  });
+  expect(both.stdout).not.toContain("bad serial");
+  expect(both.stdout).not.toContain("bad action");
 });
 
 it.each(["string:key", ":", "string"])(

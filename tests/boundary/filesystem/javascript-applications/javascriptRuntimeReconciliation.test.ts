@@ -244,6 +244,49 @@ it("keeps static load states unknown when one scoped capture omits scripts", asy
   );
 });
 
+it("does not infer absence from an incomplete capture with no mapped entities", async () => {
+  const fixture = await applicationFixture();
+  const outside = await applicationFixture();
+  const analysis = await analyzeFixture(fixture);
+  const complete = electronRuntimeEvidence(fixture, SOURCE, {
+    includeWorker: false,
+    targetId: "complete",
+  });
+  const outsideCapture = (scriptsUnavailable: boolean) =>
+    electronRuntimeEvidence(outside, "export const unrelated = 1;", {
+      includeWorker: false,
+      scriptsUnavailable,
+      targetId: "outside",
+    });
+  const reconcile = (
+    runtime_observations: ReturnType<typeof electronRuntimeEvidence>[],
+  ) =>
+    reconcileInput({
+      static_layers: [{ role: "application", analysis }],
+      runtime_observations,
+    });
+
+  const control = reconcile([complete, outsideCapture(false)]);
+  expect(control.summary.static_not_observed).toBeGreaterThan(0);
+  const incomplete = outsideCapture(true);
+  for (const captures of [
+    [complete, incomplete],
+    [incomplete, complete],
+  ]) {
+    const result = reconcile(captures);
+    expect(result.summary.static_not_observed).toBe(0);
+    expect(result.static_load_states).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "loaded" }),
+        expect.objectContaining({
+          status: "unknown",
+          reason: "static-or-runtime-coverage-incomplete",
+        }),
+      ]),
+    );
+  }
+});
+
 it("preserves positive script matches without inventing worker absence when workers are unavailable", async () => {
   const fixture = await applicationFixture();
   const staticEvidence = await analyzeFixture(fixture);

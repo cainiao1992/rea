@@ -1,3 +1,4 @@
+import { recordCliEvidencePublication } from "./cliEvidencePublication.js";
 import { analysisEvidenceSources } from "../application/AnalysisEvidenceSources.js";
 import type { AnalysisViewRequest } from "../domain/analysisView/analysisView.js";
 import { z } from "incur";
@@ -215,19 +216,17 @@ export const publishCliAnalysisEvidence = async (
     signal,
   });
   if (!published.ok) return projectFailure(published.error);
+  const receipt = {
+    ...(input.sensitiveValues?.some(
+      (literal) =>
+        literal !== "" && published.value.evidenceBundle.path.includes(literal),
+    )
+      ? {}
+      : { path: published.value.evidenceBundle.path }),
+    bytes: published.value.evidenceBundle.bytes,
+  };
+  recordCliEvidencePublication(receipt);
   return detail === "summary"
-    ? {
-        summary: published.value.delivered,
-        evidence_bundle: {
-          ...(input.sensitiveValues?.some(
-            (literal) =>
-              literal !== "" &&
-              published.value.evidenceBundle.path.includes(literal),
-          )
-            ? {}
-            : { path: published.value.evidenceBundle.path }),
-          bytes: published.value.evidenceBundle.bytes,
-        },
-      }
+    ? { summary: published.value.delivered, evidence_bundle: receipt }
     : published.value.delivered;
 };

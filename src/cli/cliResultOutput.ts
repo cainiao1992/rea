@@ -30,6 +30,11 @@ import {
   prepareDelimitedOutput,
   delimitedOutputInputError,
 } from "./cliOutputFormatter.js";
+import {
+  cliEvidencePublicationReceipt,
+  retainCliPublicationOnError,
+  withCliEvidencePublication,
+} from "./cliEvidencePublication.js";
 import { jsonLinesErrorRecord } from "./jsonLines.js";
 import { writeCliJsonLines } from "./jsonLinesOutput.js";
 import {
@@ -92,42 +97,43 @@ const wrapCommand = (
   inheritedPolicy?: "all" | "agent-only",
 ): void => {
   const run = command.run;
-  command.run = (context) => {
-    const started = performance.now();
-    const result: unknown = run(context);
-    // Generator results and Incur's sentinel responses retain their own protocol.
-    if (
-      typeof result === "object" &&
-      result !== null &&
-      Symbol.asyncIterator in result
-    ) {
-      output.delegateStreaming();
-      return result;
-    }
-    return Promise.resolve(result).then(async (value: unknown) => {
+  command.run = (context) =>
+    withCliEvidencePublication(() => {
+      const started = performance.now();
+      const result: unknown = run(context);
+      // Generator results and Incur's sentinel responses retain their own protocol.
       if (
-        typeof value === "object" &&
-        value !== null &&
-        Symbol.for("incur.sentinel") in value
-      )
-        return value;
-      if (
-        !(await output.write(value, {
-          command: name,
-          format: context.format,
-          renderOutput: context.agent || inheritedPolicy !== "agent-only",
-          duration: `${Math.round(performance.now() - started)}ms`,
-        }))
-      )
-        return value;
-      if (output.error !== undefined)
-        return context.error({
-          code: output.error.code,
-          message: output.error.message,
-        });
-      return undefined;
+        typeof result === "object" &&
+        result !== null &&
+        Symbol.asyncIterator in result
+      ) {
+        output.delegateStreaming();
+        return result;
+      }
+      return Promise.resolve(result).then(async (value: unknown) => {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          Symbol.for("incur.sentinel") in value
+        )
+          return value;
+        if (
+          !(await output.write(value, {
+            command: name,
+            format: context.format,
+            renderOutput: context.agent || inheritedPolicy !== "agent-only",
+            duration: `${Math.round(performance.now() - started)}ms`,
+          }))
+        )
+          return value;
+        if (output.error !== undefined)
+          return context.error({
+            code: output.error.code,
+            message: output.error.message,
+          });
+        return undefined;
+      });
     });
-  };
 };
 
 /** Preserve Incur output controls and stream JSON while framing failures. */
@@ -154,6 +160,7 @@ export const createCliResultOutput = (
   let completed:
     | {
         readonly metadata: CliResultOutputMetadata;
+        readonly receipt: ReturnType<typeof cliEvidencePublicationReceipt>;
         readonly originalFailure: ReturnType<
           typeof cliOperationFailureIdentity
         >;
@@ -171,24 +178,27 @@ export const createCliResultOutput = (
       return false;
     const { originalFailure } = completed;
     error = projectAnalysisError(
-      new AnalysisResourceConstraintError(
-        completed.metadata.command,
-        "memory",
-        `The ${format} result could not fit in a runtime string. The original result was not written.`,
-        {
-          format,
-          formatted_characters: null,
-          max_string_characters: constants.MAX_STRING_LENGTH,
-          ...(originalFailure === undefined
-            ? {}
-            : { original_failure: originalFailure }),
-        },
-        {
-          cause,
-          retryable: false,
-          remediationAction:
-            "Use --format json to stream the complete result, or narrow it with --filter-output. Token limits are applied after formatting and cannot avoid this constraint.",
-        },
+      retainCliPublicationOnError(
+        new AnalysisResourceConstraintError(
+          completed.metadata.command,
+          "memory",
+          `The ${format} result could not fit in a runtime string. The original result was not written.`,
+          {
+            format,
+            formatted_characters: null,
+            max_string_characters: constants.MAX_STRING_LENGTH,
+            ...(originalFailure === undefined
+              ? {}
+              : { original_failure: originalFailure }),
+          },
+          {
+            cause,
+            retryable: false,
+            remediationAction:
+              "Use --format json to stream the complete result, or narrow it with --filter-output. Token limits are applied after formatting and cannot avoid this constraint.",
+          },
+        ),
+        completed.receipt,
       ),
     );
     const document = options.fullOutput
@@ -333,6 +343,7 @@ export const createCliResultOutput = (
   ): Promise<boolean> {
     completed = {
       metadata,
+      receipt: cliEvidencePublicationReceipt(),
       originalFailure: cliOperationFailureIdentity(value),
     };
     const filterPaths = options.filterOutput
@@ -400,7 +411,9 @@ export const createCliResultOutput = (
           })
         : selection;
       if (!prepared.ok) {
-        error = projectAnalysisError(prepared.error);
+        error = projectAnalysisError(
+          retainCliPublicationOnError(prepared.error),
+        );
         handled = true;
         try {
           await writeJsonOutput(
@@ -431,20 +444,22 @@ export const createCliResultOutput = (
         : applyCliOutputFilter(value, filterPaths);
     if (!selection.ok) {
       error = projectAnalysisError(
-        new AnalysisInputError(
-          metadata.command,
-          {
-            userMessage: selection.error,
-            remediationAction:
-              "Select array indices with slices, or request array properties in a separate --filter-output invocation.",
-          },
-          [
+        retainCliPublicationOnError(
+          new AnalysisInputError(
+            metadata.command,
             {
-              path: ["filter-output"],
-              reason: "invalid_value",
-              message: selection.error,
+              userMessage: selection.error,
+              remediationAction:
+                "Select array indices with slices, or request array properties in a separate --filter-output invocation.",
             },
-          ],
+            [
+              {
+                path: ["filter-output"],
+                reason: "invalid_value",
+                message: selection.error,
+              },
+            ],
+          ),
         ),
       );
       const document = options.fullOutput
@@ -578,18 +593,20 @@ export const createCliResultOutput = (
         }
       }
       error = projectAnalysisError(
-        new AnalysisResourceConstraintError(
-          metadata.command,
-          "memory",
-          "Token counting requires a formatted string larger than the runtime permits.",
-          {
-            formatted_characters: characters,
-            max_string_characters: constants.MAX_STRING_LENGTH,
-          },
-          {
-            remediationAction:
-              "Remove --token-count to stream the complete JSON result, or narrow it with --filter-output.",
-          },
+        retainCliPublicationOnError(
+          new AnalysisResourceConstraintError(
+            metadata.command,
+            "memory",
+            "Token counting requires a formatted string larger than the runtime permits.",
+            {
+              formatted_characters: characters,
+              max_string_characters: constants.MAX_STRING_LENGTH,
+            },
+            {
+              remediationAction:
+                "Remove --token-count to stream the complete JSON result, or narrow it with --filter-output.",
+            },
+          ),
         ),
       );
     }

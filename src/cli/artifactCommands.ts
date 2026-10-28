@@ -17,6 +17,11 @@ import { CLI_COMMANDS } from "../cliCommandNames.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 
+const keyedArchiveInputBinding = {
+  operation: "inspect_keyed_archive",
+  fields: { path: "archive" },
+} as const;
+
 export const registerArtifactCommands = (
   cli: CliInstance,
   logger: Logger,
@@ -51,7 +56,7 @@ export const registerArtifactCommands = (
       logCliCommand(logger, CLI_COMMANDS.inspectKeyedArchive, () =>
         runProviderAnalysis(
           args.path,
-          "inspect_keyed_archive",
+          keyedArchiveInputBinding.operation,
           {
             path: args.archive,
             offset: options.offset,
@@ -59,7 +64,9 @@ export const registerArtifactCommands = (
             ...(options.root === undefined ? {} : { root: options.root }),
           },
           logger,
-        ).then(projectCliAnalysisResult),
+        ).then((result) =>
+          projectCliAnalysisResult(result, keyedArchiveInputBinding),
+        ),
       ),
   });
 };

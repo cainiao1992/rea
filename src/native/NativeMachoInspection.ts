@@ -31,6 +31,7 @@ import {
   conflictingUuidCommandEvidence,
   isMissingUuidDyldFailure,
   isUnbackedTextDyldFailure,
+  isVtoolContainerRefusal,
   nativeMachoCapturedOutput,
   missingUuidLimitation,
   parseDyldFileTypeRefusal,
@@ -127,7 +128,9 @@ export const inspectNativeMacho = async (
             isMissingUuidDyldFailure(capture) ||
             isUnbackedTextDyldFailure(capture) ||
             parseDyldFileTypeRefusal(capture) !== null
-        : undefined,
+        : tool === "vtool" && format === "fat"
+          ? (capture) => isVtoolContainerRefusal(capture, context.target.path)
+          : undefined,
     );
   // vtool knows no variant subtypes, so no spelling selects an arm64e.x1 slice.
   const vtoolSelectsSlice =
@@ -160,8 +163,13 @@ export const inspectNativeMacho = async (
     limitations.push(
       `vtool cannot select the ${selectedArchitecture} slice; build metadata is normalized from otool only.`,
     );
-  else if (optional.ok) captures.push(optional.value);
-  else if (optional.error._tag === "AnalysisCapabilityUnavailableError")
+  else if (optional.ok) {
+    captures.push(optional.value);
+    if (isVtoolContainerRefusal(optional.value, context.target.path))
+      limitations.push(
+        "vtool declined the universal container as not Mach-O; build metadata is normalized from otool only.",
+      );
+  } else if (optional.error._tag === "AnalysisCapabilityUnavailableError")
     limitations.push(VTOOL_UNAVAILABLE_LIMITATION);
   else return err(optional.error);
   const nmIndex = captures.findIndex(({ tool }) => tool === "nm");
@@ -373,7 +381,10 @@ const normalizeMacho = (
     "Thread-state entrypoints (LC_UNIXTHREAD/LC_THREAD) are retained as raw load commands; file offsets are not derived.";
   const limitations = [
     "Imports and exports combine dyld_info and nm; stripped or toolchain-hidden symbols may be absent.",
-    ...(captures.some(({ tool }) => tool === "vtool")
+    ...(captures.some(
+      ({ tool, exitCode, signal }) =>
+        tool === "vtool" && exitCode === 0 && signal === null,
+    )
       ? [
           "vtool output is retained as provenance but only otool build metadata is normalized.",
         ]

@@ -74,7 +74,7 @@ msgstr "작성자: N0zoM1z0 · 2026년 10월 10일"
 #: website/public/get-started/index.html:1826
 #: website/public/guides/browser/index.html:516
 #: website/public/guides/index.html:310
-#: website/public/guides/javascript/index.html:512
+#: website/public/guides/javascript/index.html:520
 #: website/public/guides/native/index.html:518
 #: website/public/guides/rl-environments/index.html:507
 #: website/public/index.html:1312 website/public/showcase/aegis/index.html:817
@@ -4372,7 +4372,7 @@ msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}코딩 에이전트"
 
 #: website/public/guides/javascript/index.html:284
-#: website/public/guides/javascript/index.html:433
+#: website/public/guides/javascript/index.html:441
 msgctxt "page:guides/javascript/index.html"
 msgid "Copy"
 msgstr "복사"
@@ -4422,7 +4422,7 @@ msgctxt "page:guides/javascript/index.html"
 msgid "The page calls a small API"
 msgstr "페이지에서 작은 API를 호출합니다"
 
-#: website/public/guides/javascript/index.html:326
+#: website/public/guides/javascript/index.html:333
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "The page knows the method name. The implementation lives in the preload, "
@@ -4431,7 +4431,7 @@ msgstr "페이지는 메서드 이름을 알고 있습니다. 실제 구현은 �
 
 #. {ph0}: <code>notes.exportCsv</code>
 #. {ph1}: <code>notes:export</code>
-#: website/public/guides/javascript/index.html:340
+#: website/public/guides/javascript/index.html:347
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4442,7 +4442,7 @@ msgstr ""
 
 #. {ph0}: <code>csv.js</code>
 #. {ph1}: <code>notes.csv</code>
-#: website/public/guides/javascript/index.html:357
+#: website/public/guides/javascript/index.html:364
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4452,14 +4452,7 @@ msgstr ""
 "핸들러를 읽으면 처음 질문의 답이 나옵니다. {ph0}이 메모를 변환하고, 메인 프로세스가 사용자의 다운로드 폴더에 {ph1}을 "
 "저장합니다."
 
-#: website/public/guides/javascript/index.html:374
-msgctxt "page:guides/javascript/index.html"
-msgid ""
-"Recorded by REA 4.1.0 on the downloadable example below. Source locations "
-"accompany the API, channel and handler findings."
-msgstr "아래 다운로드 예제를 REA 4.1.0으로 분석한 기록입니다. API, 채널, 핸들러 결과에는 소스 위치가 함께 제공됩니다."
-
-#: website/public/guides/javascript/index.html:380
+#: website/public/guides/javascript/index.html:388
 msgctxt "page:guides/javascript/index.html"
 msgid "Analyze the example yourself"
 msgstr "예제를 직접 분석해 보세요"
@@ -4467,25 +4460,25 @@ msgstr "예제를 직접 분석해 보세요"
 #. {ph0}: <a class="button" href="../../examples/notes-example.zip"
 #. download="notes-example.zip" >
 #. {ph1}: </a >
-#: website/public/guides/javascript/index.html:387
+#: website/public/guides/javascript/index.html:395
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0}Download example ZIP{ph1}"
 msgstr "{ph0}예제 ZIP 다운로드{ph1}"
 
-#: website/public/guides/javascript/index.html:396
+#: website/public/guides/javascript/index.html:404
 msgctxt "page:guides/javascript/index.html"
 msgid "Browse the six source files"
 msgstr "소스 파일 6개 살펴보기"
 
-#: website/public/guides/javascript/index.html:432
+#: website/public/guides/javascript/index.html:440
 msgctxt "page:guides/javascript/index.html"
 msgid "Static application analysis"
 msgstr "정적 애플리케이션 분석"
 
 #. {ph0}: <code>normalized_result.summary.ipc</code>
 #. {ph1}: <code>normalized_result.graph</code>
-#: website/public/guides/javascript/index.html:445
+#: website/public/guides/javascript/index.html:453
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4495,7 +4488,7 @@ msgstr ""
 "경로를 압축을 푼 폴더로 바꾸세요. {ph0}에서 IPC 채널 하나와 일치하는 핸들러 하나가 나와야 합니다. 소스 위치는 {ph1}에 "
 "있습니다."
 
-#: website/public/guides/javascript/index.html:451
+#: website/public/guides/javascript/index.html:459
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "For your own app, use the same command with its directory or ASAR path. An "
@@ -4505,13 +4498,13 @@ msgstr ""
 "직접 고른 앱도 폴더나 ASAR 경로로 같은 명령을 실행하세요. 에이전트는 REA의 기능 추적 도구로 리터럴 문자열, API 이름, "
 "IPC 채널을 추적할 수 있습니다."
 
-#: website/public/guides/javascript/index.html:458
+#: website/public/guides/javascript/index.html:466
 msgctxt "page:guides/javascript/index.html"
 msgid "Inspect the CSV writer"
 msgstr "CSV 저장 코드 살펴보기"
 
 #. {ph0}: <code>notes:export</code>
-#: website/public/guides/javascript/index.html:460
+#: website/public/guides/javascript/index.html:468
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4519,7 +4512,7 @@ msgid ""
 "happens if writing the file fails?"
 msgstr "{ph0}에서 핸들러까지 추적해 줘. CSV 저장 함수에 어떤 입력이 전달되고, 파일 저장에 실패하면 어떻게 돼?"
 
-#: website/public/guides/javascript/index.html:466
+#: website/public/guides/javascript/index.html:474
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "Use the source locations to inspect those details. Computed channel names "
@@ -4533,7 +4526,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span>
 #. {ph3}: </span>
-#: website/public/guides/javascript/index.html:472
+#: website/public/guides/javascript/index.html:480
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4546,7 +4539,7 @@ msgstr ""
 #. {ph1}: </a >
 #. {ph2}: <span >
 #. {ph3}: </span >
-#: website/public/guides/javascript/index.html:478
+#: website/public/guides/javascript/index.html:486
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4558,7 +4551,7 @@ msgstr "{ph0}브라우저 내보내기 관찰{ph1}{ph2}실제 클릭을 캡처�
 #. {ph1}: </a >
 #. {ph2}: <span >
 #. {ph3}: </span >
-#: website/public/guides/javascript/index.html:484
+#: website/public/guides/javascript/index.html:492
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4596,12 +4589,12 @@ msgctxt "page:guides/javascript/index.html"
 msgid "Copy example prompt"
 msgstr "예제 프롬프트 복사"
 
-#: website/public/guides/javascript/index.html:433
+#: website/public/guides/javascript/index.html:441
 msgctxt "page:guides/javascript/index.html"
 msgid "Copy static application analysis"
 msgstr "정적 애플리케이션 분석 명령 복사"
 
-#: website/public/guides/javascript/index.html:512
+#: website/public/guides/javascript/index.html:520
 msgctxt "page:guides/javascript/index.html"
 msgid "Back to top"
 msgstr "맨 위로"
@@ -10197,7 +10190,7 @@ msgstr "가이드"
 #: website/public/get-started/index.html:1818
 #: website/public/guides/browser/index.html:508
 #: website/public/guides/index.html:302
-#: website/public/guides/javascript/index.html:504
+#: website/public/guides/javascript/index.html:512
 #: website/public/guides/native/index.html:510
 #: website/public/guides/rl-environments/index.html:499
 #: website/public/index.html:1304 website/public/showcase/aegis/index.html:809
@@ -10220,7 +10213,7 @@ msgstr "소스 코드"
 #: website/public/get-started/index.html:1819
 #: website/public/guides/browser/index.html:509
 #: website/public/guides/index.html:303
-#: website/public/guides/javascript/index.html:505
+#: website/public/guides/javascript/index.html:513
 #: website/public/guides/native/index.html:511
 #: website/public/guides/rl-environments/index.html:500
 #: website/public/index.html:1305 website/public/showcase/aegis/index.html:810
@@ -10243,7 +10236,7 @@ msgstr "MIT 라이선스"
 #: website/public/get-started/index.html:1820
 #: website/public/guides/browser/index.html:510
 #: website/public/guides/index.html:304
-#: website/public/guides/javascript/index.html:506
+#: website/public/guides/javascript/index.html:514
 #: website/public/guides/native/index.html:512
 #: website/public/guides/rl-environments/index.html:501
 #: website/public/index.html:1306 website/public/showcase/aegis/index.html:811
@@ -10266,7 +10259,7 @@ msgstr "커뮤니티 참여"
 #: website/public/get-started/index.html:1821
 #: website/public/guides/browser/index.html:511
 #: website/public/guides/index.html:305
-#: website/public/guides/javascript/index.html:507
+#: website/public/guides/javascript/index.html:515
 #: website/public/guides/native/index.html:513
 #: website/public/guides/rl-environments/index.html:502
 #: website/public/index.html:1307 website/public/showcase/aegis/index.html:812
@@ -10349,7 +10342,7 @@ msgctxt "page:guides/index.html"
 msgid "Export script"
 msgstr "내보내기 스크립트"
 
-#: website/public/guides/javascript/index.html:364
+#: website/public/guides/javascript/index.html:371
 msgctxt "page:guides/javascript/index.html"
 msgid "REA result · summary.ipc excerpt"
 msgstr "REA 결과 · summary.ipc 발췌"
@@ -10990,8 +10983,8 @@ msgstr "{ph0}예제 열기{ph1} · {ph2}{ph3} 다운로드{ph4} · {ph5}{ph6} �
 
 #. {ph0}: <span translate="no">renderer.js</span>
 #: website/public/guides/javascript/index.html:316
-#: website/public/guides/javascript/index.html:332
-#: website/public/guides/javascript/index.html:347
+#: website/public/guides/javascript/index.html:339
+#: website/public/guides/javascript/index.html:354
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0} · example source"
@@ -10999,7 +10992,7 @@ msgstr "{ph0} · 예제 소스"
 
 #. {ph0}: <code>notes-example</code>
 #. {ph1}: <span translate="no">Node.js</span>
-#: website/public/guides/javascript/index.html:381
+#: website/public/guides/javascript/index.html:389
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -14009,7 +14002,7 @@ msgstr ""
 #: website/public/get-started/index.html:1817
 #: website/public/guides/browser/index.html:507
 #: website/public/guides/index.html:301
-#: website/public/guides/javascript/index.html:503
+#: website/public/guides/javascript/index.html:511
 #: website/public/guides/native/index.html:509
 #: website/public/guides/rl-environments/index.html:498
 #: website/public/index.html:1303 website/public/showcase/aegis/index.html:808
@@ -14847,6 +14840,20 @@ msgstr "REA: 코딩 에이전트를 위한 리버스 엔지니어링"
 msgctxt "page:index.html"
 msgid "See the full Calculator investigation"
 msgstr "계산기 전체 조사 보기"
+
+#: website/public/guides/javascript/index.html:381
+msgctxt "page:guides/javascript/index.html"
+msgid ""
+"Recorded by REA 4.1.0 on an earlier version of the example below. The "
+"renderer has since changed; the recorded source locations accompany the API,"
+" channel and handler findings."
+msgstr ""
+
+#~ msgctxt "page:guides/javascript/index.html"
+#~ msgid ""
+#~ "Recorded by REA 4.1.0 on the downloadable example below. Source locations "
+#~ "accompany the API, channel and handler findings."
+#~ msgstr "아래 다운로드 예제를 REA 4.1.0으로 분석한 기록입니다. API, 채널, 핸들러 결과에는 소스 위치가 함께 제공됩니다."
 
 #~ msgctxt "page:index.html"
 #~ msgid "Calculator: by hand and with an agent"

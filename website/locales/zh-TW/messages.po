@@ -72,7 +72,7 @@ msgstr "透過N0zoM1z0*10十月2026"
 #: website/public/get-started/index.html:1826
 #: website/public/guides/browser/index.html:516
 #: website/public/guides/index.html:310
-#: website/public/guides/javascript/index.html:512
+#: website/public/guides/javascript/index.html:520
 #: website/public/guides/native/index.html:518
 #: website/public/guides/rl-environments/index.html:507
 #: website/public/index.html:1312 website/public/showcase/aegis/index.html:817
@@ -4187,7 +4187,7 @@ msgid "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}Your coding agent"
 msgstr "{ph0}{ph1}{ph2}{ph3}{ph4}{ph5}{ph6}{ph7}你的程式設計助手"
 
 #: website/public/guides/javascript/index.html:284
-#: website/public/guides/javascript/index.html:433
+#: website/public/guides/javascript/index.html:441
 msgctxt "page:guides/javascript/index.html"
 msgid "Copy"
 msgstr "複製"
@@ -4233,7 +4233,7 @@ msgctxt "page:guides/javascript/index.html"
 msgid "The page calls a small API"
 msgstr "頁面呼叫一個小API"
 
-#: website/public/guides/javascript/index.html:326
+#: website/public/guides/javascript/index.html:333
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "The page knows the method name. The implementation lives in the preload, "
@@ -4242,7 +4242,7 @@ msgstr "頁面知道方法名稱。 實現存在於預載入中，預載入將�
 
 #. {ph0}: <code>notes.exportCsv</code>
 #. {ph1}: <code>notes:export</code>
-#: website/public/guides/javascript/index.html:340
+#: website/public/guides/javascript/index.html:347
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4252,7 +4252,7 @@ msgstr "REA 記錄 {ph0} 和直接寫在程式碼中的通道名 {ph1}，並將�
 
 #. {ph0}: <code>csv.js</code>
 #. {ph1}: <code>notes.csv</code>
-#: website/public/guides/javascript/index.html:357
+#: website/public/guides/javascript/index.html:364
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4260,14 +4260,7 @@ msgid ""
 "and the main process writes {ph1} into the user's Downloads folder."
 msgstr "讀取處理函式就能回答最初的問題：{ph0} 格式化筆記，主程序將 {ph1} 寫入使用者的下載資料夾。"
 
-#: website/public/guides/javascript/index.html:374
-msgctxt "page:guides/javascript/index.html"
-msgid ""
-"Recorded by REA 4.1.0 on the downloadable example below. Source locations "
-"accompany the API, channel and handler findings."
-msgstr "使用 REA 4.1.0 分析下面可下載的示例。API、通道和處理函式的結果均附有原始碼位置。"
-
-#: website/public/guides/javascript/index.html:380
+#: website/public/guides/javascript/index.html:388
 msgctxt "page:guides/javascript/index.html"
 msgid "Analyze the example yourself"
 msgstr "自己分析例子"
@@ -4275,25 +4268,25 @@ msgstr "自己分析例子"
 #. {ph0}: <a class="button" href="../../examples/notes-example.zip"
 #. download="notes-example.zip" >
 #. {ph1}: </a >
-#: website/public/guides/javascript/index.html:387
+#: website/public/guides/javascript/index.html:395
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0}Download example ZIP{ph1}"
 msgstr "{ph0}下載示例ZIP{ph1}"
 
-#: website/public/guides/javascript/index.html:396
+#: website/public/guides/javascript/index.html:404
 msgctxt "page:guides/javascript/index.html"
 msgid "Browse the six source files"
 msgstr "瀏覽六個原始檔"
 
-#: website/public/guides/javascript/index.html:432
+#: website/public/guides/javascript/index.html:440
 msgctxt "page:guides/javascript/index.html"
 msgid "Static application analysis"
 msgstr "靜態應用分析"
 
 #. {ph0}: <code>normalized_result.summary.ipc</code>
 #. {ph1}: <code>normalized_result.graph</code>
-#: website/public/guides/javascript/index.html:445
+#: website/public/guides/javascript/index.html:453
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4301,7 +4294,7 @@ msgid ""
 "channel and one matching handler in {ph0}. Source locations are in {ph1}."
 msgstr "將路徑替換為你解壓縮的資料夾。 你應該在以下位置找到一個IPC通道和一個匹配的處理程式 {ph0}. 源位置在 {ph1}."
 
-#: website/public/guides/javascript/index.html:451
+#: website/public/guides/javascript/index.html:459
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "For your own app, use the same command with its directory or ASAR path. An "
@@ -4310,13 +4303,13 @@ msgid ""
 msgstr ""
 "對於你自己的應用程式，請對其目錄或ASARpath使用相同的命令。 程式設計助手可以使用REA的功能跟蹤工具跟隨文字字串，API名稱或IPC通道。"
 
-#: website/public/guides/javascript/index.html:458
+#: website/public/guides/javascript/index.html:466
 msgctxt "page:guides/javascript/index.html"
 msgid "Inspect the CSV writer"
 msgstr "檢查CSV寫入器"
 
 #. {ph0}: <code>notes:export</code>
-#: website/public/guides/javascript/index.html:460
+#: website/public/guides/javascript/index.html:468
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4324,7 +4317,7 @@ msgid ""
 "happens if writing the file fails?"
 msgstr "追蹤 {ph0} 到處理函式。哪些輸入傳給 CSV 寫入函式？如果寫入失敗，會怎樣？"
 
-#: website/public/guides/javascript/index.html:466
+#: website/public/guides/javascript/index.html:474
 msgctxt "page:guides/javascript/index.html"
 msgid ""
 "Use the source locations to inspect those details. Computed channel names "
@@ -4336,7 +4329,7 @@ msgstr "使用源位置檢查這些詳細資訊。 計算的通道名稱和不�
 #. {ph1}: </a >
 #. {ph2}: <span>
 #. {ph3}: </span>
-#: website/public/guides/javascript/index.html:472
+#: website/public/guides/javascript/index.html:480
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4348,7 +4341,7 @@ msgstr "{ph0}追蹤 Notion 剪貼簿橋接程式碼{ph1}{ph2}把同樣的方法�
 #. {ph1}: </a >
 #. {ph2}: <span >
 #. {ph3}: </span >
-#: website/public/guides/javascript/index.html:478
+#: website/public/guides/javascript/index.html:486
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4360,7 +4353,7 @@ msgstr "{ph0}觀察瀏覽器匯出{ph1}{ph2}捕獲一個真正的點選，看看
 #. {ph1}: </a >
 #. {ph2}: <span >
 #. {ph3}: </span >
-#: website/public/guides/javascript/index.html:484
+#: website/public/guides/javascript/index.html:492
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -4396,12 +4389,12 @@ msgctxt "page:guides/javascript/index.html"
 msgid "Copy example prompt"
 msgstr "複製示例提示"
 
-#: website/public/guides/javascript/index.html:433
+#: website/public/guides/javascript/index.html:441
 msgctxt "page:guides/javascript/index.html"
 msgid "Copy static application analysis"
 msgstr "複製靜態應用程式分析"
 
-#: website/public/guides/javascript/index.html:512
+#: website/public/guides/javascript/index.html:520
 msgctxt "page:guides/javascript/index.html"
 msgid "Back to top"
 msgstr "回到頂部"
@@ -9941,7 +9934,7 @@ msgstr "指南"
 #: website/public/get-started/index.html:1818
 #: website/public/guides/browser/index.html:508
 #: website/public/guides/index.html:302
-#: website/public/guides/javascript/index.html:504
+#: website/public/guides/javascript/index.html:512
 #: website/public/guides/native/index.html:510
 #: website/public/guides/rl-environments/index.html:499
 #: website/public/index.html:1304 website/public/showcase/aegis/index.html:809
@@ -9964,7 +9957,7 @@ msgstr "原始碼"
 #: website/public/get-started/index.html:1819
 #: website/public/guides/browser/index.html:509
 #: website/public/guides/index.html:303
-#: website/public/guides/javascript/index.html:505
+#: website/public/guides/javascript/index.html:513
 #: website/public/guides/native/index.html:511
 #: website/public/guides/rl-environments/index.html:500
 #: website/public/index.html:1305 website/public/showcase/aegis/index.html:810
@@ -9987,7 +9980,7 @@ msgstr "MIT 許可證"
 #: website/public/get-started/index.html:1820
 #: website/public/guides/browser/index.html:510
 #: website/public/guides/index.html:304
-#: website/public/guides/javascript/index.html:506
+#: website/public/guides/javascript/index.html:514
 #: website/public/guides/native/index.html:512
 #: website/public/guides/rl-environments/index.html:501
 #: website/public/index.html:1306 website/public/showcase/aegis/index.html:811
@@ -10010,7 +10003,7 @@ msgstr "加入社群"
 #: website/public/get-started/index.html:1821
 #: website/public/guides/browser/index.html:511
 #: website/public/guides/index.html:305
-#: website/public/guides/javascript/index.html:507
+#: website/public/guides/javascript/index.html:515
 #: website/public/guides/native/index.html:513
 #: website/public/guides/rl-environments/index.html:502
 #: website/public/index.html:1307 website/public/showcase/aegis/index.html:812
@@ -10093,7 +10086,7 @@ msgctxt "page:guides/index.html"
 msgid "Export script"
 msgstr "匯出指令碼"
 
-#: website/public/guides/javascript/index.html:364
+#: website/public/guides/javascript/index.html:371
 msgctxt "page:guides/javascript/index.html"
 msgid "REA result · summary.ipc excerpt"
 msgstr "REA 結果 · summary.ipc 摘錄"
@@ -10729,8 +10722,8 @@ msgstr "{ph0}開啟示例{ph1} · {ph2}下載 {ph3}{ph4} · {ph5}下載 {ph6}{ph
 
 #. {ph0}: <span translate="no">renderer.js</span>
 #: website/public/guides/javascript/index.html:316
-#: website/public/guides/javascript/index.html:332
-#: website/public/guides/javascript/index.html:347
+#: website/public/guides/javascript/index.html:339
+#: website/public/guides/javascript/index.html:354
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid "{ph0} · example source"
@@ -10738,7 +10731,7 @@ msgstr "{ph0}  · 示例來源"
 
 #. {ph0}: <code>notes-example</code>
 #. {ph1}: <span translate="no">Node.js</span>
-#: website/public/guides/javascript/index.html:381
+#: website/public/guides/javascript/index.html:389
 #, python-brace-format
 msgctxt "page:guides/javascript/index.html"
 msgid ""
@@ -13643,7 +13636,7 @@ msgstr "使用 REA 和我已設定的分析工具檢查 {ph0}。列出其中的�
 #: website/public/get-started/index.html:1817
 #: website/public/guides/browser/index.html:507
 #: website/public/guides/index.html:301
-#: website/public/guides/javascript/index.html:503
+#: website/public/guides/javascript/index.html:511
 #: website/public/guides/native/index.html:509
 #: website/public/guides/rl-environments/index.html:498
 #: website/public/index.html:1303 website/public/showcase/aegis/index.html:808
@@ -14479,6 +14472,20 @@ msgstr "REA: 和程式設計助手一起做逆向工程"
 msgctxt "page:index.html"
 msgid "See the full Calculator investigation"
 msgstr "展開完整的計算機調查"
+
+#: website/public/guides/javascript/index.html:381
+msgctxt "page:guides/javascript/index.html"
+msgid ""
+"Recorded by REA 4.1.0 on an earlier version of the example below. The "
+"renderer has since changed; the recorded source locations accompany the API,"
+" channel and handler findings."
+msgstr ""
+
+#~ msgctxt "page:guides/javascript/index.html"
+#~ msgid ""
+#~ "Recorded by REA 4.1.0 on the downloadable example below. Source locations "
+#~ "accompany the API, channel and handler findings."
+#~ msgstr "使用 REA 4.1.0 分析下面可下載的示例。API、通道和處理函式的結果均附有原始碼位置。"
 
 #~ msgctxt "page:index.html"
 #~ msgid "Calculator: by hand and with an agent"

@@ -64,6 +64,11 @@ export const inventoryCoverage = (
               "PCK inventory establishes packaged bytes and metadata; scenes, binary resources, GDScript bytecode and runtime signal behavior were not decoded.",
             ]
           : []),
+        ...(reader.format === "unityfs"
+          ? [
+              "UnityFS inventory establishes packaged bytes and metadata; serialized objects, textures, meshes and runtime asset behavior were not decoded. LZMA-compressed members are unsupported.",
+            ]
+          : []),
         ...(reader.format === "node-sea"
           ? [
               "Node SEA inventory establishes the injected blob, flags, fuse sentinel, main script, optional code cache, snapshot, and assets. V8 snapshots and code cache are not deserialized, and the application is not executed.",
@@ -97,6 +102,7 @@ export const inventoryCoverage = (
     format === "directory" ||
     format === "asar" ||
     format === "godot-pck" ||
+    format === "unityfs" ||
     format === "node-sea" ||
     format === "intel-hex" ||
     format === "srec"

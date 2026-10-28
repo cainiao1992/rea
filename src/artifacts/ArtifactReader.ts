@@ -177,6 +177,7 @@ export interface ArtifactReader {
     | ZipPackageFormat
     | "asar"
     | "godot-pck"
+    | "unityfs"
     | "pyinstaller"
     | "node-sea"
     | "intel-hex"
@@ -339,3 +340,17 @@ export const artifactPrimaryCleanupLeases = (
     : cause instanceof AnalysisError && cause.cleanupIncomplete
       ? undefined
       : [];
+
+/** Known member identities whose content cannot be read; never a reader shutdown. */
+export class ArtifactEntryContentUnavailable extends ArtifactReaderFailure {
+  readonly traversal: ArtifactReaderTraversal | undefined;
+  constructor(
+    message: string,
+    readonly limitation: string,
+    options?: ErrorOptions & { readonly traversal?: ArtifactReaderTraversal },
+    details?: ArtifactIntegrityDetails,
+  ) {
+    super("unavailable", message, options, details);
+    this.traversal = options?.traversal;
+  }
+}

@@ -74,6 +74,7 @@ const formatSchema = z.enum([
   "app-pack",
   "asar",
   "godot-pck",
+  "unityfs",
   "dmg",
   "pkg",
   "intel-hex",

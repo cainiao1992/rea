@@ -186,6 +186,15 @@ export const materializeArtifactInventoryInScope = async (
       input.selectedPath ?? input.inputPath,
       `Godot PCK directory is ${containerMetadata.directory_status}; its complete contents cannot be extracted`,
     );
+  if (
+    containerMetadata?.kind === "unityfs" &&
+    containerMetadata.directory_status !== "available"
+  )
+    throw new AnalysisUnsupportedTargetError(
+      "extract_artifact",
+      input.selectedPath ?? input.inputPath,
+      `UnityFS directory is ${containerMetadata.directory_status}; its complete contents cannot be extracted`,
+    );
   const selectedOccurrences = snapshot.occurrences.filter(
     (occurrence) =>
       (occurrence.entry_kind === "file" || occurrence.entry_kind === "slice") &&
@@ -577,6 +586,7 @@ const requireExtractableFormat = async (
     !directory &&
     format !== "asar" &&
     format !== "godot-pck" &&
+    format !== "unityfs" &&
     format !== "intel-hex" &&
     format !== "srec" &&
     format !== "mach-o-universal" &&

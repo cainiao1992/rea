@@ -165,6 +165,7 @@ export const classifyAndHashRootForInventory = async (
       isZipPackageFormat(format) ||
       format === "mach-o-universal" ||
       format === "godot-pck" ||
+      format === "unityfs" ||
       format === "pyinstaller" ||
       format === "node-sea" ||
       format === "intel-hex" ||

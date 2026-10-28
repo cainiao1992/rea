@@ -16,6 +16,7 @@ export const artifactInventorySummaryProjectionIds = (
   const format = result.summary.manifest.root_format;
   if (
     format === "godot-pck" ||
+    format === "unityfs" ||
     format === "pyinstaller" ||
     format === "node-sea"
   )

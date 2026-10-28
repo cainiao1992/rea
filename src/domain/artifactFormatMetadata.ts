@@ -30,6 +30,39 @@ export const godotPckEntryMetadataSchema = z.strictObject({
   md5_status: z.enum(["declared", "all-zero"]),
 });
 
+/** Parsed source fields owned by the UnityFS adapter, independent of member bytes. */
+export const unityFsMetadataSchema = z.strictObject({
+  kind: z.literal("unityfs"),
+  signature: z.string(),
+  format_version: uint32,
+  player_version: z.string(),
+  engine_version: z.string(),
+  declared_size: offset,
+  flags: uint32,
+  blocks_info_compressed_size: uint32,
+  blocks_info_uncompressed_size: uint32,
+  blocks_info_at_end: z.boolean(),
+  data_start: offset.nullable(),
+  block_count: uint32.nullable(),
+  /** The 16-byte producer hash of the uncompressed block stream, as declared. */
+  data_hash: z.string().nullable(),
+  directory_status: z.enum([
+    "available",
+    "encrypted",
+    "unsupported-compression",
+    "unsupported-layout",
+  ]),
+});
+export type UnityFsMetadata = z.infer<typeof unityFsMetadataSchema>;
+
+export const unityFsEntryMetadataSchema = z.strictObject({
+  kind: z.literal("unityfs-entry"),
+  index: uint32,
+  source_path: z.string(),
+  declared_offset: offset,
+  flags: uint32,
+});
+
 /** Source cookie fields and derived directory counts without Python execution. */
 export const pyInstallerMetadataSchema = z.strictObject({
   kind: z.literal("pyinstaller"),
@@ -185,6 +218,8 @@ export const pyInstallerEntryDeclaration = (
 export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   godotPckMetadataSchema,
   godotPckEntryMetadataSchema,
+  unityFsMetadataSchema,
+  unityFsEntryMetadataSchema,
   pyInstallerMetadataSchema,
   pyInstallerEntryMetadataSchema,
   nodeSeaMetadataSchema,

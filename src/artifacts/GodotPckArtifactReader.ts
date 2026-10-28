@@ -1,3 +1,4 @@
+import { readArtifactFileBytes } from "./ArtifactFileRange.js";
 import { readGodotPckHeaderFacts } from "../domain/godotPckFormat.js";
 import { artifactExpansionBudgetBytes } from "../domain/artifactExpansionBudget.js";
 import type { FileHandle } from "node:fs/promises";
@@ -15,7 +16,6 @@ import { ArtifactResourceScope } from "./ArtifactResourceScope.js";
 import { assertArtifactReadActive } from "./ArtifactFileOperation.js";
 import {
   locateGodotPck,
-  readPckBytes,
   type GodotPckAdmission,
   type GodotPckLocation,
 } from "./GodotPckLocation.js";
@@ -326,7 +326,7 @@ const readGodotPckHeader = async (
   if (location === undefined)
     throw formatFailure("no standalone header or executable trailer");
   const { start, end, embedded } = location;
-  const fixed = await readPckBytes(handle, start, 40, end, signal);
+  const fixed = await readArtifactFileBytes(handle, start, 40, end, signal);
   const header = readGodotPckHeaderFacts(fixed);
   const version = header.formatVersion;
   if (![2, 3, 4].includes(version))
@@ -354,7 +354,7 @@ const readGodotPckHeader = async (
       ? toSafeOffset(fixed.readBigUInt64LE(32), start, end, "directory")
       : start + 96;
   const count = (
-    await readPckBytes(handle, directory, 4, end, signal)
+    await readArtifactFileBytes(handle, directory, 4, end, signal)
   ).readUInt32LE(0);
   const status =
     (flags & PACK_DIR_ENCRYPTED) !== 0
@@ -419,7 +419,7 @@ class PckCursor {
     if (length > DIRECTORY_CHUNK_BYTES) {
       // A large valid virtual path is bounded by retained representation, not
       // the host filesystem's PATH_MAX. Only this path receives a larger read.
-      const value = await readPckBytes(
+      const value = await readArtifactFileBytes(
         this.handle,
         this.position,
         length,
@@ -431,7 +431,7 @@ class PckCursor {
     }
     const offset = this.position - this.#bufferStart;
     if (offset < 0 || offset + length > this.#buffer.length) {
-      this.#buffer = await readPckBytes(
+      this.#buffer = await readArtifactFileBytes(
         this.handle,
         this.position,
         Math.min(DIRECTORY_CHUNK_BYTES, this.end - this.position),

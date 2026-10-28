@@ -79,6 +79,11 @@ export const inventoryCoverage = (
               "Intel HEX/S-record inventory decodes data records into address-contiguous regions. It does not establish CPU, byte order, memory map, or that a declared start address is executable; gaps are unwritten, not zero.",
             ]
           : []),
+        ...(reader.format === "uimage"
+          ? [
+              "uImage inventory establishes the 64-byte legacy header facts and stored payload bytes. Compressed payloads are not decompressed, and the image is not executed.",
+            ]
+          : []),
         ...traversal.limitations,
       ],
     };
@@ -103,6 +108,7 @@ export const inventoryCoverage = (
     format === "asar" ||
     format === "godot-pck" ||
     format === "unityfs" ||
+    format === "uimage" ||
     format === "node-sea" ||
     format === "intel-hex" ||
     format === "srec"

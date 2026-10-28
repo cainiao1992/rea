@@ -178,6 +178,7 @@ export interface ArtifactReader {
     | "asar"
     | "godot-pck"
     | "unityfs"
+    | "uimage"
     | "pyinstaller"
     | "node-sea"
     | "intel-hex"

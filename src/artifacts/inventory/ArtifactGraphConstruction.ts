@@ -1,4 +1,5 @@
 import { hasGodotPckHeader } from "../../domain/godotPckFormat.js";
+import { hasUImageMagic } from "../../domain/uimageFormat.js";
 import { hasUnityFsHeader } from "../../domain/unityfsFormat.js";
 import { detectHexRecordEncoding } from "../../domain/firmware/hexRecords.js";
 import type { ArtifactClassificationEvidence } from "../ArtifactClassificationProbe.js";
@@ -281,6 +282,7 @@ export const rootOccurrenceFor = (
       "asar",
       "godot-pck",
       "unityfs",
+      "uimage",
       "dmg",
       "pkg",
       "pyinstaller",
@@ -581,6 +583,7 @@ const artifactRoleForFormat = (
   if (
     format === "godot-pck" ||
     format === "unityfs" ||
+    format === "uimage" ||
     format === "intel-hex" ||
     format === "srec"
   )
@@ -602,6 +605,7 @@ export const classifyArtifactBytes = (
   if (hasZipSignature(prefix)) return "zip";
   if (hasGodotPckHeader(prefix)) return "godot-pck";
   if (hasUnityFsHeader(prefix)) return "unityfs";
+  if (hasUImageMagic(prefix)) return "uimage";
   const hexRecords = detectHexRecordEncoding(prefix);
   if (hexRecords !== undefined) return hexRecords;
   if (hasBinaryPlistSignature(prefix)) return "plist";

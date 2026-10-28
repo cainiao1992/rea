@@ -215,6 +215,43 @@ export const pyInstallerEntryDeclaration = (
   type_code: metadata.type_code,
 });
 
+/**
+ * U-Boot legacy uImage header facts. Declared addresses are facts from the
+ * header, not proven entry points; CRCs are verified before inventory.
+ */
+export const uImageMetadataSchema = z.strictObject({
+  kind: z.literal("uimage"),
+  magic: z.literal(0x27051956),
+  timestamp: uint32,
+  timestamp_iso: z.string(),
+  payload_size: uint32,
+  load_address: uint32,
+  entry_point: uint32,
+  header_crc32: uint32,
+  data_crc32: uint32,
+  crc_verified: z.literal(true),
+  os: z.number().int().min(0).max(255),
+  os_name: z.string(),
+  arch: z.number().int().min(0).max(255),
+  arch_name: z.string(),
+  type: z.number().int().min(0).max(255),
+  type_name: z.string(),
+  compression: z.number().int().min(0).max(255),
+  compression_name: z.string(),
+  name: z.string().nullable(),
+  name_bytes_hex: z.string().regex(/^[0-9a-f]{64}$/u),
+  sub_image_count: uint32,
+});
+export type UImageMetadata = z.infer<typeof uImageMetadataSchema>;
+
+/** One stored payload, or one multi-image sub-image, as stored bytes. */
+export const uImageEntryMetadataSchema = z.strictObject({
+  kind: z.literal("uimage-entry"),
+  role: z.enum(["payload", "sub-image"]),
+  index: uint32,
+});
+export type UImageEntryMetadata = z.infer<typeof uImageEntryMetadataSchema>;
+
 export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   godotPckMetadataSchema,
   godotPckEntryMetadataSchema,
@@ -226,6 +263,8 @@ export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   nodeSeaEntryMetadataSchema,
   hexRecordsMetadataSchema,
   hexRecordRegionMetadataSchema,
+  uImageMetadataSchema,
+  uImageEntryMetadataSchema,
 ]);
 export type ArtifactFormatMetadata = z.infer<
   typeof artifactFormatMetadataSchema

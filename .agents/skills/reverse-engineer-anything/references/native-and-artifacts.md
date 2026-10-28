@@ -662,3 +662,10 @@ Virtual member offsets are not physical carrier locations. Format 6–8 readers
 cache one decoded block and support retained filtered/paged views. No
 decryption or SerializedFile object decoding is provided. See
 [UnityFS](https://github.com/morluto/rea/blob/main/docs/unityfs.md).
+
+U-Boot legacy uImages use the same inspection/extraction workflows. Prefer a
+retained summary and selected inventory views for header facts or component
+IDs. Header addresses/CPU/OS are declarations; payloads remain as stored.
+Multi-file components retain their aligned physical ranges; the full payload
+is also materialized. Unknown name text retains its original 32 bytes. See
+[U-Boot uImage](https://github.com/morluto/rea/blob/main/docs/uimage.md).

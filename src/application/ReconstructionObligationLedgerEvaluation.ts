@@ -80,6 +80,7 @@ export const evaluateReconstructionObligationLedger = ({
     generationLimitations,
     candidates.length,
     orphanManifestIds,
+    evidenceLinks.filter((id) => !records.has(id)).length,
   );
   const coverage = reconstructionObligationCoverage(limitations);
   const semantic = {
@@ -158,6 +159,7 @@ const ledgerLimitations = (
   generationLimitations: readonly string[],
   candidateCount: number,
   orphanManifestIds: readonly string[],
+  missingEvidenceCount: number,
 ): string[] =>
   [
     ...new Set([
@@ -170,6 +172,11 @@ const ledgerLimitations = (
       ...(orphanManifestIds.length > 0
         ? [
             `Manifest entries reference unknown obligations: ${orphanManifestIds.join(", ")}.`,
+          ]
+        : []),
+      ...(missingEvidenceCount > 0
+        ? [
+            `The ledger retains ${String(missingEvidenceCount)} Evidence reference(s) absent from the input bundle; closure cannot be claimed.`,
           ]
         : []),
     ]),

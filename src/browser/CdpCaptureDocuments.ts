@@ -354,6 +354,7 @@ export function* captureDom(
       const nodeIndex = baseIndex + index;
       const attributeNames = [...new Set(attributes.map(([name]) => name))];
       const domElement = domXmlElement(ancestry, index);
+      const htmlTagName = domHtmlTagName(nodeName, domElement);
       if (domElement.xmlDocument === undefined)
         completeness?.exclude("metadata", "invalid_protocol_value");
       let svgQuery: DomSvgNodeQuery | null | undefined;
@@ -380,10 +381,10 @@ export function* captureDom(
         options: {
           attributes,
           // The BASE element itself resolves against the document fallback URL.
-          baseUrl: nodeName.toLowerCase() === "base" ? documentUrl : baseUrl,
+          baseUrl: htmlTagName === "base" ? documentUrl : baseUrl,
           documentUrl,
           nodeIndex,
-          nodeName,
+          htmlTagName,
           allowedOrigins,
           ...domElement,
         },
@@ -686,7 +687,7 @@ interface DomMetadataOptions {
   readonly baseUrl: string;
   readonly documentUrl: string;
   readonly nodeIndex: number;
-  readonly nodeName: string;
+  readonly htmlTagName: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly svgElement: boolean;
   readonly xmlDocument: boolean | undefined;
@@ -694,6 +695,21 @@ interface DomMetadataOptions {
   readonly localName: string | undefined;
   readonly xlinkHref: string | undefined;
 }
+
+/** Interpret the element once using its resolved namespace, not its raw prefix. */
+const domHtmlTagName = (
+  nodeName: string,
+  element: Pick<
+    DomMetadataOptions,
+    "xmlDocument" | "elementNamespace" | "localName"
+  >,
+): string =>
+  element.xmlDocument === false
+    ? nodeName.toLowerCase()
+    : element.xmlDocument === true &&
+        element.elementNamespace === XHTML_NAMESPACE
+      ? (element.localName ?? "")
+      : "";
 
 // Chrome reads an SVG XLink href only when href itself is absent, and an
 // empty href still wins. HTML keeps the literal attribute name `xlink:href`.
@@ -720,27 +736,19 @@ const domMetadata = (
     baseUrl,
     documentUrl,
     nodeIndex,
-    nodeName,
+    htmlTagName,
     allowedOrigins,
-    xmlDocument,
-    elementNamespace,
-    localName,
   } = options;
   const pairs = new Map<string, string>();
   for (const [name, value] of attributes) {
     // HTML keeps the first declaration; SVG/XML spelling stays case-sensitive.
     if (!pairs.has(name)) pairs.set(name, value);
   }
+  const tagName = htmlTagName;
   const urls: WebPageInspection["metadata"]["dom_urls"] = [];
   for (const attribute of domUrlAttributes) {
     const value = hrefAttributeValue(pairs, attribute, options);
     if (value === undefined) continue;
-    const tagName =
-      xmlDocument === false
-        ? nodeName.toLowerCase()
-        : xmlDocument === true && elementNamespace === XHTML_NAMESPACE
-          ? (localName ?? "")
-          : "";
     // Chrome strips HTML whitespace for FORM.action, while submit controls
     // use the document URL only for an exactly empty formaction attribute.
     const usesDocumentUrl =
@@ -769,7 +777,7 @@ const domMetadata = (
     .filter((value) => agentRelValues.includes(value));
   const href = urls.find(({ attribute }) => attribute === "href")?.url ?? null;
   const agentHints =
-    nodeName.toLowerCase() === "link" && rel.length > 0
+    tagName === "link" && rel.length > 0
       ? rel.map((declaration) => ({
           mechanism: "dom_link_rel" as const,
           declaration,

@@ -257,7 +257,9 @@ A bare executable name uses the scenario's `PATH` override, then the inherited
 An explicitly empty `PATH` searches only the working directory. Executable,
 working-directory, and observation paths preserve native `symlink/..` traversal.
 
-Terminal dimensions must satisfy `columns × (rows + scrollback) ≤ 1,000,000`.
+Terminal width must be at least two columns: the pinned xterm renderer cannot
+represent a one-column screen. This applies to the initial size and every resize.
+Terminal dimensions must also satisfy `columns × (rows + scrollback) ≤ 1,000,000`.
 Every scheduled resize uses the same selected scrollback and must fit this
 working-buffer budget. REA rejects oversized scenarios before launching the
 command; it never clamps the requested dimensions. This limit is independent

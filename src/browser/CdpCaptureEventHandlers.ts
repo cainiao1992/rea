@@ -40,9 +40,9 @@ import {
 } from "./CdpCaptureEventBodyShapes.js";
 import {
   consolePrimitive,
+  cdpSourceCoordinates,
   exclusionReasonForUrl,
   initiatorLocation,
-  integerOrNull,
   isJsonMediaType,
   topCallFrame,
 } from "./CdpCaptureEventHelpers.js";
@@ -334,6 +334,9 @@ export const handleRequestWillBeSent = (
   if (!location.ok)
     state.completeness.exclude("network_initiators", "invalid_protocol_value");
   const initiatorFrame = location.ok ? location.value : undefined;
+  const coordinates = cdpSourceCoordinates(initiatorFrame);
+  if (coordinates.invalid)
+    state.completeness.exclude("network_initiators", "invalid_protocol_value");
   const rawInitiatorUrl = cdpStringValue(initiatorFrame?.url);
   const initiatorUrl = allowedSanitizedUrl(
     rawInitiatorUrl,
@@ -357,8 +360,8 @@ export const handleRequestWillBeSent = (
     initiator: {
       type: initiatorType,
       url: initiatorUrl?.url ?? null,
-      line: integerOrNull(initiatorFrame?.lineNumber),
-      column: integerOrNull(initiatorFrame?.columnNumber),
+      line: coordinates.line,
+      column: coordinates.column,
     },
     body_shapes: requestBodyShape(state, requestId, request.source),
   });
@@ -479,6 +482,9 @@ export const handleConsoleAPICalled = (
     state.completeness.exclude("console_events", "unattributed_origin");
     return;
   }
+  const coordinates = cdpSourceCoordinates(frame);
+  if (coordinates.invalid)
+    state.completeness.exclude("console_events", "invalid_protocol_value");
   const source = allowedSanitizedUrl(frame.url, state.allowedOrigins);
   if (source === undefined) {
     state.completeness.exclude(
@@ -531,8 +537,8 @@ export const handleConsoleAPICalled = (
     argument_types:
       argumentTypes?.map((argumentType) => argumentType ?? "unknown") ?? null,
     url: source.url,
-    line: integerOrNull(frame.lineNumber),
-    column: integerOrNull(frame.columnNumber),
+    line: coordinates.line,
+    column: coordinates.column,
     text_capture: textCapture,
   });
 };

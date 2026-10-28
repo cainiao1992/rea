@@ -54,7 +54,11 @@ fails the same way. SignedData must contain at least one `SignerInfo`, and
 each `SignerInfo` must carry a non-empty signature value. Each embedded X.509
 certificate must include `subjectPublicKeyInfo` and `signatureValue`. Decoded
 certificate name text, serials, validity spellings, and subject key identifiers
-share a 64 KiB budget per PKCS#7 payload. Unsupported certificate name
+share a 64 KiB budget per PKCS#7 payload, and each payload decodes at most
+16,384 ASN.1 values. Exhausting either fixed allowance returns a nonretryable
+`resource_constraint` error naming it, not an invalid-input error; this release
+has no runtime override, and `max_file_bytes` and `max_entries` do not raise
+it. Unsupported certificate name
 encodings, including GeneralString, fail explicitly. TeletexString (T.61)
 values are rendered with the ISO-8859-1 compatibility mapping used by OpenSSL;
 this is not a full T.61 decoder, so the result includes a limitation whenever

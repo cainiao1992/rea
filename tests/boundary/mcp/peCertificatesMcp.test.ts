@@ -8,6 +8,7 @@ import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { peCertificateFixture } from "../../../src/native/pe/PeCertificates.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest, type TestMcp } from "../../support/mcp/mcpFixture.js";
+import { repeatedCertificateSignedData } from "../../fixtures/peCertificateAllowance.js";
 
 const connect = async (mcp: TestMcp) => {
   const session = createTestBinarySession(() => {
@@ -64,6 +65,37 @@ mcpTest(
       expect(parseMcpToolError(response).error).toMatchObject({
         code: "invalid_request",
         details: { operation: "inspect_pe_certificates" },
+      });
+    } finally {
+      await session.close();
+    }
+  },
+);
+
+mcpTest.for([
+  { count: 350, reported_limits: { max_decoded_text_bytes: 65_536 } },
+  { count: 600, reported_limits: { max_asn1_values: 16_384 } },
+])(
+  "reports decoder capacity as a nonretryable resource failure for $count certificates",
+  async ({ count, reported_limits }, { mcp }) => {
+    const { client, session } = await connect(mcp);
+    try {
+      const root = await createTestTempDirectory("rea-pe-cert-mcp-budget-");
+      const path = join(root, "large.exe");
+      await writeFile(
+        path,
+        peCertificateFixture(false, repeatedCertificateSignedData(count)),
+      );
+      const response = await client.callTool({
+        name: "inspect_pe_certificates",
+        arguments: { path },
+      });
+      expect(response.isError).toBe(true);
+      expect(parseMcpToolError(response).error).toMatchObject({
+        code: "resource_constraint",
+        category: "resource_constraint",
+        retryable: false,
+        details: { operation: "inspect_pe_certificates", reported_limits },
       });
     } finally {
       await session.close();

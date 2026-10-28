@@ -169,7 +169,12 @@ export const parsePeCertificates = (
           })),
         };
       } catch (cause) {
-        if (cause instanceof PeCertificateAsn1Failure)
+        // An exhausted decoder allowance is not evidence of malformed DER;
+        // the provider reports it as a fixed resource allowance.
+        if (
+          cause instanceof PeCertificateAsn1Failure &&
+          cause.exhausted === null
+        )
           fail(`PKCS#7 signedData is malformed: ${cause.message}`);
         throw cause;
       }

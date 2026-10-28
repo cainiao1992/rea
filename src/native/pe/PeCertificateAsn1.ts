@@ -26,8 +26,18 @@ const OID_NAMES: Readonly<Record<string, string>> = {
   "2.16.840.1.101.3.4.2.3": "sha512",
 };
 
+/** A fixed per-payload decoder allowance and its limit. */
+export interface PeCertificateDecodeAllowance {
+  readonly allowance: "asn1-nodes" | "decoded-text";
+  readonly limit: number;
+}
+
 export class PeCertificateAsn1Failure extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** Set when a fixed decoder allowance, not malformed DER, refused the payload. */
+    readonly exhausted: PeCertificateDecodeAllowance | null = null,
+  ) {
     super(message);
     this.name = "PeCertificateAsn1Failure";
   }
@@ -49,7 +59,13 @@ export const readAsn1 = (bytes: Buffer): Asn1BerNode => {
   try {
     return new Asn1BerReader(bytes, ASN1_NODE_BUDGET).read();
   } catch (cause: unknown) {
-    if (cause instanceof Asn1BerFailure) return fail(cause.message);
+    if (cause instanceof Asn1BerFailure)
+      throw new PeCertificateAsn1Failure(
+        cause.message,
+        cause.kind === "budget-exceeded"
+          ? { allowance: "asn1-nodes", limit: cause.limit ?? ASN1_NODE_BUDGET }
+          : null,
+      );
     throw cause;
   }
 };
@@ -78,8 +94,9 @@ interface DecodedNameBudget {
 
 const chargeDecodedName = (budget: DecodedNameBudget, bytes: number): void => {
   if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > budget.remaining)
-    fail(
+    throw new PeCertificateAsn1Failure(
       `Certificate text exceeds the ${String(MAX_DECODED_NAME_BYTES)}-byte decoded budget.`,
+      { allowance: "decoded-text", limit: MAX_DECODED_NAME_BYTES },
     );
   budget.remaining -= bytes;
 };

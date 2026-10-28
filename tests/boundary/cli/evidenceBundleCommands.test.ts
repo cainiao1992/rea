@@ -214,6 +214,42 @@ cliTest(
 );
 
 cliTest(
+  "reports exported residual-unknown revision counts",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-evidence-export-counts-");
+    for (const [label, bundle] of [
+      ["empty", createEvidenceBundle([])],
+      ["revisions", revisionBundle()],
+    ] as const) {
+      const source = join(root, `${label}.json`);
+      await writeFile(source, JSON.stringify(bundle));
+      for (const full of [false, true]) {
+        const output = join(root, `${label}-${String(full)}.json`);
+        const result = await cli.run({
+          arguments: [
+            "evidence-export",
+            source,
+            output,
+            "--json",
+            ...(full ? ["--full-output"] : []),
+          ],
+        });
+        expect(result.exitCode, result.stderr).toBe(0);
+        const receipt = full
+          ? (result.json as { data: unknown }).data
+          : result.json;
+        expect(receipt).toMatchObject({
+          path: output,
+          records: bundle.records.length,
+          unknowns: bundle.unknowns.length,
+        });
+        expect(JSON.parse(await readFile(output, "utf8"))).toEqual(bundle);
+      }
+    }
+  },
+);
+
+cliTest(
   "reports a standalone Evidence record as the wrong input file kind",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-evidence-record-input-");

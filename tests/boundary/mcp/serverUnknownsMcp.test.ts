@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { createToolResultDelivery } from "../../../src/server/toolResult.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
@@ -571,10 +574,31 @@ it("returns exact committed unknown receipts when creation and update replies ov
         },
       },
     });
+    const recovery = parseMcpToolError(response).error.remediation.action;
+    expect(recovery).toContain("export_evidence_bundle");
+    expect(recovery).not.toContain("or page list_unknowns");
+    expect(recovery).toContain("may be too large");
     for (const id of unknown.mutation_evidence_ids)
       expect(session.evidenceById(id)).toBeDefined();
   };
   checkReceipt(created, first);
+  const singlePage = await client.callTool({
+    name: "list_unknowns",
+    arguments: { offset: 0, limit: 1 },
+  });
+  expect(singlePage.isError).toBe(true);
+  expect(parseMcpToolError(singlePage).error.remediation.action).toContain(
+    "export_evidence_bundle",
+  );
+  const directory = await createTestTempDirectory("rea-unknown-overflow-");
+  const path = join(directory, "bundle.json");
+  const exported = await client.callTool({
+    name: "export_evidence_bundle",
+    arguments: { path },
+  });
+  expect(exported.isError).not.toBe(true);
+  const bundle = parseEvidenceBundle(JSON.parse(await readFile(path, "utf8")));
+  expect(bundle.unknowns[0]?.question).toBe("x".repeat(10_000));
   const updated = await client.callTool({
     name: "update_unknown",
     arguments: {
@@ -708,4 +732,50 @@ it("preserves graph constraint facts and rejects atomically until input is corre
     code: "revision_conflict",
     retryable: true,
   });
+});
+
+it("recovers an oversized list with same-session paging or export", async () => {
+  const session = createTestBinarySession(providerWithCapabilities([]));
+  const server = createServer(
+    { kind: "session", session },
+    { delivery: createToolResultDelivery(8 * 1024) },
+  );
+  const client = new Client({ name: "unknown-list-recovery", version: "1" });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  resources.push(client, server);
+  await server.connect(st);
+  await client.connect(ct);
+  const fields = {
+    severity: "medium",
+    domain: "overflow-list",
+    required_authority: null,
+    required_confidence: "observed",
+    required_environment: null,
+    recommended_probes: [],
+    relationships: [],
+  };
+  for (let i = 0; i < 3; i += 1) {
+    const result = await client.callTool({
+      name: "record_unknown",
+      arguments: { ...fields, question: `${i}-${"q".repeat(1800)}` },
+    });
+    expect(result.isError).not.toBe(true);
+  }
+  const overflow = parseMcpToolError(
+    await client.callTool({
+      name: "list_unknowns",
+      arguments: { domain: "overflow-list" },
+    }),
+  ).error;
+  expect(overflow.code).toBe("resource_constraint");
+  expect(overflow.remediation.action).toContain("same connection");
+  expect(overflow.remediation.action).toContain("smaller limit");
+  expect(overflow.remediation.action).toContain("export_evidence_bundle");
+  expect(overflow.remediation.action).not.toContain("CLI JSON");
+  const first = await client.callTool({
+    name: "list_unknowns",
+    arguments: { domain: "overflow-list", offset: 0, limit: 1 },
+  });
+  expect(first.isError).not.toBe(true);
+  expect(session.exportEvidenceBundle().unknowns).toHaveLength(3);
 });

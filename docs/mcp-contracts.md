@@ -342,8 +342,11 @@ When `record_unknown` or `update_unknown` commits but its complete reply exceeds
 the response budget, `details.reported_limits.committed_unknown` identifies the
 exact unknown ID, committed revision and mutation Evidence IDs. Its retained
 Evidence reference remains available on the same connection. Export the bundle
-or page `list_unknowns` to recover the result; do not repeat the committed
-mutation. A delivery failure does not undo that revision.
+to recover the result; do not repeat the committed mutation. A single unknown
+may be too large for a `list_unknowns` page. A delivery failure does not undo
+that revision. If a list response overflows, retry on the same connection with
+the same filters and offset and a smaller limit; export if one head still cannot
+fit.
 
 For a portable exported bundle, the CLI shares this projection:
 `rea inspect-evidence-bundle '{"path":"/tmp/evidence.json","detail":"summary","filters":{"operation":"analyze_function"}}' --format json`.

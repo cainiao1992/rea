@@ -4,8 +4,12 @@ import type { Writable } from "node:stream";
 import { Filter } from "incur";
 import { estimateTokenCount } from "tokenx";
 
-import type { ParsedCliOutputArguments } from "../cliOutput.js";
 import { analysisErrorProjectionSchema } from "../contracts/errorSchemas.js";
+import type { ParsedCliOutputArguments } from "../cliOutput.js";
+import {
+  normalizeCliArguments,
+  splitIncurBuiltinArguments,
+} from "../cliBuiltinArguments.js";
 import {
   cliOperationFailureIdentity,
   cliOperationFailurePayload,
@@ -56,6 +60,8 @@ export interface CliResultOutput {
   readonly error: AnalysisErrorProjection | undefined;
   /** Start another completed invocation on a reusable command registry. */
   begin(options: ParsedCliOutputArguments): void;
+  /** Preserve caller output controls while adapting SDK builtin flags. */
+  sdkArguments(args: readonly string[]): string[];
   /** SDK generators retain their own streaming event protocol. */
   delegateStreaming(): void;
   /** Retain one-shot SDK output until the SDK supplies its authoritative status. */
@@ -74,6 +80,9 @@ export const streamCliCommandResults = (
   visitRegisteredCommands(cli, (command, path, inheritedPolicy) =>
     wrapCommand(command, path, output, inheritedPolicy),
   );
+  const serve = cli.serve.bind(cli);
+  cli.serve = (args = process.argv.slice(2), serveOptions) =>
+    serve(output.sdkArguments(args), serveOptions);
 };
 
 const wrapCommand = (
@@ -247,6 +256,22 @@ export const createCliResultOutput = (
       sdkParts.length = 0;
       sdkCompletion = undefined;
     },
+    sdkArguments(args) {
+      const normalized = normalizeCliArguments(args);
+      // The caller's parsed controls remain authoritative: the CLI may adapt
+      // CSV/TSV to JSON for Incur without changing the requested presentation.
+      if (format !== "jsonl" || !options.tokenCount) return normalized;
+      // Incur counts errors before REA can retain their diagnostic payload.
+      // Preserve operands using the shared builtin consumption rules.
+      const values = new Set(
+        splitIncurBuiltinArguments(normalized).outputValues.map(
+          ({ index }) => index,
+        ),
+      );
+      return normalized.filter(
+        (token, index) => token !== "--token-count" || values.has(index),
+      );
+    },
     delegateStreaming() {
       streaming = true;
     },
@@ -269,7 +294,14 @@ export const createCliResultOutput = (
             return;
           }
           if (exitCode === 0) {
-            for (const part of parts) await writeOutputText(destination, part);
+            if (options.tokenCount)
+              await writeOutputText(
+                destination,
+                `${estimateTokenCount(parts.join(""))}\n`,
+              );
+            else
+              for (const part of parts)
+                await writeOutputText(destination, part);
           } else {
             const text = parts.join("");
             let result: unknown = text;

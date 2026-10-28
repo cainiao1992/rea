@@ -827,7 +827,6 @@ const webMcpDimension = (
   before: WebMcpDiscovery | null,
   after: WebMcpDiscovery | null,
 ): Dimension => {
-  type Tool = WebMcpDiscovery["tools"]["items"][number];
   const groups = (discovery: WebMcpDiscovery | null) => {
     const result = new Map<string, Tool[]>();
     for (const tool of discovery?.tools.items ?? []) {
@@ -875,41 +874,21 @@ const webMcpDimension = (
       }
       continue;
     }
-    const beforeTool = beforeTools[0];
-    const afterTool = afterTools[0];
-    const consequentialKnown =
-      beforeTool?.annotations.consequential !== undefined &&
-      afterTool?.annotations.consequential !== undefined;
-    if (
-      beforeTool !== undefined &&
-      afterTool !== undefined &&
-      !consequentialKnown
-    )
-      valuesComplete = false;
-    const project = (tool: Tool) => {
-      const {
-        tool_key: _key,
-        frame_id: _frameId,
-        annotations,
-        ...content
-      } = tool;
-      const { consequential, ...otherAnnotations } = annotations;
-      return digestCanonicalValue({
-        ...content,
-        annotations: {
-          ...otherAnnotations,
-          ...(consequentialKnown ? { consequential } : {}),
-        },
-      });
-    };
-    if (beforeTool !== undefined) left.set(identity, project(beforeTool));
-    if (afterTool !== undefined) right.set(identity, project(afterTool));
+    const projection = projectWebMcpTools(
+      beforeTools[0],
+      afterTools[0],
+      beforeComplete,
+      afterComplete,
+    );
+    if (!projection.complete) valuesComplete = false;
+    if (projection.before !== undefined) left.set(identity, projection.before);
+    if (projection.after !== undefined) right.set(identity, projection.after);
   }
   return compareDimension(
     left,
     right,
     inventoryComplete && valuesComplete,
-    "WebMCP discovery, owner correspondence, or consequential annotation evidence was unavailable or incomplete in at least one capture.",
+    "WebMCP discovery, owner correspondence, or declaration evidence was unavailable or incomplete in at least one capture.",
     (identity) =>
       !previous.has(identity)
         ? beforeComplete
@@ -917,6 +896,118 @@ const webMcpDimension = (
           ? afterComplete
           : inventoryComplete,
   );
+};
+
+type Tool = WebMcpDiscovery["tools"]["items"][number];
+
+/** Compare only declaration facts retained by both captures. */
+const projectWebMcpTools = (
+  beforeTool: Tool | undefined,
+  afterTool: Tool | undefined,
+  beforeComplete: boolean,
+  afterComplete: boolean,
+): {
+  before: string | undefined;
+  after: string | undefined;
+  complete: boolean;
+} => {
+  let valuesComplete = true;
+  const inventoryComplete = beforeComplete && afterComplete;
+  const paired = beforeTool !== undefined && afterTool !== undefined;
+  const consequentialKnown =
+    beforeTool?.annotations.consequential !== undefined &&
+    afterTool?.annotations.consequential !== undefined;
+  if (
+    beforeTool !== undefined &&
+    afterTool !== undefined &&
+    !consequentialKnown
+  )
+    valuesComplete = false;
+  // A missing stack or malformed coordinate is not a different source.
+  // Compare only jointly observed components, but retain unknown coverage.
+  const beforeSource = beforeTool?.registration_source;
+  const afterSource = afterTool?.registration_source;
+  const sourcePresent = beforeSource != null && afterSource != null;
+  const bothAbsent =
+    beforeSource === null && afterSource === null && inventoryComplete;
+  const sourceKnown = sourcePresent || bothAbsent;
+  const lineKnown =
+    sourcePresent && beforeSource.line !== null && afterSource.line !== null;
+  const columnKnown =
+    sourcePresent &&
+    beforeSource.column !== null &&
+    afterSource.column !== null;
+  if (
+    paired &&
+    (!sourceKnown || (sourcePresent && (!lineKnown || !columnKnown)))
+  )
+    valuesComplete = false;
+  const schemaKnown =
+    !paired ||
+    ((beforeComplete || beforeTool.input_schema_sha256 !== null) &&
+      (afterComplete || afterTool.input_schema_sha256 !== null));
+  const annotationKeys = [
+    "read_only",
+    "untrusted_content",
+    "autosubmit",
+  ] as const;
+  const knownAnnotations = new Set(
+    annotationKeys.filter(
+      (key) =>
+        !paired ||
+        ((beforeComplete || beforeTool.annotations[key] !== null) &&
+          (afterComplete || afterTool.annotations[key] !== null)),
+    ),
+  );
+  if (
+    paired &&
+    (!schemaKnown || knownAnnotations.size !== annotationKeys.length)
+  )
+    valuesComplete = false;
+  const project = (tool: Tool) => {
+    const {
+      tool_key: _key,
+      frame_id: _frameId,
+      annotations,
+      registration_source: source,
+      input_schema: schema,
+      input_schema_sha256: schemaDigest,
+      ...content
+    } = tool;
+    return digestCanonicalValue({
+      ...content,
+      ...(schemaKnown
+        ? { input_schema: schema, input_schema_sha256: schemaDigest }
+        : {}),
+      ...(sourceKnown
+        ? {
+            registration_source:
+              source === null
+                ? null
+                : {
+                    url: source.url,
+                    ...(lineKnown ? { line: source.line } : {}),
+                    ...(columnKnown ? { column: source.column } : {}),
+                  },
+          }
+        : {}),
+      annotations: {
+        ...Object.fromEntries(
+          annotationKeys
+            .filter((key) => knownAnnotations.has(key))
+            .map((key) => [key, annotations[key]]),
+        ),
+        ...(consequentialKnown
+          ? { consequential: annotations.consequential }
+          : {}),
+      },
+    });
+  };
+  return {
+    before: beforeTool === undefined ? undefined : project(beforeTool),
+    after: afterTool === undefined ? undefined : project(afterTool),
+    complete: valuesComplete,
+  };
 };
 
 const webMcpComplete = (discovery: WebMcpDiscovery | null): boolean =>

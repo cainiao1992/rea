@@ -1,3 +1,4 @@
+import { InvalidResidualUnknownGraphError } from "../../domain/residualUnknownGraphError.js";
 import canonicalize from "canonicalize";
 import { z } from "zod";
 
@@ -5,7 +6,6 @@ import {
   createEvidenceBundle,
   createImmutableEvidenceBundle,
   safeParseImmutableEvidenceBundle,
-  InvalidResidualUnknownGraphError,
   validateResidualUnknownAddition,
   type EvidenceBundle,
 } from "../../domain/evidenceBundle.js";
@@ -440,7 +440,7 @@ export class EvidenceLedger {
         );
       } catch (cause: unknown) {
         if (!(cause instanceof InvalidResidualUnknownGraphError)) throw cause;
-        return err(new UnknownRegistryError("integrity", { cause }));
+        return err(new UnknownRegistryError(cause.constraint, { cause }));
       }
     for (const [id, evidence] of additions) this.#records.set(id, evidence);
     if (unknown !== undefined && unknownKey !== undefined) {
@@ -468,7 +468,14 @@ export class EvidenceLedger {
         !(cause instanceof InvalidResidualUnknownGraphError)
       )
         throw cause;
-      return err(new UnknownRegistryError("integrity", { cause }));
+      return err(
+        new UnknownRegistryError(
+          cause instanceof InvalidResidualUnknownGraphError
+            ? cause.constraint
+            : "integrity",
+          { cause },
+        ),
+      );
     }
   }
 

@@ -1,3 +1,4 @@
+import { InvalidResidualUnknownGraphError } from "./residualUnknownGraphError.js";
 import { withEvidenceSubjectDeclaration } from "./evidenceSubject.js";
 import { digestSchema } from "./digests.js";
 import { EvidenceIntegrityError } from "./evidenceErrors.js";
@@ -66,14 +67,6 @@ export class DuplicateEvidenceRecordError extends TypeError {
   constructor() {
     super("Evidence bundle contains duplicate record IDs");
     this.name = "DuplicateEvidenceRecordError";
-  }
-}
-
-/** Caller input violates a residual-unknown reference or history constraint. */
-export class InvalidResidualUnknownGraphError extends TypeError {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidResidualUnknownGraphError";
   }
 }
 
@@ -398,17 +391,19 @@ const validateUnknownGraph = (
     );
     for (const [index, revision] of history.entries()) {
       if (revision.revision !== index + 1)
-        throw new InvalidResidualUnknownGraphError(
-          `Residual unknown ${id} revision history has a gap`,
-        );
+        throw new InvalidResidualUnknownGraphError({
+          kind: "history_gap",
+          unknown_id: id,
+        });
       if (
         index > 0 &&
         revision.previous_revision_digest !==
           history[index - 1]?.revision_digest
       )
-        throw new InvalidResidualUnknownGraphError(
-          `Residual unknown ${id} revision chain is broken`,
-        );
+        throw new InvalidResidualUnknownGraphError({
+          kind: "revision_chain",
+          unknown_id: id,
+        });
     }
     const head = history.at(-1);
     if (head === undefined)
@@ -424,14 +419,18 @@ const validateUnknownGraph = (
     ];
     for (const evidenceId of referencedEvidence)
       if (!evidenceById.has(evidenceId))
-        throw new InvalidResidualUnknownGraphError(
-          `Residual unknown references missing evidence ${evidenceId}`,
-        );
+        throw new InvalidResidualUnknownGraphError({
+          kind: "missing_evidence",
+          unknown_id: unknown.unknown_id,
+          evidence_id: evidenceId,
+        });
     for (const relationship of unknown.relationships)
       if (!unknownById.has(relationship.unknown_id))
-        throw new InvalidResidualUnknownGraphError(
-          `Residual unknown references missing unknown ${relationship.unknown_id}`,
-        );
+        throw new InvalidResidualUnknownGraphError({
+          kind: "missing_unknown",
+          unknown_id: unknown.unknown_id,
+          related_unknown_id: relationship.unknown_id,
+        });
     if (unknown.resolution?.disposition === "verified")
       validateVerifiedResolution(unknown, evidenceById);
   }
@@ -443,9 +442,10 @@ const validateVerifiedResolution = (
   evidenceById: Pick<ReadonlyMap<string, Evidence>, "get">,
 ): void => {
   if (unknown.contradicting_evidence_ids.length > 0)
-    throw new InvalidResidualUnknownGraphError(
-      `Residual unknown ${unknown.unknown_id} retains contradicting evidence`,
-    );
+    throw new InvalidResidualUnknownGraphError({
+      kind: "contradicting_evidence",
+      unknown_id: unknown.unknown_id,
+    });
   const qualifies = unknown.resolution?.evidence_ids.some((evidenceId) => {
     const evidence = evidenceById.get(evidenceId);
     return (
@@ -456,9 +456,10 @@ const validateVerifiedResolution = (
     );
   });
   if (qualifies !== true)
-    throw new InvalidResidualUnknownGraphError(
-      `Residual unknown ${unknown.unknown_id} has no qualifying resolution evidence`,
-    );
+    throw new InvalidResidualUnknownGraphError({
+      kind: "resolution_unproven",
+      unknown_id: unknown.unknown_id,
+    });
 };
 
 /**
@@ -478,22 +479,27 @@ export const validateResidualUnknownAddition = (
       : unknown.revision !== current.revision + 1 ||
         unknown.previous_revision_digest !== current.revision_digest
   )
-    throw new InvalidResidualUnknownGraphError(
-      `Residual unknown ${unknown.unknown_id} revision chain is broken`,
-    );
+    throw new InvalidResidualUnknownGraphError({
+      kind: "revision_chain",
+      unknown_id: unknown.unknown_id,
+    });
   for (const evidenceId of referencedEvidenceIds(unknown))
     if (!evidenceById.has(evidenceId))
-      throw new InvalidResidualUnknownGraphError(
-        `Residual unknown references missing evidence ${evidenceId}`,
-      );
+      throw new InvalidResidualUnknownGraphError({
+        kind: "missing_evidence",
+        unknown_id: unknown.unknown_id,
+        evidence_id: evidenceId,
+      });
   for (const relationship of unknown.relationships)
     if (
       relationship.unknown_id !== unknown.unknown_id &&
       !currentHeads.has(relationship.unknown_id)
     )
-      throw new InvalidResidualUnknownGraphError(
-        `Residual unknown references missing unknown ${relationship.unknown_id}`,
-      );
+      throw new InvalidResidualUnknownGraphError({
+        kind: "missing_unknown",
+        unknown_id: unknown.unknown_id,
+        related_unknown_id: relationship.unknown_id,
+      });
   if (unknown.resolution?.disposition === "verified")
     validateVerifiedResolution(unknown, evidenceById);
   // In a valid graph, no existing node can point to an absent ID. Since the
@@ -507,9 +513,10 @@ export const validateResidualUnknownAddition = (
       dependencies.length > 0 &&
       reachesUnknown(dependencies, unknown.unknown_id, currentHeads, unknown)
     )
-      throw new InvalidResidualUnknownGraphError(
-        "Residual unknown dependency graph contains a cycle",
-      );
+      throw new InvalidResidualUnknownGraphError({
+        kind: "dependency_cycle",
+        unknown_id: unknown.unknown_id,
+      });
   }
 };
 
@@ -597,9 +604,10 @@ const rejectDependencyCycles = (
         if (relationship?.type !== "depends-on") continue;
         const dependency = relationship.unknown_id;
         if (active.has(dependency))
-          throw new InvalidResidualUnknownGraphError(
-            "Residual unknown dependency graph contains a cycle",
-          );
+          throw new InvalidResidualUnknownGraphError({
+            kind: "dependency_cycle",
+            unknown_id: dependency,
+          });
         if (visited.has(dependency)) continue;
         const unknown = unknownById.get(dependency);
         if (unknown === undefined)

@@ -301,6 +301,15 @@ unknown metadata. Missing omission counts remain null. Summary output carries
 every matching record; actual transport admission still applies. Omitted
 `detail` preserves complete canonical bundle delivery; filters require summary.
 
+Residual-unknown mutations reject missing Evidence or unknown references and
+unproven verified resolutions with nonretryable `invalid_request` diagnostics.
+`details.constraint` carries the validator's `kind`, owning `unknown_id`, and
+missing `evidence_id` or `related_unknown_id` where applicable. Correct the
+reported input or supply the required retained Evidence; unchanged retries do
+not repair these constraints. Rejected mutations leave retained state unchanged.
+Revision conflicts remain retryable `revision_conflict`; broken revision histories
+remain `evidence_integrity_mismatch`.
+
 `list_unknowns` returns every matching current head by default. For a smaller
 inline response, supply `offset` and `limit`, then follow `next_offset` until it
 is null. `total` counts all matching heads; each page preserves complete records

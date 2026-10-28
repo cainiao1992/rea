@@ -60,7 +60,7 @@ Du hast in einer App eine Funktion entdeckt, die du in dein eigenes Produkt übe
 
 REA verbindet deinen Agenten mit Werkzeugen zum Untersuchen nativer Binärdateien, von JavaScript- und Electron-Apps, .NET-Assemblies und Websites. Dieselben Werkzeuge kannst du auch im Terminal nutzen. Die Analyse läuft lokal; die Ergebnisse enthalten die Belege und Einschränkungen hinter jeder Schlussfolgerung.
 
-Die Einrichtung registriert REA bei deinem Agenten und installiert passende Workflow-Anweisungen. Native Analysen nutzen eine vorhandene Installation von Hopper, Ghidra oder IDA; nach Zustimmung kann die Einrichtung Hopper installieren. Statische JavaScript-Analysen benötigen keine native Analyse-Engine.
+Die Einrichtung registriert REA bei deinem Agenten und installiert passende Workflow-Anweisungen. Native Analysen nutzen eine vorhandene Installation von Hopper, Ghidra, IDA oder Kuna; nach Zustimmung kann die Einrichtung Hopper installieren. Statische JavaScript-Analysen benötigen keine native Analyse-Engine.
 
 > **[Besuche die REA-Website](https://rea.tools/de/)** für Einrichtungshinweise, bebilderte Anleitungen und echte Fallstudien.
 
@@ -151,7 +151,7 @@ REA benötigt Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) oder 26+ (>=26.12.1) so
 
 | Ziel                                | Was REA zurückgibt                                                                                              | Voraussetzungen und Anleitung                                                                                                                                        |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native Binärdateien                 | Pseudocode, Assemblercode, Zeichenketten, Symbole, Aufrufe und Verweise                                         | Hopper, Ghidra oder IDA; [native Analyse](../native-investigation.md)                                                                                                |
+| Native Binärdateien                 | Pseudocode, Assemblercode, Zeichenketten, Symbole, Aufrufe und Verweise                                         | Hopper, Ghidra, IDA oder Kuna; [native Analyse](../native-investigation.md)                                                                                          |
 | Offline-ELF-Struktur                | Sektionen, Segmente, ursprüngliche Symbole/Relokationen und mögliche Schutzmaßnahmen aus statischer Analyse     | Vom Aufrufer bereitgestelltes pwntools unter Linux x64; [Binärdiagnostik](../binary-diagnostics.md)                                                                  |
 | PE certificates                     | Authenticode WIN_CERTIFICATE entries and PKCS#7 signer/X.509 identity fields                                    | Built-in static PE inspection; [PE certificates](../pe-certificates.md)                                                                                              |
 | PE imports                          | Import and delay-load DLL names, ordinals, IAT RVAs and pefile import hash                                      | Built-in static PE inspection; [PE imports](../pe-imports.md)                                                                                                        |
@@ -278,9 +278,9 @@ Jeder Agent, der lokale MCP-Server unterstützt. Die Einrichtung konfiguriert di
 </details>
 
 <details>
-<summary><strong>Brauche ich Hopper, Ghidra oder IDA?</strong></summary>
+<summary><strong>Brauche ich Hopper, Ghidra, IDA oder Kuna?</strong></summary>
 
-Für tiefgehende native Analysen wird eines dieser Programme verwendet. Statische JavaScript- und .NET-Untersuchungen funktionieren ohne native Analyse-Engine. Die Einrichtung kann Hopper nach Zustimmung installieren; Ghidra und IDA nutzen deine vorhandenen Installationen. Siehe [Provider-Einrichtung](../installation.md#hopper).
+Für tiefgehende native Analysen wird eines dieser Programme verwendet. Statische JavaScript- und .NET-Untersuchungen funktionieren ohne native Analyse-Engine. Die Einrichtung kann Hopper nach Zustimmung installieren; Ghidra, IDA und Kuna nutzen deine vorhandenen Installationen. Siehe [Provider-Einrichtung](../installation.md#hopper).
 
 </details>
 

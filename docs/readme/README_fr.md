@@ -60,7 +60,7 @@ Vous avez repéré dans une application une fonctionnalité que vous aimeriez av
 
 REA connecte votre agent à des outils d'inspection de binaires natifs, d'applications JavaScript et Electron, d'assemblys .NET et de sites web. Les mêmes outils sont aussi disponibles depuis votre terminal. L'analyse s'exécute localement, et chaque conclusion s'accompagne des preuves et des limites sur lesquelles elle repose.
 
-Setup enregistre REA auprès de votre agent et installe les instructions de workflow correspondantes. L'analyse native peut utiliser une installation existante de Hopper, de Ghidra ou d'IDA ; Setup peut aussi installer Hopper après votre accord. L'analyse statique JavaScript ne nécessite aucun moteur d'analyse natif.
+Setup enregistre REA auprès de votre agent et installe les instructions de workflow correspondantes. L'analyse native peut utiliser une installation existante de Hopper, de Ghidra, d'IDA ou de Kuna ; Setup peut aussi installer Hopper après votre accord. L'analyse statique JavaScript ne nécessite aucun moteur d'analyse natif.
 
 > **[Visitez le site web de REA](https://rea.tools/fr/)** pour les instructions d'installation, des guides illustrés et des études de cas réelles.
 
@@ -150,7 +150,7 @@ REA nécessite Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) ou 26+ (>=26.12.1), ai
 
 | Cible                        | Ce que REA renvoie                                                                                          | Prérequis et guide                                                                                                                        |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Binaires natifs              | Pseudo-code, assembleur, chaînes, symboles, appels et références                                            | Hopper, Ghidra ou IDA ; [analyse native](../native-investigation.md)                                                                      |
+| Binaires natifs              | Pseudo-code, assembleur, chaînes, symboles, appels et références                                            | Hopper, Ghidra, IDA ou Kuna ; [analyse native](../native-investigation.md)                                                                |
 | Structure ELF hors ligne     | Sections, segments, symboles et relocations d'origine, et protections statiques candidates                  | pwntools fourni par l'utilisateur sous Linux x64 ; [diagnostics binaires](../binary-diagnostics.md)                                       |
 | PE certificates              | Authenticode WIN_CERTIFICATE entries and PKCS#7 signer/X.509 identity fields                                | Built-in static PE inspection; [PE certificates](../pe-certificates.md)                                                                   |
 | PE imports                   | Import and delay-load DLL names, ordinals, IAT RVAs and pefile import hash                                  | Built-in static PE inspection; [PE imports](../pe-imports.md)                                                                             |
@@ -275,9 +275,9 @@ Tout agent compatible avec les serveurs MCP locaux. Setup configure les [agents 
 </details>
 
 <details>
-<summary><strong>Ai-je besoin de Hopper, Ghidra ou IDA ?</strong></summary>
+<summary><strong>Ai-je besoin de Hopper, Ghidra, IDA ou Kuna ?</strong></summary>
 
-L'analyse native approfondie utilise l'un d'eux. L'inspection statique JavaScript et .NET fonctionne sans moteur d'analyse native. Setup peut installer Hopper après votre accord ; Ghidra et IDA utilisent vos installations existantes. Consultez [la configuration des fournisseurs](../installation.md#hopper).
+L'analyse native approfondie utilise l'un d'eux. L'inspection statique JavaScript et .NET fonctionne sans moteur d'analyse native. Setup peut installer Hopper après votre accord ; Ghidra, IDA et Kuna utilisent vos installations existantes. Consultez [la configuration des fournisseurs](../installation.md#hopper).
 
 </details>
 

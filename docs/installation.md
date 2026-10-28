@@ -381,7 +381,7 @@ Select the part you want to check:
 | Task                                | Readiness check                                                          |
 | ----------------------------------- | ------------------------------------------------------------------------ |
 | Static JavaScript/Electron analysis | Run `rea analyze-javascript-application PATH --json` directly.           |
-| One analysis engine                 | `rea doctor --provider ghidra --json` (or `hopper`, `ida`)               |
+| One analysis engine                 | `rea doctor --provider ghidra --json` (or `hopper`, `ida`, `kuna`)       |
 | One agent registration              | `rea doctor --client codex --json` (see [client IDs](#supported-agents)) |
 | Installed workflow instructions     | `rea doctor --skill --json`                                              |
 

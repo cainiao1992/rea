@@ -60,7 +60,7 @@ Melihat fitur dalam suatu aplikasi yang ingin Anda hadirkan di produk sendiri? M
 
 REA menghubungkan agen Anda dengan berbagai alat untuk memeriksa biner native, aplikasi JavaScript dan Electron, assembly .NET, serta situs web. Anda juga dapat menggunakan alat yang sama dari terminal. Analisis dijalankan secara lokal, dan hasilnya mencakup bukti serta keterbatasan yang mendasari setiap kesimpulan.
 
-Proses penyiapan mendaftarkan REA ke agen Anda dan memasang instruksi alur kerja yang sesuai. Analisis native dapat menggunakan instalasi Hopper, Ghidra, atau IDA yang sudah ada. Proses penyiapan juga dapat memasang Hopper secara opsional setelah mendapatkan persetujuan. Analisis JavaScript statis tidak memerlukan mesin analisis native.
+Proses penyiapan mendaftarkan REA ke agen Anda dan memasang instruksi alur kerja yang sesuai. Analisis native dapat menggunakan instalasi Hopper, Ghidra, IDA, atau Kuna yang sudah ada. Proses penyiapan juga dapat memasang Hopper secara opsional setelah mendapatkan persetujuan. Analisis JavaScript statis tidak memerlukan mesin analisis native.
 
 > **[Kunjungi situs web REA](https://rea.tools/id/)** untuk mendapatkan petunjuk penyiapan, panduan bergambar, dan studi kasus nyata.
 
@@ -153,7 +153,7 @@ Alat tambahan dan dukungan sistem host bergantung pada target yang dianalisis:
 
 | Target                     | Hasil yang diberikan REA                                                                              | Persyaratan dan panduan                                                                                                        |
 | -------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Biner native               | Pseudocode, assembly, string, simbol, pemanggilan, dan referensi                                      | Hopper, Ghidra, atau IDA; [analisis native](../native-investigation.md)                                                        |
+| Biner native               | Pseudocode, assembly, string, simbol, pemanggilan, dan referensi                                      | Hopper, Ghidra, IDA, atau Kuna; [analisis native](../native-investigation.md)                                                  |
 | Tata letak ELF offline     | Bagian, segmen, simbol/relokasi asli, dan kandidat mitigasi statis                                    | pwntools yang disediakan pemanggil pada Linux x64; [diagnostik biner](../binary-diagnostics.md)                                |
 | PE certificates            | Authenticode WIN_CERTIFICATE entries and PKCS#7 signer/X.509 identity fields                          | Built-in static PE inspection; [PE certificates](../pe-certificates.md)                                                        |
 | PE imports                 | Import and delay-load DLL names, ordinals, IAT RVAs and pefile import hash                            | Built-in static PE inspection; [PE imports](../pe-imports.md)                                                                  |
@@ -286,11 +286,11 @@ Agen apa pun yang mendukung server MCP lokal dapat menggunakan REA. Proses penyi
 </details>
 
 <details>
-<summary><strong>Apakah saya memerlukan Hopper, Ghidra, atau IDA?</strong></summary>
+<summary><strong>Apakah saya memerlukan Hopper, Ghidra, IDA, atau Kuna?</strong></summary>
 
-Analisis native mendalam menggunakan salah satu dari ketiganya. Pemeriksaan JavaScript dan .NET statis dapat dilakukan tanpa mesin analisis native.
+Analisis native mendalam menggunakan salah satu dari keempatnya. Pemeriksaan JavaScript dan .NET statis dapat dilakukan tanpa mesin analisis native.
 
-Proses penyiapan dapat memasang Hopper setelah memperoleh persetujuan. Ghidra dan IDA menggunakan instalasi yang sudah tersedia. Lihat [penyiapan penyedia](../installation.md#hopper).
+Proses penyiapan dapat memasang Hopper setelah memperoleh persetujuan. Ghidra, IDA, dan Kuna menggunakan instalasi yang sudah tersedia. Lihat [penyiapan penyedia](../installation.md#hopper).
 
 </details>
 

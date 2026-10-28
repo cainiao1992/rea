@@ -30,6 +30,8 @@ import {
   DEFAULT_REVERSE_COMMAND_TIMEOUT_MS,
   MAX_REVERSE_COMMAND_TIMEOUT_MS,
   objdumpInputSchema,
+  radare2InputSchema,
+  radiff2InputSchema,
   rizinInputSchema,
   type RizinInput,
 } from "../../domain/reverseEngineering.js";
@@ -51,7 +53,38 @@ import { parseAnalysisInput } from "../AnalysisInput.js";
 
 export type ReverseEngineeringOperation =
   | "inspect_with_objdump"
-  | "execute_rizin_command";
+  | "execute_rizin_command"
+  | "execute_radare2_command"
+  | "compare_with_radiff2";
+
+/** Launch-failure identity and remediation for each caller-selected command. */
+const COMMAND_PROVIDER_LAUNCH: Readonly<
+  Record<
+    ReverseEngineeringOperation,
+    { providerId: string; setting: string; product: string }
+  >
+> = {
+  inspect_with_objdump: {
+    providerId: "objdump",
+    setting: "REA_OBJDUMP_COMMAND",
+    product: "GNU objdump",
+  },
+  execute_rizin_command: {
+    providerId: "rizin",
+    setting: "REA_RIZIN_COMMAND",
+    product: "Rizin",
+  },
+  execute_radare2_command: {
+    providerId: "radare2",
+    setting: "REA_R2_COMMAND",
+    product: "radare2",
+  },
+  compare_with_radiff2: {
+    providerId: "radiff2",
+    setting: "REA_RADIFF2_COMMAND",
+    product: "radiff2",
+  },
+};
 
 const MAX_COMBINED_OUTPUT_BYTES = 16 * 1024 * 1024;
 // Eight concurrent captures bound retained provider output to 128 MiB.
@@ -276,6 +309,48 @@ export class ReverseEngineeringService {
       command,
       input.path,
       commandTimeoutMs === undefined ? input : request,
+      options.signal,
+      commandTimeoutMs ?? DEFAULT_REVERSE_COMMAND_TIMEOUT_MS,
+    );
+  }
+
+  executeRadare2Command(
+    rawInput: unknown,
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<Result<Evidence, AnalysisError>> {
+    const parsed = radare2InputSchema.safeParse(rawInput);
+    if (!parsed.success)
+      return Promise.resolve(
+        err(new AnalysisInputError("execute_radare2_command")),
+      );
+    const { command_timeout_ms: commandTimeoutMs, ...input } = parsed.data;
+    const command = this.#commands.radare2(input);
+    return this.#observe(
+      "execute_radare2_command",
+      command,
+      input.path,
+      commandTimeoutMs === undefined ? input : parsed.data,
+      options.signal,
+      commandTimeoutMs ?? DEFAULT_REVERSE_COMMAND_TIMEOUT_MS,
+    );
+  }
+
+  compareWithRadiff2(
+    rawInput: unknown,
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<Result<Evidence, AnalysisError>> {
+    const parsed = radiff2InputSchema.safeParse(rawInput);
+    if (!parsed.success)
+      return Promise.resolve(
+        err(new AnalysisInputError("compare_with_radiff2")),
+      );
+    const { command_timeout_ms: commandTimeoutMs, ...input } = parsed.data;
+    const command = this.#commands.radiff2(input);
+    return this.#observe(
+      "compare_with_radiff2",
+      command,
+      input.path_a,
+      commandTimeoutMs === undefined ? input : parsed.data,
       options.signal,
       commandTimeoutMs ?? DEFAULT_REVERSE_COMMAND_TIMEOUT_MS,
     );
@@ -542,20 +617,16 @@ export class ReverseEngineeringService {
             ...reverseCommandTimeoutGuidance(timeoutMs),
           });
         else {
-          const provider =
-            operation === "inspect_with_objdump" ? "objdump" : "rizin";
-          const setting =
-            provider === "objdump"
-              ? "REA_OBJDUMP_COMMAND"
-              : "REA_RIZIN_COMMAND";
+          const { providerId, setting, product } =
+            COMMAND_PROVIDER_LAUNCH[operation];
           earlyFailure = new AnalysisCapabilityUnavailableError(
-            provider,
+            providerId,
             operation,
             `Unable to run configured command (${String(code ?? "unknown error")})`,
             {
               cause,
-              userMessage: `Could not launch the selected ${provider} executable ${JSON.stringify(command)} (${String(code ?? "unknown error")}).`,
-              remediationAction: `Set ${setting} to an installed executable ${provider === "objdump" ? "GNU objdump" : "Rizin"} command, or make that command available on PATH. Check execute permission on the command and search permission on its parent directories before retrying.`,
+              userMessage: `Could not launch the selected ${providerId} executable ${JSON.stringify(command)} (${String(code ?? "unknown error")}).`,
+              remediationAction: `Set ${setting} to an installed executable ${product} command, or make that command available on PATH. Check execute permission on the command and search permission on its parent directories before retrying.`,
               diagnostics: {
                 boundary: "provider-launch",
                 command,
@@ -730,6 +801,11 @@ export class ReverseEngineeringService {
       ...(operation === "execute_rizin_command"
         ? [
             "Rizin commands and retained plugins may read files or access network resources outside the selected artifact; those external inputs are not bound to Evidence.",
+          ]
+        : []),
+      ...(operation === "execute_radare2_command"
+        ? [
+            "Radare2 commands and retained plugins may read files or access network resources outside the selected artifact; those external inputs are not bound to Evidence.",
           ]
         : []),
       ...(stdoutInvalidUtf8 || stderrInvalidUtf8

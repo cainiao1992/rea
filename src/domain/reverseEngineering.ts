@@ -7,7 +7,7 @@ export const DEFAULT_REVERSE_COMMAND_TIMEOUT_MS = 120_000;
 /** Node timer ceiling. Larger deadlines would be clamped instead of honored. */
 export const MAX_REVERSE_COMMAND_TIMEOUT_MS = 2_147_483_647;
 
-/** Per-call deadline for one-shot objdump and rizin commands. */
+/** Per-call deadline for one-shot objdump, rizin, and radare2 commands. */
 export const reverseCommandTimeoutSchema = z
   .number()
   .int()
@@ -87,8 +87,35 @@ export const rizinInputSchema = z
   })
   .strict();
 
+/** Caller-selected Radare2 command against one local artifact. */
+export const radare2InputSchema = z
+  .object({
+    path: z.string().min(1),
+    command: z
+      .string()
+      .min(1)
+      .refine(
+        (value) => !/[\r\n\u0000]/u.test(value),
+        "A single command line is required",
+      ),
+    ...commandTimeoutMsField,
+  })
+  .strict();
+
+/** Caller-selected radiff2 comparison of two local artifacts. */
+export const radiff2InputSchema = z
+  .object({
+    path_a: z.string().min(1),
+    path_b: z.string().min(1),
+    operation: z.enum(["functions", "bytes"]),
+    ...commandTimeoutMsField,
+  })
+  .strict();
+
 export type ObjdumpSelection =
   | z.input<typeof objdumpArtifactInputSchema>
   | z.input<typeof objdumpDisassemblyInputSchema>
   | z.input<typeof objdumpArchitecturesInputSchema>;
 export type RizinInput = z.output<typeof rizinInputSchema>;
+export type Radare2Input = z.output<typeof radare2InputSchema>;
+export type Radiff2Input = z.output<typeof radiff2InputSchema>;

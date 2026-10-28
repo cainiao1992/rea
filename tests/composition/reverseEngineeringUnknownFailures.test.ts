@@ -41,6 +41,16 @@ it.each([
           arguments: [path],
           identity: { id: "test.rizin", name: "Test Rizin", version: null },
         }),
+        radare2: () => ({
+          executable: "unused-radare2",
+          arguments: [path],
+          identity: { id: "test.radare2", name: "Test Radare2", version: null },
+        }),
+        radiff2: () => ({
+          executable: "unused-radiff2",
+          arguments: [path],
+          identity: { id: "test.radiff2", name: "Test radiff2", version: null },
+        }),
       },
     });
 

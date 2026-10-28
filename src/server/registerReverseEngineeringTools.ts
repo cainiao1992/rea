@@ -14,11 +14,13 @@ import { toolRegistrationOptions } from "./toolRegistrationOptions.js";
 import type { ToolResultDelivery } from "./ToolResultDelivery.js";
 import type { WithAdmittedAnalysis } from "./analysisAdmission.js";
 import { runAdmittedToolOperation } from "./admittedToolOperation.js";
+import { radare2InputSchema } from "../domain/reverseEngineering.js";
+import type { Evidence } from "../domain/evidence.js";
 import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
 import type { AnalysisError } from "../domain/analysisErrorBase.js";
 import type { Result } from "../domain/result.js";
 
-/** Register objdump and Rizin operations against their exact named contracts. */
+/** Register objdump, Rizin, Radare2 and Radiff2 operations against their exact named contracts. */
 export const registerReverseEngineeringTools = (
   server: McpServer,
   service: ReverseEngineeringService,
@@ -35,11 +37,14 @@ export const registerReverseEngineeringTools = (
       value: Result<Value, AnalysisError>,
       error: AnalysisError,
     ) => AnalysisError,
+    operationName: string,
   ) => Promise<Result<Result<Value, AnalysisError>, AnalysisError>>,
   evidenceById?: EvidenceLookup,
 ): void => {
   const objdump = toolContract("inspect_with_objdump");
   const rizin = toolContract("execute_rizin_command");
+  const radare2 = toolContract("execute_radare2_command");
+  const radiff2 = toolContract("compare_with_radiff2");
   server.registerTool(
     objdump.name,
     toolRegistrationOptions(objdump),
@@ -97,29 +102,14 @@ export const registerReverseEngineeringTools = (
               }),
             );
           },
-          (value, cause) => {
-            if (!value.ok)
-              return value.error.retainSecondaryFailure(cause, {
-                retirement_error: projectAnalysisError(cause),
-              });
-            const observation = value.value;
-            return new AnalysisOutputError(
+          (value, cause) =>
+            externalMutationRetirementFailure(
               rizin.name,
-              "Rizin may have changed the bound artifact, but the active analysis session could not be retired.",
-              {
-                cause,
-                ...(cause.cleanup === undefined
-                  ? {}
-                  : { cleanup: cause.cleanup }),
-                ...(cause.capturedOutput === undefined
-                  ? {}
-                  : { capturedOutput: cause.capturedOutput }),
-                ...(observation === undefined
-                  ? {}
-                  : { partialObservation: observation }),
-              },
-            );
-          },
+              "Rizin",
+              value,
+              cause,
+            ),
+          rizin.name,
         );
         if (!admitted.ok)
           return delivery.toPartialErrorToolResult(
@@ -170,4 +160,144 @@ export const registerReverseEngineeringTools = (
       );
     },
   );
+  server.registerTool(
+    radiff2.name,
+    toolRegistrationOptions(radiff2),
+    async (input, context: ServerContext) =>
+      runAdmittedToolOperation(
+        { delivery },
+        withAdmittedAnalysis,
+        radiff2.name,
+        context.mcpReq.signal,
+        async () => {
+          const result = await logToolExecution(logger, radiff2.name, () =>
+            service.compareWithRadiff2(input, {
+              signal: context.mcpReq.signal,
+            }),
+          );
+          if (!result.ok)
+            return delivery.toPartialErrorToolResult(
+              result.error,
+              radiff2.returnsTargetContent,
+              recordEvidence,
+            );
+          return delivery.toEvidenceToolResult(
+            result.value,
+            radiff2,
+            recordEvidence?.(result.value),
+          );
+        },
+      ),
+  );
+  server.registerTool(
+    radare2.name,
+    toolRegistrationOptions(radare2),
+    async (input, context: ServerContext) => {
+      const parsed = radare2InputSchema.safeParse(input);
+      if (parsed.success && withAdmittedExternalMutation !== undefined) {
+        const cleanup = await service.retryCleanup(radare2.name);
+        if (!cleanup.ok)
+          return delivery.toPartialErrorToolResult(
+            cleanup.error,
+            radare2.returnsTargetContent,
+            recordEvidence,
+          );
+        const admitted = await withAdmittedExternalMutation(
+          parsed.data.path,
+          context.mcpReq.signal,
+          async () => {
+            invalidateSnapshotForExternalMutation?.();
+            return logToolExecution(logger, radare2.name, () =>
+              service.executeRadare2Command(parsed.data, {
+                signal: context.mcpReq.signal,
+              }),
+            );
+          },
+          (value, cause) =>
+            externalMutationRetirementFailure(
+              radare2.name,
+              "Radare2",
+              value,
+              cause,
+            ),
+          radare2.name,
+        );
+        if (!admitted.ok)
+          return delivery.toPartialErrorToolResult(
+            admitted.error,
+            radare2.returnsTargetContent,
+            recordEvidence,
+          );
+        const result = admitted.value;
+        if (!result.ok)
+          return delivery.toPartialErrorToolResult(
+            result.error,
+            radare2.returnsTargetContent,
+            recordEvidence,
+          );
+        return delivery.toEvidenceToolResult(
+          result.value,
+          radare2,
+          recordEvidence?.(result.value),
+        );
+      }
+      return runAdmittedToolOperation(
+        { delivery },
+        withAdmittedAnalysis,
+        radare2.name,
+        context.mcpReq.signal,
+        async () => {
+          if (
+            invalidateSnapshotForExternalMutation !== undefined &&
+            radare2InputSchema.safeParse(input).success
+          )
+            invalidateSnapshotForExternalMutation();
+          const result = await logToolExecution(logger, radare2.name, () =>
+            service.executeRadare2Command(input, {
+              signal: context.mcpReq.signal,
+            }),
+          );
+          if (!result.ok)
+            return delivery.toPartialErrorToolResult(
+              result.error,
+              radare2.returnsTargetContent,
+              recordEvidence,
+            );
+          return delivery.toEvidenceToolResult(
+            result.value,
+            radare2,
+            recordEvidence?.(result.value),
+          );
+        },
+      );
+    },
+  );
 };
+
+/**
+ * Keep a retirement failure attached to one unrestricted external command:
+ * a collected observation becomes the failing result's partial Evidence, and
+ * an already-failed result retains the retirement error as a secondary cause.
+ */
+const externalMutationRetirementFailure = (
+  operationName: string,
+  providerName: string,
+  value: Result<Evidence, AnalysisError>,
+  cause: AnalysisError,
+): AnalysisError =>
+  value.ok
+    ? new AnalysisOutputError(
+        operationName,
+        `${providerName} may have changed the bound artifact, but the active analysis session could not be retired.`,
+        {
+          cause,
+          ...(cause.cleanup === undefined ? {} : { cleanup: cause.cleanup }),
+          ...(cause.capturedOutput === undefined
+            ? {}
+            : { capturedOutput: cause.capturedOutput }),
+          partialObservation: value.value,
+        },
+      )
+    : value.error.retainSecondaryFailure(cause, {
+        retirement_error: projectAnalysisError(cause),
+      });

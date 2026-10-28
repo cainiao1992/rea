@@ -6,17 +6,25 @@ import {
   OBJDUMP_PROVIDER_IDENTITY,
 } from "../objdump/ObjdumpCommand.js";
 import {
+  radare2Command,
+  RADARE2_PROVIDER_IDENTITY,
+} from "../radare2/Radare2Command.js";
+import {
+  radiff2Command,
+  RADIFF2_PROVIDER_IDENTITY,
+} from "../radare2/Radiff2Command.js";
+import {
   rizinCommand,
   RIZIN_PROVIDER_IDENTITY,
 } from "../rizin/RizinCommand.js";
-import { resolveWindowsProviderExecutable } from "./resolveWindowsProviderExecutable.js";
+import { resolveProviderExecutable } from "../process/resolveWindowsProviderExecutable.js";
 
 export const createReverseEngineeringCommandPort = (
   environment: Readonly<NodeJS.ProcessEnv>,
   platform: NodeJS.Platform = process.platform,
 ): ReverseEngineeringCommandPort => ({
   objdump: (input) => ({
-    executable: providerExecutable(
+    executable: resolveProviderExecutable(
       environment.REA_OBJDUMP_COMMAND ?? "objdump",
       environment,
       platform,
@@ -26,7 +34,7 @@ export const createReverseEngineeringCommandPort = (
     environmentOverrides: { DEBUGINFOD_URLS: "" },
   }),
   rizin: (input) => ({
-    executable: providerExecutable(
+    executable: resolveProviderExecutable(
       environment.REA_RIZIN_COMMAND ?? "rizin",
       environment,
       platform,
@@ -34,16 +42,25 @@ export const createReverseEngineeringCommandPort = (
     arguments: rizinCommand(input),
     identity: RIZIN_PROVIDER_IDENTITY,
   }),
+  radare2: (input) => ({
+    executable: resolveProviderExecutable(
+      environment.REA_R2_COMMAND ?? "radare2",
+      environment,
+      platform,
+    ),
+    arguments: radare2Command(input),
+    identity: RADARE2_PROVIDER_IDENTITY,
+  }),
+  radiff2: (input) => ({
+    executable: resolveProviderExecutable(
+      environment.REA_RADIFF2_COMMAND ?? "radiff2",
+      environment,
+      platform,
+    ),
+    arguments: radiff2Command(input),
+    identity: RADIFF2_PROVIDER_IDENTITY,
+  }),
 });
-
-const providerExecutable = (
-  executable: string,
-  environment: Readonly<NodeJS.ProcessEnv>,
-  platform: NodeJS.Platform,
-): string =>
-  platform === "win32"
-    ? resolveWindowsProviderExecutable(executable, environment)
-    : executable;
 
 /** Compose BYO reverse-engineering commands without acquiring tools at import time. */
 export const createReverseEngineeringService = (

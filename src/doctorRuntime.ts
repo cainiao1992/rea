@@ -6,6 +6,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { inspectJadxProvider } from "./android/JadxDoctor.js";
 import { inspectSystemGhidraProvider } from "./ghidra/GhidraDoctor.js";
+import { inspectRadare2Provider } from "./radare2/Radare2Doctor.js";
 import { inspectIdaRegistration } from "./ida/IdaDoctor.js";
 import { inspectKunaProvider } from "./kuna/KunaDoctor.js";
 import { readIdaConfiguration } from "./ida/IdaConfiguration.js";
@@ -96,6 +97,7 @@ export const createSystemDoctorHost = (
         resourceScope,
         signal: inspectionSignal,
       }),
+      await inspectRadare2Provider(environment, { signal: inspectionSignal }),
     ],
     linuxDemoRuntimeCheck: (resourceScope, inspectionSignal) =>
       inspectLinuxHopperDemoRuntime(

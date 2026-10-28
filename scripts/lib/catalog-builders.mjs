@@ -67,6 +67,25 @@ export const providerCatalog = (sources) => {
         ),
     },
     {
+      identity: sources.radare2Provider.RADARE2_PROVIDER_IDENTITY,
+      contracts:
+        sources.reverseEngineeringContracts.REVERSE_ENGINEERING_TOOL_CONTRACTS.filter(
+          ({ name }) => name === "execute_radare2_command",
+        ),
+    },
+    {
+      identity: sources.radiff2Provider.RADIFF2_PROVIDER_IDENTITY,
+      contracts:
+        sources.reverseEngineeringContracts.REVERSE_ENGINEERING_TOOL_CONTRACTS.filter(
+          ({ name }) => name === "compare_with_radiff2",
+        ),
+    },
+    {
+      identity:
+        sources.radare2SessionProvider.RADARE2_SESSION_PROVIDER_IDENTITY,
+      contracts: sources.radare2SessionContracts.RADARE2_SESSION_TOOL_CONTRACTS,
+    },
+    {
       identity: sources.gdbProvider.GDB_PROVIDER_IDENTITY,
       contracts: sources.gdbContracts.GDB_TOOL_CONTRACTS,
     },

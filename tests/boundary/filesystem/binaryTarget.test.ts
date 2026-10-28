@@ -32,6 +32,12 @@ import { hasXmlPlistSignature } from "../../../src/domain/apple/appleArchiveForm
 import { parseExecutableHeader } from "../../../src/domain/binaryTarget.js";
 import { createEvidence, parseEvidence } from "../../../src/domain/evidence.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import { ESP8266_REFUSAL } from "../../../src/domain/firmware/espImage.js";
+import {
+  ESP32C3_APP_SEGMENTS,
+  esp8266Image,
+  espImage,
+} from "../../fixtures/espImage.js";
 import { javaClassFile } from "../../fixtures/javaClassFile.js";
 import {
   MAX_JVM_CLASS_IDENTITY_BYTES,
@@ -539,6 +545,38 @@ describe("binary target I/O: package classification", () => {
       ok: false,
       error: { _tag: "BinaryTargetError" },
     });
+  });
+
+  it("classifies ESP images by bytes and refuses ESP8266 v1 images", async () => {
+    const directory = await createTestTempDirectory("rea-esp-target-");
+    const app = join(directory, "firmware.ota");
+    const truncated = join(directory, "download.bin");
+    const esp8266 = join(directory, "esp8266.bin");
+    const encrypted = join(directory, "encrypted.bin");
+    const image = espImage({ segments: ESP32C3_APP_SEGMENTS });
+    await Promise.all([
+      writeFile(app, image),
+      writeFile(truncated, image.subarray(0, 40)),
+      writeFile(esp8266, esp8266Image()),
+      writeFile(encrypted, Buffer.alloc(4096, 0x5a)),
+    ]);
+    for (const path of [app, truncated])
+      expect(await parseBinaryTarget(path)).toMatchObject({
+        ok: true,
+        value: { kind: "archive", format: "esp-image" },
+      });
+    expect(await parseBinaryTarget(esp8266)).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "BinaryTargetError",
+        constraint: "file_format_rejected",
+        reason: ESP8266_REFUSAL,
+      },
+    });
+    // Flash-encrypted bytes carry no magic; they stay unrecognized, not ESP.
+    const unrecognized = await parseBinaryTarget(encrypted);
+    expect(unrecognized.ok).toBe(false);
+    expect(JSON.stringify(unrecognized)).not.toContain("ESP");
   });
 
   it("does not trust a ZIP-family extension without ZIP magic", async () => {

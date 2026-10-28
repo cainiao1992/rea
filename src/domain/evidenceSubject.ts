@@ -42,6 +42,7 @@ export const evidenceSubjectFormatSchema = z.enum([
   "node-sea",
   "intel-hex",
   "srec",
+  "esp-image",
 ]);
 
 /** Format-owned architecture declarations shared by Evidence and persisted executions. */

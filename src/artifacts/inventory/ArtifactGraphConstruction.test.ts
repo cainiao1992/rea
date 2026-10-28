@@ -19,6 +19,11 @@ import { pe } from "../../domain/binaryTarget.fixture.js";
 import type { ArtifactEntry } from "../ArtifactReader.js";
 
 import { classifyArtifactBytesAtPath } from "../../../tests/fixtures/artifactClassification.js";
+import {
+  ESP32C3_APP_SEGMENTS,
+  esp8266Image,
+  espImage,
+} from "../../../tests/fixtures/espImage.js";
 
 it("joins only observed PE signature bytes across stream chunks", () => {
   const bytes = pe(0x8664, 8190);
@@ -471,6 +476,19 @@ it("classifies nested HEX and S-record content as containers by bytes", () => {
       Buffer.from(":0300300002337A1F\n"),
     ),
   ).toEqual({ kind: "resource", format: "file" });
+});
+
+it("classifies nested ESP images as containers by bytes", () => {
+  const image = espImage({ segments: ESP32C3_APP_SEGMENTS });
+  expect(classifyArtifactBytesAtPath("ota/update.dat", image)).toEqual({
+    kind: "container",
+    format: "esp-image",
+  });
+  // An unsupported ESP8266 image is a plain file, not a container.
+  expect(classifyArtifactBytesAtPath("esp8266.bin", esp8266Image())).toEqual({
+    kind: "resource",
+    format: "file",
+  });
 });
 
 describe("FAT prefix observation coverage", () => {

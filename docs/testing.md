@@ -1950,6 +1950,19 @@ unknown chunks, depth limits and extracted child digests. The optional
 Neither optional toolchain is a base-lane prerequisite. See
 [firmware analysis](firmware-analysis.md) for limits and unverified formats.
 
+`npm run verify:esp-images` requires a Clang with the RISC-V target and
+`ld.lld` (`REA_RISCV_CLANG`, `REA_RISCV_LLD`) and a Python that runs esptool
+and espsecure (`REA_ESPTOOL_PYTHON`). It builds ESP32-C3 app and bootloader
+ELF files from `tests/conformance/esp/`, converts them with `esptool
+elf2image`, including `--secure-pad-v2`, `--ram-only-header` and
+`--pad-to-size`, signs one with RSA, ECDSA P-256 and P-384 keys, and compares
+REA's facts with `esptool image-info` and `espsecure signature-info-v2`. It
+compares extracted segments and signature blocks with the producer's bytes,
+and derives malformed images and ESP8266 v1 and v3 images. It checks each
+tool before building and warns when esptool is not the pinned v5.6.0.
+`REA_XTENSA_ESP32_GCC` adds an ESP32 Xtensa build. See
+[ESP images](esp-image.md).
+
 ### JavaScript source recovery
 
 Build once with `npm run build:cached`, then run `npm run verify:javascript:recovery`.

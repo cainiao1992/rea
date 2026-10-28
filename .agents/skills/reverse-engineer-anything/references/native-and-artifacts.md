@@ -669,3 +669,24 @@ IDs. Header addresses/CPU/OS are declarations; payloads remain as stored.
 Multi-file components retain their aligned physical ranges; the full payload
 is also materialized. Unknown name text retains its original 32 bytes. See
 [U-Boot uImage](https://github.com/morluto/rea/blob/main/docs/uimage.md).
+
+## ESP images
+
+For an ESP32-family app or bootloader image, `open_binary` then
+`inspect_artifact` with `detail: "summary"`. `root_format_metadata` holds the
+observed `header` and `descriptor` (its `kind` is the app or bootloader role)
+and the derived `chip`, `checksum`, `appended_sha256` and
+`undescribed_trailing` ranges. Segment rows (`segment-NN.bin`) carry
+`load_addr`, `classification` (`mapped`, `loaded`, `not-loaded` or `unknown`,
+per ESP-IDF `should_map`/`should_load`; RAM ranges are not checked) and
+`source_location`; select them with `inspect_analysis_view` and
+`logical_paths`. Signature blocks are `unverified`; `public_key_sha256`
+matches eFuse key digests.
+
+Unknown `source_coverage` means truncation or undescribed trailing bytes, such
+as the flash segments of a `--ram-only-header` image; do not infer absence
+from it. Erased flash is described. Integrity mismatches are facts, not
+refusals. ESP8266 images are refused, and flash-encrypted images are not
+recognized. Segments are not disassembled, and RISC-V or Xtensa segments
+cannot be opened as raw-binary. See
+[ESP images](https://github.com/morluto/rea/blob/main/docs/esp-image.md).

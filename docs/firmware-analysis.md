@@ -286,6 +286,15 @@ REA_FIRMWARE_VERIFY_GHIDRA=1 npm run verify:firmware
 generated gzip/USTAR/ext4 with a Linux x64 ELF child; SquashFS, UBIFS, proprietary
 firmware, other hosts and architectures remain unverified.
 
+## Inspect ESP images
+
+Use `inspect-artifact` / `inspect_artifact` on an ESP32-family app or
+bootloader image, such as an OTA download or app partition, for its chip,
+classified segments, checksum and SHA-256 results, descriptor and Secure Boot
+v2 signature blocks. `extract-artifact` / `extract_artifact` writes one file
+per segment and signature block. Reading is portable and needs no external
+tool. See [ESP images](esp-image.md).
+
 ## Inspect extracted devicetrees
 
 Use [`inspect_devicetree`](devicetree.md) / `rea inspect-devicetree` on an

@@ -6,6 +6,7 @@ import { AsarArtifactReader } from "./AsarArtifactReader.js";
 import type { ArtifactReader } from "./ArtifactReader.js";
 import { HexRecordArtifactReader } from "./HexRecordArtifactReader.js";
 import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
+import { EspImageArtifactReader } from "./EspImageArtifactReader.js";
 import { GodotPckArtifactReader } from "./GodotPckArtifactReader.js";
 import { MachOSliceArtifactReader } from "./MachOSliceArtifactReader.js";
 import { NativeDmgArtifactReader } from "./NativeDmgArtifactReader.js";
@@ -34,6 +35,7 @@ export type ArtifactReaderFormat =
   | "srec"
   | "mach-o-universal"
   | "dmg"
+  | "esp-image"
   | ZipPackageFormat;
 
 interface ArtifactReaderConstruction {
@@ -128,6 +130,8 @@ export function createArtifactReader(
       );
     case "dmg":
       return new NativeDmgArtifactReader(path, options.environment);
+    case "esp-image":
+      return new EspImageArtifactReader(path, rootSource);
     default:
       return undefined;
   }

@@ -72,6 +72,17 @@ export const readExactJavaScriptLiteral = (
   if (t.isBooleanLiteral(node)) return { found: true, value: node.value };
   if (t.isNullLiteral(node)) return { found: true, value: null };
   if (
+    t.isUnaryExpression(node) &&
+    (node.operator === "+" || node.operator === "-")
+  ) {
+    const operand = unwrapJavaScriptExpression(node.argument).node;
+    if (t.isNumericLiteral(operand)) {
+      const value = node.operator === "-" ? -operand.value : operand.value;
+      if (Number.isFinite(value) && !Object.is(value, -0))
+        return { found: true, value };
+    }
+  }
+  if (
     t.isTemplateLiteral(node) &&
     node.expressions.length === 0 &&
     node.quasis.length === 1

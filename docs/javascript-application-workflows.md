@@ -161,6 +161,17 @@ reached through `contains` from one of its children only leads further up its
 containment chain, so a shared asset or artifact root does not pull in its
 other children.
 
+When a string seed has no application match and the supplied Evidence has a
+semantic graph, `semantic_discovery` lists matching retained semantic node
+labels and direct string call arguments using the same matching mode and case
+rules. These are candidate starting
+points, not application trace matches. Its graph coverage and total describe the
+retained graph; missing or partial source coverage cannot establish absence.
+Results follow retained node order and default to offset 0 and limit 64. Supply
+`semantic_page` and follow `next_offset` for further matches. Use a returned
+`trace_seed` with the same application Evidence and `trace_javascript_semantics`
+to examine relationships from that node. Other typed seeds do not search labels.
+
 The result contains the matching basis, complete reachable subgraph, terminal
 paths, authority summaries, and native handoffs. A handoff binds
 the exact native artifact digest and requested exports from the application
@@ -273,7 +284,14 @@ mapped candidate, but structural reachability, semantic influence, runtime
 observation, and causal proof remain separate claims.
 
 Semantic literal nodes keep their complete value in `properties.value`; literal
-queries match that field. String labels use `string literal` when that is
+queries match that field. Call-site nodes also retain direct scalar arguments in
+`properties.arguments`, with source argument indexes; literal queries can start
+at those call sites. These are syntactic facts, not runtime values, and an index
+after a spread is not necessarily the runtime argument position. Nonliteral
+arguments and values not representable in JSON are omitted. The primitive byte
+bound and the worker transfer record ceiling can also omit direct values; the
+call-site unknown reports the applicable limit. String labels use
+`string literal` when that is
 shorter than the complete JSON value. A literal's `identity.role_key` commits
 its canonical JSON value as `value-sha256:<digest>` when the digest key is
 shorter; smaller values keep their existing JSON key. This keeps large values

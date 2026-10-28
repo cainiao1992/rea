@@ -195,10 +195,11 @@ share the application workflow, projection, retention and publication owners.
     signature names a different key than the block signature. A key rotation
     keeps v1 (and v2) on the original key, so it reads `true` while
     `schemes_agree_on_signer` reads `false`, with or without v2. `null` when
-    v1 or a block scheme is absent, any signer's identity is unknown (a
+    v1 or a populated block scheme is absent, any signer's identity is unknown (a
     `decode_error`, a `null` certificate or a `subjectKeyIdentifier`
     `SignerInfo`), or the lineage's original certificate cannot be
-    identified; a limitation then says why.
+    identified. When identities or a lineage origin are unknown, limitations
+    explain why; absence is shown in the scheme records.
   - `strongest_scheme`, `rotation_present`, `source_stamp_present`,
     `self_consistent`.
 

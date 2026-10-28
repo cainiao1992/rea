@@ -345,25 +345,34 @@ const expectedV1Certificate = (
 const v1MatchesBlockSigners = (
   v1: readonly (string | null)[],
   lowest: ApkPostureInput["blockSchemes"][number] | undefined,
-): { readonly match: boolean | null; readonly note: string | null } => {
+): { readonly match: boolean | null; readonly notes: readonly string[] } => {
   if (v1.length === 0 || lowest === undefined || lowest.signers.length === 0)
-    return { match: null, note: null };
+    return { match: null, notes: [] };
+  const notes = new Set<string>();
+  if (v1.includes(null))
+    notes.add(
+      "v1_signers_match_block_signers is null: one or more v1 signer identities are unknown; inspect the v1 signer records for details.",
+    );
   const expected: (string | null)[] = [];
   for (const signer of lowest.signers) {
     const one = expectedV1Certificate(lowest.scheme, signer);
-    if (!one.ok)
-      return {
-        match: null,
-        note: `v1_signers_match_block_signers is null: ${one.reason}, so the original certificate v1 is expected to carry is unknown.`,
-      };
+    if (!one.ok) {
+      notes.add(
+        `v1_signers_match_block_signers is null: ${one.reason}, so the original certificate v1 is expected to carry is unknown.`,
+      );
+      continue;
+    }
+    if (one.fingerprint === null)
+      notes.add(
+        `v1_signers_match_block_signers is null: one or more ${lowest.scheme} signer identities are unknown; inspect the block signer records for details.`,
+      );
     expected.push(one.fingerprint);
   }
-  if (v1.includes(null) || expected.includes(null))
-    return { match: null, note: null };
+  if (notes.size > 0) return { match: null, notes: [...notes] };
   return {
     match:
       setKey(v1 as readonly string[]) === setKey(expected as readonly string[]),
-    note: null,
+    notes: [],
   };
 };
 
@@ -416,7 +425,7 @@ export const deriveApkPosture = (
         input.v1SignerFingerprints,
         present.find(({ signers }) => signers.length > 0),
       )
-    : { match: null, note: null };
+    : { match: null, notes: [] };
   return {
     posture: {
       v1_only: input.v1Present && !blockPresent,
@@ -436,7 +445,7 @@ export const deriveApkPosture = (
       strongest_scheme: strongest,
       self_consistent: input.selfConsistent,
     },
-    notes: v1Match.note === null ? [] : [v1Match.note],
+    notes: v1Match.notes,
   };
 };
 

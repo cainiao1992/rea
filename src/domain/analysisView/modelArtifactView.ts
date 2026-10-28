@@ -189,7 +189,7 @@ export const projectModelArtifactView = (
           path: ["view"],
           reason: "invalid_value",
           message:
-            "Model Evidence supports summary and model-artifact metadata/tensor pages",
+            "Model Evidence supports summary and model-artifact metadata/tensor/type pages",
         },
       ]),
     );

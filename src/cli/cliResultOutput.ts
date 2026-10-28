@@ -594,7 +594,13 @@ export const createCliResultOutput = (
       );
     }
     if (ownsSuccessfulTokenWindow) {
-      const formatted = formatCliOutput(filtered, format);
+      // Ordinary Markdown windows share rendering/counting's document, including
+      // its missing-selection fallback. Full output windows budget the data
+      // separately from their envelope and retain that policy.
+      const formatted = formatCliOutput(
+        format === "md" && !options.fullOutput ? document : filtered,
+        format,
+      );
       const window = sliceTextByTokenWindow(
         formatted,
         options.tokenOffset ?? 0,

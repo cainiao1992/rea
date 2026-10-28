@@ -2,6 +2,7 @@
 export const VALUED_OUTPUT_FLAGS: ReadonlySet<string> = new Set([
   "--format",
   "--filter-output",
+  "--columns",
   "--token-limit",
   "--token-offset",
 ]);
@@ -103,6 +104,36 @@ export const normalizeCliArguments = (
   return rootUpdate && updates.size > 0
     ? ["update", ...normalized.filter((_, index) => !updates.has(index))]
     : normalized;
+};
+
+/** Keep REA-owned delimited formats out of Incur's narrower formatter surface. */
+export const adaptCliOutputArgumentsForIncur = (
+  arguments_: readonly string[],
+): string[] => {
+  const adapted: string[] = [];
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index]!;
+    const value = arguments_[index + 1];
+    if (VALUED_OUTPUT_FLAGS.has(argument)) {
+      if (argument === "--columns") {
+        if (value !== undefined) index += 1;
+        continue;
+      }
+      if (argument === "--format" && (value === "csv" || value === "tsv")) {
+        adapted.push("--format", "json");
+        index += 1;
+        continue;
+      }
+      adapted.push(argument);
+      if (value) {
+        adapted.push(value);
+        index += 1;
+      }
+      continue;
+    }
+    adapted.push(argument);
+  }
+  return adapted;
 };
 
 /** Select production doctor using the same normalized builtin argument owner as CLI dispatch. */

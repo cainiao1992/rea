@@ -972,6 +972,35 @@ values instead of replacing them with an object label. Table widths are measured
 iteratively, so an admitted row page is not limited by the JavaScript function
 argument count.
 
+`--format csv` and `--format tsv` export one selected row collection. Select an
+exact array path with `--filter-output` and provide comma-separated direct
+scalar columns with `--columns`; column order is the output column order:
+
+```bash
+rea inspect-analysis-view request.json --format csv \
+  --filter-output normalized_result.rows --columns name,address
+```
+
+The first line is a REA metadata record,
+`# rea-delimited-v1 <JSON>`. It carries the selected path, view request, limitations and unknowns,
+coverage, source coverage and completeness, command, and duration. A metadata
+value of `null` means that the selected row collection did not provide that
+fact; it does not mean complete coverage. The following line is the header.
+CSV records use CRLF line endings; TSV records use LF. Cells containing the
+delimiter, quotes, or line breaks are quoted and embedded quotes are doubled.
+Values are emitted as UTF-8 without Unicode normalization. Missing and `null`
+cells are empty; booleans and finite numbers use their ordinary text forms.
+String cells and headers that begin with spreadsheet formula syntax are refused
+with a structured error; JSON retains those values unchanged.
+
+Delimited output does not flatten nested Evidence or nested field values.
+It returns a structured error and a nonzero status if the filter does not
+select exactly one row array, a row is not an object, or a selected cell is
+nested or formula-leading. JSON remains the complete canonical output; use it
+to retain fields outside the selected columns or preserve exact formula-leading
+text. Token counting and token windows are not
+available for CSV/TSV because slicing would corrupt records or metadata.
+
 `--filter-output` selects fields from successful command data. Classified failures
 retain their complete typed diagnostic projection even when the selector matches
 a field such as `code` or `message`, or names a missing field. `--full-output`

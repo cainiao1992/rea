@@ -102,6 +102,8 @@ export const decodeOid = (content: Buffer): string => {
       return fail(
         `OBJECT IDENTIFIER arc exceeds ${String(decoded.error.limit)} bytes.`,
       );
+    case "non-minimal":
+      return fail("Non-minimal OBJECT IDENTIFIER component.");
     case "truncated":
       return fail("Truncated OBJECT IDENTIFIER component.");
   }

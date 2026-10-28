@@ -19,7 +19,7 @@ import { registerAnalysisViewCommands } from "./cli/analysisViewCommands.js";
 import { registerBinaryDiagnosticsCommands } from "./cli/binaryDiagnosticsCommands.js";
 import { registerFridaCommands } from "./cli/fridaCommands.js";
 import type { FridaInstrumentationPort } from "./application/frida/FridaInstrumentationPort.js";
-import { Cli } from "incur";
+import { Cli, z } from "incur";
 import {
   adaptCliOutputArgumentsForIncur,
   normalizeCliArguments,
@@ -95,9 +95,15 @@ export const createCli = (
     "cli",
     level?.ok === true ? level.value : "silent",
   );
-  const cli = Cli.create(PRODUCT_IDENTITY.cliBinary, {
+  const timedCli = Cli.create(PRODUCT_IDENTITY.cliBinary, {
     version: PRODUCT_IDENTITY.packageVersion,
     description: "Reverse engineer anything from your terminal or agent.",
+    globals: z.object({
+      timings: z
+        .boolean()
+        .default(false)
+        .describe("Write measured command timing to stderr."),
+    }),
     mcp: {
       command: npxRegistrationCommand().join(" "),
       instructions:
@@ -114,6 +120,23 @@ export const createCli = (
       },
     },
   });
+
+  timedCli.use(async (context, next) => {
+    if (!context.globals.timings) return next();
+    const started = performance.now();
+    try {
+      await next();
+    } finally {
+      // This interval covers CLI command dispatch, including result delivery.
+      // It is not a provider-only or analysis-only measurement.
+      process.stderr.write(
+        `${JSON.stringify({ rea_timings: { version: 1, command_ms: Math.round(performance.now() - started) } })}\n`,
+      );
+    }
+  });
+  // Command registrars do not inspect global options; preserve their existing
+  // type while Incur owns parsing and the middleware owns this added flag.
+  const cli = timedCli as unknown as CliInstance;
 
   registerSetupCommands(cli, logger, environment);
   registerReverseEngineeringCommands(cli, logger, environment);
@@ -173,7 +196,10 @@ export const createCli = (
   presentCliArgumentErrors(cli);
   const serveDeclared = excludeDeclaredSensitiveArguments(cli);
   const serve = cli.serve.bind(cli);
-  const complete = createCliCompletions(cli, environment);
+  const complete = createCliCompletions(
+    cli as unknown as Parameters<typeof createCliCompletions>[0],
+    environment,
+  );
   cli.serve = (arguments_ = process.argv.slice(2), options) =>
     complete(arguments_, options ?? {})
       ? Promise.resolve()

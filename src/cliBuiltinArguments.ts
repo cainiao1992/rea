@@ -11,6 +11,7 @@ export const OUTPUT_SWITCHES: ReadonlySet<string> = new Set([
   "--json",
   "--full-output",
   "--token-count",
+  "--timings",
 ]);
 
 /** Valueless flags Incur removes from every position before command parsing. */
@@ -27,6 +28,7 @@ export const INCUR_BUILTIN_FLAGS: ReadonlySet<string> = new Set([
   "--schema",
   "--json",
   "--token-count",
+  "--timings",
 ]);
 
 /** Command tokens and output-flag values as Incur's builtin pass assigns them. */
@@ -42,8 +44,8 @@ export interface IncurBuiltinArgumentSplit {
 
 /**
  * Mirror Incur's builtin pass over normalized arguments without stopping at a
- * rejected value, so callers can still see every later token. REA configures
- * neither a config flag nor global options, which Incur would also remove.
+ * rejected value, so callers can still see every later token. REA's boolean
+ * timing global follows the same valueless pass; no config flag is registered.
  */
 export const splitIncurBuiltinArguments = (
   arguments_: readonly string[],

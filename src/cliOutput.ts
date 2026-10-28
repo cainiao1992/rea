@@ -180,7 +180,11 @@ export const parseCliOutputArguments = (
       const next = arguments_[index + 1];
       if (next === undefined || next.startsWith("-")) rootVersion = true;
       else versionEligible = false;
-    } else if (argument !== "--json" && argument !== "--format")
+    } else if (
+      argument !== "--json" &&
+      argument !== "--format" &&
+      argument !== "--timings"
+    )
       versionEligible = false;
     // Incur scans builtins across `--` and reads spaced value forms, which
     // normalizeCliArguments has produced. Mirror those effective values.

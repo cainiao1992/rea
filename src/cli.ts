@@ -68,6 +68,7 @@ import { excludeDeclaredSensitiveArguments } from "./cli/explicitSensitiveArgume
 import { rejectSurplusCliArguments } from "./cli/strictPositionals.js";
 import { presentCliArgumentErrors } from "./cli/argumentErrors.js";
 import { createCliCompletions } from "./cli/completions.js";
+import { registerGuidedWorkflowCommands } from "./cli/guidedWorkflowCommands.js";
 
 export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
 
@@ -139,6 +140,7 @@ export const createCli = (
   const cli = timedCli as unknown as CliInstance;
 
   registerSetupCommands(cli, logger, environment);
+  registerGuidedWorkflowCommands(cli, logger);
   registerReverseEngineeringCommands(cli, logger, environment);
   registerCutterCommands(cli, logger, environment);
   registerCoreAnalysisCommands(

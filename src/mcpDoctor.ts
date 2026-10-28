@@ -19,7 +19,7 @@ import {
 import { parseMcpOutputSchemaProfile } from "./config/mcpOutputSchemaProfile.js";
 import { parseMcpToolFamilies } from "./config/mcpToolFamilies.js";
 import { contractsForToolFamilies } from "./contracts/toolFamilies.js";
-import { promptsForToolFamilies } from "./contracts/promptContracts.js";
+import { promptsForToolFamilies } from "./contracts/promptToolFamilyScope.js";
 import { err, ok } from "./domain/result.js";
 import { PRODUCT_IDENTITY } from "./identity.js";
 import {

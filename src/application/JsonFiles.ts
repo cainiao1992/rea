@@ -460,9 +460,10 @@ const stagedCleanupFailure = <
 /** A missing path or parent is a selection error, not a permission failure. */
 const fileAccessFailureReason = (
   cause: unknown,
-): "missing" | "io" | "path-limit" => {
+): "missing" | "io" | "path-limit" | "symlink-traversal" => {
   const code = fileErrorCode(cause);
   if (code === "ENAMETOOLONG") return "path-limit";
+  if (code === "ELOOP") return "symlink-traversal";
   return code === "ENOENT" || code === "ENOTDIR" ? "missing" : "io";
 };
 

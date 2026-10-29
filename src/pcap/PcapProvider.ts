@@ -414,10 +414,28 @@ export class PcapProvider {
   private nativeBound: Parameters<typeof runPcapCommand>[0]["nativeBound"];
   private nativeLimitations: readonly string[] = [];
 
-  private async prepareCaptureBound(): Promise<void> {
+  private async prepareCaptureBound(
+    operation: PcapOperation,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const prepared = await preparePcapNativeBound(
       this.environment,
       this.#resources,
+      async (selected, arguments_) => {
+        await assertArtifactCommandPath(selected, operation, { signal });
+        const output = await this.run(
+          operation,
+          "version",
+          selected.invocationPath,
+          arguments_,
+          { timeoutMs: 20_000, maxOutputBytes: 64 * 1024 },
+          signal,
+        );
+        await assertArtifactCommandPath(selected, operation, { signal });
+        return output;
+      },
+      signal,
+      operation,
     );
     this.nativeBound = prepared.nativeBound;
     this.nativeLimitations = prepared.limitations;
@@ -543,7 +561,7 @@ export class PcapProvider {
             "No enforceable native memory boundary is available for capture summaries on this host.",
           diagnostics: client,
         };
-      await this.prepareCaptureBound();
+      await this.prepareCaptureBound("inspect_pcap_client", signal);
       return {
         status: "available",
         code: null,
@@ -795,7 +813,7 @@ export class PcapProvider {
           ),
         );
       else {
-        await this.prepareCaptureBound();
+        await this.prepareCaptureBound(request.operation, signal);
         snapshot = await PcapSnapshot.create();
         this.snapshots.add(snapshot);
         const identity = await snapshot.capture(request.input.path, signal);

@@ -271,7 +271,10 @@ import type {
   AdbPackagePullPartialObservation,
   AdbDisplayPartialObservation,
 } from "./adb/adbDeviceAnalysis.js";
-import type { InspectSignature } from "./native/nativeInspection.js";
+import type {
+  InspectMacho,
+  InspectSignature,
+} from "./native/nativeInspection.js";
 import type { NativeUiObservationResult } from "./native/nativeUiObservation.js";
 import type { BinaryLayout } from "./native/binaryLayout.js";
 import type {
@@ -339,6 +342,7 @@ export type AnalysisPartialObservation =
   | FirmwarePartialObservation
   | NativeUiObservationResult
   | InspectSignature
+  | InspectMacho
   | ElectronPagePartialObservation
   | AdbActivityStartPartialObservation
   | AdbAcquiredFilePartialObservation

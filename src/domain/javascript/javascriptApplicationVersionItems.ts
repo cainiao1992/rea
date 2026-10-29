@@ -151,7 +151,13 @@ const matchedItem = (
   context: ItemContext,
 ): ApplicationVersionComparisonItem => {
   const relationships = compareRelationships(pair, context);
-  const dimensions = changedDimensions(pair, relationships);
+  const sourceAnalysisUncertain =
+    hasUnexaminedSourceFile(pair.left) || hasUnexaminedSourceFile(pair.right);
+  const dimensions = changedDimensions(
+    pair,
+    relationships,
+    sourceAnalysisUncertain,
+  );
   const complete = graphsComplete(context);
   const ownEvidenceUncertain =
     ownPresenceUncertain(pair.left) || ownPresenceUncertain(pair.right);
@@ -164,6 +170,7 @@ const matchedItem = (
   // content, property, or relationship change.
   const completeChange =
     !ownEvidenceUncertain &&
+    !sourceAnalysisUncertain &&
     complete &&
     dimensions.some((dimension) => dimension !== "location");
   const status: ApplicationVersionComparisonItem["status"] =
@@ -171,12 +178,15 @@ const matchedItem = (
       ? "unknown"
       : observedChange || completeChange
         ? "changed"
-        : complete && !relationships.unresolved && !endpointTargetUncertain
+        : complete &&
+            !relationships.unresolved &&
+            !endpointTargetUncertain &&
+            !sourceAnalysisUncertain
           ? "unchanged"
           : "unknown";
   const finalDimensions = ownEvidenceUncertain
     ? []
-    : status === "unknown" && !complete
+    : status === "unknown" && (!complete || sourceAnalysisUncertain)
       ? [...dimensions, "coverage" as const]
       : dimensions;
   const semantic: ComparisonItemSemantic = {
@@ -193,6 +203,11 @@ const matchedItem = (
         ...ownComparisonLimitations(pair.right),
       ]),
       ...matchLimitations(pair),
+      ...(sourceAnalysisUncertain
+        ? [
+            "Source file analysis was not complete on both sides; retained file identity does not establish equality of unexamined facts.",
+          ]
+        : []),
       ...(status === "unknown" && !complete
         ? [
             "Incomplete graph coverage prevents a complete node-level conclusion.",
@@ -458,6 +473,7 @@ const ownComparisonLimitations = (node: ApplicationNode): string[] => {
 const changedDimensions = (
   pair: ApplicationVersionNodePair,
   relationships: RelationshipComparison,
+  sourceAnalysisUncertain: boolean,
 ): ApplicationVersionComparisonItem["dimensions"] => {
   const dimensions: ApplicationVersionComparisonItem["dimensions"] = [];
   const leftContent = contentIdentity(pair.left);
@@ -473,8 +489,8 @@ const changedDimensions = (
   )
     dimensions.push("location");
   if (
-    canonicalJson(properties(pair.left)) !==
-    canonicalJson(properties(pair.right))
+    canonicalJson(properties(pair.left, sourceAnalysisUncertain)) !==
+    canonicalJson(properties(pair.right, sourceAnalysisUncertain))
   )
     dimensions.push("properties");
   if (relationships.different) dimensions.push("relationships");
@@ -503,11 +519,38 @@ const locations = (node: ApplicationNode) =>
       compareUnicodeCodePoints(canonicalJson(left), canonicalJson(right)),
     );
 
-const properties = (node: ApplicationNode) =>
+const SOURCE_FILE_KINDS = new Set([
+  "javascript",
+  "html",
+  "json",
+  "package-json",
+  "source-map",
+]);
+
+const hasUnexaminedSourceFile = (node: ApplicationNode): boolean =>
+  node.observations.some(
+    ({ properties: values }) =>
+      typeof values.file_kind === "string" &&
+      SOURCE_FILE_KINDS.has(values.file_kind) &&
+      (values.text_status === "outside-analysis-scope" ||
+        values.text_status === "invalid-utf8" ||
+        (values.file_kind === "json" &&
+          "json_parse_status" in values &&
+          values.json_parse_status !== "included") ||
+        (values.file_kind === "package-json" &&
+          values.package_parse_status !== "included") ||
+        (values.file_kind === "javascript" &&
+          (("parse_status" in values && values.parse_status === null) ||
+            values.parse_status === "failed" ||
+            values.parse_status === "skipped" ||
+            values.parse_status === "partial"))),
+  );
+
+const properties = (node: ApplicationNode, sourceAnalysisUncertain: boolean) =>
   node.observations
     .map(({ label, properties: values, source_map_reference }) => ({
       label,
-      properties: comparisonPropertyValues(values),
+      properties: comparisonPropertyValues(values, sourceAnalysisUncertain),
       source_map_reference,
     }))
     .sort((left, right) =>
@@ -516,17 +559,38 @@ const properties = (node: ApplicationNode) =>
 
 const comparisonPropertyValues = (
   values: ApplicationNode["observations"][number]["properties"],
+  sourceAnalysisUncertain: boolean,
 ) => {
+  const comparable =
+    sourceAnalysisUncertain &&
+    typeof values.file_kind === "string" &&
+    SOURCE_FILE_KINDS.has(values.file_kind)
+      ? Object.fromEntries(
+          Object.entries(values).filter(
+            ([key]) =>
+              ![
+                "text_status",
+                "parse_status",
+                "analysis_coverage",
+                "vendor_markers",
+                "json_parse_status",
+                "package_parse_status",
+                "json_top_level_keys",
+                "omitted_json_top_level_keys",
+              ].includes(key),
+          ),
+        )
+      : values;
   const occurrence = javaScriptFileOccurrenceSchema.safeParse(
-    values.file_occurrence,
+    comparable.file_occurrence,
   );
-  if (!occurrence.success) return values;
+  if (!occurrence.success) return comparable;
   // A containing artifact's digest locates this occurrence in one version;
   // sibling changes do not establish a change to this file's own facts.
   // Keep the occurrence's path and content digest comparable, and retain the
   // complete provenance record on the original observation.
   return {
-    ...values,
+    ...comparable,
     file_occurrence: {
       path: occurrence.data.path,
       sha256: occurrence.data.sha256,

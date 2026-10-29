@@ -440,10 +440,12 @@ result's `_meta`, whether the call succeeded or failed:
 ```
 
 The marker is declared once per tool contract (`returnsTargetContent`) and is
-on by default: only `export_evidence_bundle` and `record_unknown`, whose
-results and errors contain only REA session state or caller-supplied values,
-omit it. Tools whose results or errors can include provider, launcher, or
-device output stay marked, including `binary_session` (provider failure
+on by default: `export_evidence_bundle`, `record_unknown`, `search_guidance`,
+and `read_guidance_section` omit it. The first two contain only REA session
+state or caller-supplied values; the guidance tools return REA's own installed
+documentation, not text from an analysis target. Tools whose results or errors
+can include provider, launcher, or device output stay marked, including
+`binary_session` (provider failure
 reasons and availability diagnostics), `close_binary` (provider cleanup
 diagnostics with captured launcher output), `inspect_adb_client` and
 `inspect_apktool_client` (version output and stderr excerpts), and

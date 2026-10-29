@@ -79,9 +79,26 @@ import { excludeDeclaredSensitiveArguments } from "./cli/explicitSensitiveArgume
 import { rejectSurplusCliArguments } from "./cli/strictPositionals.js";
 import { presentCliArgumentErrors } from "./cli/argumentErrors.js";
 import { completionHelpNote, createCliCompletions } from "./cli/completions.js";
+import {
+  closeCliGuidanceResources,
+  registerGuidanceCommands,
+} from "./cli/guidanceCommands.js";
+import { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
 import { registerGuidedWorkflowCommands } from "./cli/guidedWorkflowCommands.js";
 
-export { closeCliJavaScriptResources } from "./cli/javascriptApplicationAnalysis.js";
+/** Close every process-owned resource used by CLI commands. */
+export const closeCliResources = async (): Promise<void> => {
+  const results = await Promise.allSettled([
+    closeCliJavaScriptResources(),
+    closeCliGuidanceResources(),
+  ]);
+  const failures = results.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1)
+    throw new AggregateError(failures, "CLI resource cleanup failed");
+};
 
 /**
  * Build the one-shot Incur CLI without starting Hopper at import time.
@@ -153,6 +170,7 @@ export const createCli = (
   const cli = timedCli as unknown as CliInstance;
 
   registerSetupCommands(cli, logger, environment);
+  registerGuidanceCommands(cli, logger);
   registerGuidedWorkflowCommands(cli, logger);
   registerReverseEngineeringCommands(cli, logger, environment);
   registerCutterCommands(cli, logger, environment);

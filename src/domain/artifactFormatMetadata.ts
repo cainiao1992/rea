@@ -197,9 +197,6 @@ export const hexRecordRegionMetadataSchema = z.strictObject({
   first_line: offset,
   last_line: offset,
 });
-export type HexRecordRegionMetadata = z.infer<
-  typeof hexRecordRegionMetadataSchema
->;
 /** Runtime member identity, independent of blob layout and directory order. */
 export const nodeSeaEntryDeclaration = (
   metadata: z.infer<typeof nodeSeaEntryMetadataSchema>,

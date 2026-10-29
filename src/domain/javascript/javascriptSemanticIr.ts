@@ -80,6 +80,8 @@ export interface JavaScriptSemanticBinding {
   readonly mutable: boolean;
   readonly definitions: readonly JavaScriptSemanticDefinition[];
   readonly value: JavaScriptSemanticValue;
+  /** Value at the single initializer, before later member effects. */
+  readonly initializerValue?: JavaScriptSemanticValue;
   readonly provenance: JavaScriptBindingProvenance;
 }
 

@@ -69,13 +69,14 @@ the same Evidence authentication failures: an admitted source that fails
 authentication is `evidence_integrity_mismatch`, while an authenticated source with an unsupported
 workflow role or invalid selector is `invalid_request`.
 
-Ghidra inventories and function replies use `raw_result: null` when their facts
-are already preserved in `normalized_result`, limitations, locations and
-relationship coverage. Distinct overview details, measured load-image
-observations, file-offset selection roles and database types supplemented with
-derived metadata keep their upstream representation. Read function results from
-`normalized_result`; older retained Evidence keeps its original representation
-and identity.
+Ghidra inventories, measured load-image observations and function replies use
+`raw_result: null` when their useful facts are already preserved in
+`normalized_result`, limitations, locations and relationship coverage. Distinct
+overview details, file-offset selection roles and database types supplemented
+with derived metadata keep their upstream representation. Native load-image
+attestation continues to use the bridge reply locally before Evidence
+projection. Read function results from `normalized_result`; older retained
+Evidence keeps its original representation and identity.
 
 Artifact source-map filename relationships require a unique, identified regular
 file at the sibling path. A known directory cannot be the mapped file; the map

@@ -1811,7 +1811,7 @@ describe("Ghidra measured DOS load-image projection", () => {
           ok: true,
           value: {
             result: { status: state, observations: fixture.observation },
-            rawResult: fixture.observation,
+            rawResult: null,
             analysisProfile: profile.value.profile,
           },
         });
@@ -1894,7 +1894,7 @@ it("returns read-only NativeAOT metadata inline and drills down by derived Metho
           ],
         },
       },
-      rawResult: observations,
+      rawResult: null,
     },
   });
   for (const address of [
@@ -2149,9 +2149,7 @@ it("shares one session snapshot across callers while isolating cancellation and 
   expect(secondResult).toMatchObject({
     ok: true,
     value: {
-      rawResult: {
-        source_files: [{ name: "caller-2" }],
-      },
+      rawResult: null,
       result: {
         observations: {
           source_files: [{ name: "caller-2" }],

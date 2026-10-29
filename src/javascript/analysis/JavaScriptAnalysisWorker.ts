@@ -355,11 +355,15 @@ export class JavaScriptAnalysisWorker {
       );
       for (;;) {
         const response = await this.#next(deadline, file.path);
-        if (response.kind === "ready" || response.id !== id)
+        // A ready frame is outside this job. A frame for another job is not
+        // this request's result; keep waiting so a later caller abort is
+        // still cancellation.
+        if (response.kind === "ready")
           throw new AnalysisOutputError(
             OPERATION,
             "JavaScript worker response names a different source job",
           );
+        if (response.id !== id) continue;
         if (response.kind === "phase") {
           this.#phase = response.phase;
           await onPhase?.(response.phase);

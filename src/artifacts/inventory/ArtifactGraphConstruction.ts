@@ -292,6 +292,7 @@ export const rootOccurrenceFor = (
       "pkg",
       "pyinstaller",
       "dotnet-bundle",
+      "bun-standalone",
       "node-sea",
       "intel-hex",
       "srec",

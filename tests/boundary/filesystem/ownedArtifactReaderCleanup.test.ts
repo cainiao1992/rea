@@ -6,6 +6,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 
 import { awaitAcknowledgement } from "../../fixtures/lifecycleAcknowledgement.js";
 import { ArtifactResourceScope } from "../../../src/artifacts/ArtifactResourceScope.js";
+import { BunStandaloneArtifactReader } from "../../../src/artifacts/BunStandaloneArtifactReader.js";
 import { DotnetBundleArtifactReader } from "../../../src/artifacts/DotnetBundleArtifactReader.js";
 import { MachOSliceArtifactReader } from "../../../src/artifacts/MachOSliceArtifactReader.js";
 import { ZipArtifactReader } from "../../../src/artifacts/ZipArtifactReader.js";
@@ -72,6 +73,18 @@ it("reports cancellation during .NET reader admission and releases the descripto
 });
 
 const scenarios = [
+  {
+    reader: "Bun standalone",
+    createReader: (path: string) => new BunStandaloneArtifactReader(path),
+    stage: "admission",
+    failOnStat: 1,
+  },
+  {
+    reader: "Bun standalone",
+    createReader: (path: string) => new BunStandaloneArtifactReader(path),
+    stage: "post-admission-verification",
+    failOnStat: 2,
+  },
   {
     reader: "ZIP",
     createReader: (path: string) => new ZipArtifactReader(path, "zip"),

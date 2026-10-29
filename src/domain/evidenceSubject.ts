@@ -41,6 +41,7 @@ export const evidenceSubjectFormatSchema = z.enum([
   "pyinstaller",
   "node-sea",
   "dotnet-bundle",
+  "bun-standalone",
   "intel-hex",
   "srec",
   "esp-image",

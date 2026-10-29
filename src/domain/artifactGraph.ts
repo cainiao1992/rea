@@ -57,6 +57,7 @@ const artifactKindSchema = z.enum([
 /** Recognized storage or application formats; unknown bytes remain explicit. */
 const artifactFormatSchema = z.enum([
   "dotnet-bundle",
+  "bun-standalone",
   "dmg",
   "zip",
   "pkg",

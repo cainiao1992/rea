@@ -105,6 +105,15 @@ export class ArtifactPathRegistry {
 
   add(path: string, kind: ArtifactEntry["kind"]): void {
     if (!hasDestinationPath(kind)) return;
+    this.#visit(path, kind);
+  }
+
+  /** Account for distinct prefixes without claiming file/directory validity. */
+  reservePath(path: string): void {
+    this.#visit(path);
+  }
+
+  #visit(path: string, kind?: DestinationEntryKind): void {
     const parts = path.split("/");
     if (this.budget !== undefined && parts.length > this.budget.maxParts)
       throw artifactFixedLimitFailure(
@@ -112,30 +121,41 @@ export class ArtifactPathRegistry {
         this.budget.maxParts,
         "path parts",
       );
+    if (this.budget !== undefined) {
+      let observed = this.#root;
+      for (const [index, part] of parts.entries()) {
+        const existing = observed.children.get(part);
+        if (existing === undefined) {
+          if (parts.length - index > this.budget.maxNodes - this.#nodeCount)
+            throw artifactFixedLimitFailure(
+              "Artifact path tree",
+              this.budget.maxNodes,
+              "path nodes",
+            );
+          break;
+        }
+        observed = existing;
+      }
+    }
     let node = this.#root;
     for (const [index, part] of parts.entries()) {
-      if (node.kind !== undefined && node.kind !== "directory")
+      if (
+        kind !== undefined &&
+        node.kind !== undefined &&
+        node.kind !== "directory"
+      )
         throw new ArtifactReaderFailure(
           "path",
           `Artifact prefix conflict: ${pathDiagnostic(path)}`,
         );
       let child = node.children.get(part);
       if (child === undefined) {
-        if (
-          this.budget !== undefined &&
-          this.#nodeCount >= this.budget.maxNodes
-        )
-          throw artifactFixedLimitFailure(
-            "Artifact path tree",
-            this.budget.maxNodes,
-            "path nodes",
-          );
         child = { kind: undefined, children: new Map() };
         node.children.set(part, child);
         if (this.budget !== undefined) this.#nodeCount++;
       }
       node = child;
-      if (index === parts.length - 1) {
+      if (kind !== undefined && index === parts.length - 1) {
         if (node.kind !== undefined && node.kind !== kind)
           throw new ArtifactReaderFailure(
             "path",
@@ -148,7 +168,7 @@ export class ArtifactPathRegistry {
           );
       }
     }
-    node.kind = kind;
+    if (kind !== undefined) node.kind = kind;
   }
 }
 

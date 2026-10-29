@@ -1,3 +1,7 @@
+import {
+  probeBunStandaloneGraph,
+  type BunStandaloneProbe,
+} from "./bun/BunModuleGraphLayout.js";
 import type {
   StableRegularFileDescriptor,
   RegularFileState,
@@ -23,6 +27,7 @@ import {
 /** Completed observations only; omission means unexamined, and null is examined absence. */
 export interface ArtifactEmbeddedFormatProbeFacts {
   readonly sourceState: RegularFileState;
+  readonly bunStandalone?: BunStandaloneProbe;
   readonly godotPck?: GodotPckLocation | null;
   readonly nodeSea?: NodeSeaLocation | null;
   readonly dotnetBundleHeaderOffset?: number | null;
@@ -111,6 +116,20 @@ export class ArtifactEmbeddedFormatProbes {
     abortIfNeeded(this.signal);
     this.#facts = { ...this.#facts, dotnetBundleHeaderOffset: header ?? null };
     return header;
+  }
+
+  async bunStandalone(): Promise<BunStandaloneProbe> {
+    abortIfNeeded(this.signal);
+    if (this.#facts.bunStandalone !== undefined)
+      return this.#facts.bunStandalone;
+    const observed = await probeBunStandaloneGraph(
+      this.source.handle,
+      this.source.initial.size,
+      this.signal,
+    );
+    abortIfNeeded(this.signal);
+    this.#facts = { ...this.#facts, bunStandalone: observed };
+    return observed;
   }
 
   completedFacts(): ArtifactEmbeddedFormatProbeFacts {

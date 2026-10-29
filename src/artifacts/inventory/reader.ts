@@ -108,6 +108,7 @@ export const inventoryCoverage = (
     isZipPackageFormat(format) ||
     format === "directory" ||
     format === "asar" ||
+    format === "bun-standalone" ||
     format === "godot-pck" ||
     format === "unityfs" ||
     format === "uimage" ||

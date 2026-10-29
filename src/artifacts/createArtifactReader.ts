@@ -1,3 +1,4 @@
+import { BunStandaloneArtifactReader } from "./BunStandaloneArtifactReader.js";
 import type { ArtifactReaderAdmission } from "./ArtifactReaderAdmission.js";
 import type { AsarHeaderAdmission } from "../config/asarHeaderAdmission.js";
 import { DotnetBundleArtifactReader } from "./DotnetBundleArtifactReader.js";
@@ -28,6 +29,7 @@ export type ArtifactReaderFormat =
   | "pyinstaller"
   | "node-sea"
   | "dotnet-bundle"
+  | "bun-standalone"
   | "godot-pck"
   | "unityfs"
   | "uimage"
@@ -89,6 +91,15 @@ export function createArtifactReader(
         admission !== undefined &&
           "kind" in admission &&
           admission.kind === "pyinstaller"
+          ? admission
+          : rootSource,
+      );
+    case "bun-standalone":
+      return new BunStandaloneArtifactReader(
+        path,
+        admission !== undefined &&
+          "kind" in admission &&
+          admission.kind === "bun-standalone"
           ? admission
           : rootSource,
       );

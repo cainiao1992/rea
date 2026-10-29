@@ -606,6 +606,7 @@ const requireExtractableFormat = async (
           ((format === "elf" || format === "pe" || format === "mach-o") &&
             ((await probes.nodeSea()) !== undefined ||
               (await probes.pyInstaller()) !== undefined ||
+              (await probes.bunStandalone()).status === "present" ||
               (await probes.dotnetBundle()) !== undefined));
         if (pack && input.expectedRootSha256 !== undefined) {
           const digest = await hashStableRootArtifactHandle(

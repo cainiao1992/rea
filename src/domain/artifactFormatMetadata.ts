@@ -496,6 +496,62 @@ export const uImageEntryMetadataSchema = z.strictObject({
 });
 export type UImageEntryMetadata = z.infer<typeof uImageEntryMetadataSchema>;
 
+const bunHex = z
+  .string()
+  .regex(/^[0-9a-f]+$/u)
+  .nullable();
+
+/**
+ * Container facts for one Bun standalone module graph. `flags` stays the raw
+ * u32 because Bun 1.3 and 1.4 reuse the low bits for different meanings.
+ */
+export const bunStandaloneMetadataSchema = z.strictObject({
+  kind: z.literal("bun-standalone"),
+  layout_revision: z.enum(["bun-1.3.3", "bun-1.3.9"]),
+  carrier: z.enum([
+    "mach-o-section",
+    "pe-section",
+    "elf-section",
+    "appended-trailer",
+  ]),
+  payload_offset: offset,
+  payload_length: offset,
+  module_count: uint32,
+  entry_point_id: uint32,
+  entry_point_source_name: z.string().nullable(),
+  entry_point_logical_path: z.string().nullable(),
+  compile_exec_argv: z.string().nullable(),
+  compile_exec_argv_hex: bunHex,
+  flags: uint32,
+});
+export type BunStandaloneMetadata = z.infer<typeof bunStandaloneMetadataSchema>;
+
+/** One stored region of a Bun module. Siblings repeat the module's source facts. */
+export const bunStandaloneEntryMetadataSchema = z.strictObject({
+  kind: z.literal("bun-standalone-entry"),
+  index: uint32,
+  region: z.enum(["contents", "sourcemap", "bytecode", "module-info"]),
+  source_name: z.string().nullable(),
+  source_name_hex: bunHex,
+  encoding: uint32,
+  encoding_name: z.enum(["binary", "latin1", "utf8", "utf16"]).nullable(),
+  loader: uint32,
+  loader_name: z.string().nullable(),
+  module_format: uint32,
+  module_format_name: z.enum(["none", "esm", "cjs"]).nullable(),
+  side: uint32,
+  side_name: z.enum(["server", "client"]).nullable(),
+  entry_point: z.boolean(),
+  sourcemap_bytes: offset,
+  bytecode_bytes: offset,
+  module_info_bytes: offset,
+  bytecode_origin: z.string().nullable(),
+  bytecode_origin_hex: bunHex,
+});
+export type BunStandaloneEntryMetadata = z.infer<
+  typeof bunStandaloneEntryMetadataSchema
+>;
+
 export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   godotPckMetadataSchema,
   godotPckEntryMetadataSchema,
@@ -504,6 +560,8 @@ export const artifactFormatMetadataSchema = z.discriminatedUnion("kind", [
   pyInstallerMetadataSchema,
   pyInstallerEntryMetadataSchema,
   dotnetBundleEntryMetadataSchema,
+  bunStandaloneMetadataSchema,
+  bunStandaloneEntryMetadataSchema,
   nodeSeaMetadataSchema,
   nodeSeaEntryMetadataSchema,
   hexRecordsMetadataSchema,

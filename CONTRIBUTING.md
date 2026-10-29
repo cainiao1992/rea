@@ -274,7 +274,10 @@ The general source suite (`npm run test:fast`, `npm run test:changed`, and
 On a Windows checkout, some source tests fail because fixtures use POSIX paths,
 `#!/bin/sh` tool stubs, or POSIX rename semantics. Compare failures against the
 base revision, or run the suite on Linux or WSL, before attributing them to a
-change. See [testing](docs/testing.md#developer-commands) for command scopes
+change. The embedded-artifact parent-swap tests exercise the selected-path
+replacement when the rename succeeds; if Windows refuses it while the admitted
+file is open, they instead verify the refusal and cleanup. See
+[testing](docs/testing.md#developer-commands) for command scopes
 and lane selection.
 
 `git submodule update --init --recursive` fails at the pinned Unblob submodule

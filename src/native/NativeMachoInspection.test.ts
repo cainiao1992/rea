@@ -6,6 +6,8 @@ import {
   dylibCommand,
   fatImage,
   machoImage,
+  lazyLoadDylibInfoCommand,
+  readerOf,
 } from "../artifacts/apple/MachoImage.fixture.js";
 import {
   AnalysisCancelledError,
@@ -15,10 +17,14 @@ import { err, ok } from "../domain/result.js";
 import { parseMachoLayout, selectMachoSlice } from "./AppleMachoSelection.js";
 import type { NativeCommandCapture } from "./CommandRunner.js";
 import { inspectNativeMacho } from "./NativeMachoInspection.js";
+import { readMachoCommandNames } from "./MachoCommandNames.js";
+import {
+  inspectionImage,
+  inspectionReader,
+} from "./NativeMachoInspection.fixture.js";
 import {
   NativeFixtureRunner,
   nativeMachoTarget,
-  withOtoolMachHeader,
 } from "../../tests/fixtures/nativeCommands.js";
 
 const capture = (tool: string, stdout: string): NativeCommandCapture => ({
@@ -42,6 +48,7 @@ const inspect = async (lipo: string, architecture: "x86" | "arm64") => {
     readonly args: readonly string[];
   }[] = [];
   const result = await inspectNativeMacho({
+    readCommandNames: inspectionReader(),
     target: {
       kind: "executable",
       format: "mach-o",
@@ -76,14 +83,9 @@ describe("Mach-O tool architecture selection", () => {
 
   it("passes the arm64e slice lipo listed for an arm64 target", async () => {
     const { commands } = await inspect("architecture arm64e\n", "arm64");
-    const otool = commands.find(({ tool }) => tool === "otool");
-    expect(otool?.args).toEqual([
-      "-h",
-      "-l",
-      "-arch",
+    expect(commands.find(({ tool }) => tool === "dyld_info")?.args).toContain(
       "arm64e",
-      "/fixture/app",
-    ]);
+    );
   });
 
   it("uses the subtype-specific tool name when lipo calls ARM64 V8 arm64", async () => {
@@ -91,9 +93,60 @@ describe("Mach-O tool architecture selection", () => {
       "architecture x86_64\n cputype CPU_TYPE_X86_64\n cpusubtype CPU_SUBTYPE_X86_64_ALL\n offset 4096\n size 4096\n align 2^12\n" +
       "architecture arm64\n cputype CPU_TYPE_ARM64\n cpusubtype CPU_SUBTYPE_ARM64_V8\n offset 8192\n size 4096\n align 2^12\n";
     const { commands } = await inspect(lipo, "arm64");
-    expect(commands.find(({ tool }) => tool === "otool")?.args).toContain(
+    expect(commands.find(({ tool }) => tool === "dyld_info")?.args).toContain(
       "arm64v8",
     );
+  });
+
+  it("reads the selected FAT slice's command bytes", async () => {
+    const slices = [CPU.x86_64, CPU.arm64].map((cpu) => ({
+      cpu,
+      bytes: machoImage({
+        cpu,
+        commands: [
+          dylibCommand(
+            LC.LOAD_DYLIB,
+            cpu === CPU.arm64 ? "/selected.dylib" : "/other.dylib",
+          ),
+        ],
+      }),
+    }));
+    const fat = fatImage(slices);
+    const lipo = slices
+      .map(
+        (slice, index) =>
+          `architecture ${index === 0 ? "x86_64" : "arm64"}\n cputype ${slice.cpu.type}\n cpusubtype ${slice.cpu.subtype}\n offset ${(index + 1) * 4096}\n size ${slice.bytes.length}\n align 2^12\n`,
+      )
+      .join("");
+    const runner = new NativeFixtureRunner({ lipo });
+    const readOffsets: number[] = [];
+    const result = await inspectNativeMacho({
+      target: nativeMachoTarget("/fixture/app"),
+      run: (tool, args) => runner.run(tool, args),
+      readCommandNames: (offset, size) => {
+        readOffsets.push(offset);
+        const image = fat.subarray(
+          offset,
+          offset + (size ?? fat.length - offset),
+        );
+        return readMachoCommandNames(readerOf(image), image.length, 1024, 100);
+      },
+      invocation: (capture) => ({
+        tool: capture.tool,
+        command: [capture.executable, ...capture.arguments],
+        tool_version: capture.toolVersion,
+        version_reason: capture.versionReason,
+        executable_sha256: capture.executableSha256,
+        exit: { code: capture.exitCode, signal: capture.signal },
+        stdout_bytes: capture.stdoutBytes,
+        stderr_bytes: capture.stderrBytes,
+      }),
+    });
+    if (!result.ok) throw result.error;
+    expect(readOffsets).toEqual([8192]);
+    expect(result.value.result).toMatchObject({
+      dependencies: { items: [{ path: "/selected.dylib" }] },
+    });
   });
 
   it("refuses an ambiguous selector instead of assigning another row's offset", async () => {
@@ -146,13 +199,6 @@ describe("Mach-O tool architecture selection", () => {
         )
         .join("");
       const { commands } = await inspect(lipo, "arm64");
-      expect(commands.find(({ tool }) => tool === "otool")?.args).toEqual([
-        "-h",
-        "-l",
-        "-arch",
-        selected.split(".")[0],
-        "/fixture/app",
-      ]);
       expect(commands.find(({ tool }) => tool === "dyld_info")?.args).toContain(
         selected,
       );
@@ -170,6 +216,7 @@ describe("Mach-O inspection container format", () => {
   const runInspection = async (lipo: string) => {
     const runner = new NativeFixtureRunner({ lipo });
     return inspectNativeMacho({
+      readCommandNames: inspectionReader(),
       target: nativeMachoTarget("/fixture/app"),
       run: (tool, args) => runner.run(tool, args),
       invocation: (capture) => ({
@@ -203,7 +250,7 @@ describe("Mach-O inspection container format", () => {
       expect(result.value.locations).toContainEqual({
         kind: "file-offset-range",
         start: 32768,
-        end: 40960,
+        end: 36864,
       });
     },
   );
@@ -228,24 +275,16 @@ describe("Mach-O inspection container format", () => {
   it("does not call a lazy-info payload dependency exhaustive", async () => {
     const runner = new NativeFixtureRunner({
       lipo: "Non-fat file: /fixture/app is architecture: arm64\n",
-      "otool:-h": withOtoolMachHeader(
-        [
-          "Load command 0",
-          "      cmd LC_LOAD_DYLIB",
-          "  cmdsize 56",
-          "         name /usr/lib/libSystem.B.dylib (offset 24)",
-          "   time stamp 2 Thu Jan  1 00:00:02 1970",
-          "      current version 1.0.0",
-          "compatibility version 1.0.0",
-          "Load command 1",
-          "      cmd LC_LAZY_LOAD_DYLIB_INFO",
-          "  cmdsize 16",
-          "    dataoff 49304",
-          "   datasize 56",
-        ].join("\n"),
-      ),
     });
     const result = await inspectNativeMacho({
+      readCommandNames: inspectionReader(
+        inspectionImage({
+          commands: [
+            dylibCommand(LC.LOAD_DYLIB, "/usr/lib/libSystem.B.dylib"),
+            lazyLoadDylibInfoCommand(49304, 56),
+          ],
+        }),
+      ),
       target: nativeMachoTarget("/fixture/app"),
       run: (tool, args) => runner.run(tool, args),
       invocation: (captured) => ({
@@ -273,7 +312,7 @@ describe("Mach-O inspection container format", () => {
             kind: "LC_LOAD_DYLIB",
           },
         ],
-        limitations: [expect.stringContaining("1 LC_LAZY_LOAD_DYLIB_INFO")],
+        limitations: [expect.stringContaining("linkedit dependency payload")],
       },
     });
   });
@@ -284,21 +323,16 @@ describe("Mach-O UUID reconciliation", () => {
 
   const runInspection = async (
     dwarfdump: string,
-    otoolUuids: readonly string[] = [validUuid],
+    binaryUuids: readonly string[] = [validUuid],
     targetPath = "/fixture/app",
   ) => {
     const runner = new NativeFixtureRunner({
       dwarfdump,
-      otool: withOtoolMachHeader(
-        otoolUuids
-          .map(
-            (uuid, index) =>
-              `Load command ${index}\n      cmd LC_UUID\n  cmdsize 24\n     uuid ${uuid}`,
-          )
-          .join("\n"),
-      ),
     });
     const result = await inspectNativeMacho({
+      readCommandNames: inspectionReader(
+        inspectionImage({ uuids: binaryUuids }),
+      ),
       target: nativeMachoTarget(targetPath),
       run: (tool, args) => runner.run(tool, args),
       invocation: (capture) => ({
@@ -315,12 +349,12 @@ describe("Mach-O UUID reconciliation", () => {
     return result;
   };
 
-  it("keeps a valid otool UUID when dwarfdump is malformed and reports the limitation", async () => {
+  it("keeps a valid binary UUID when dwarfdump is malformed and reports the limitation", async () => {
     const result = await runInspection("UUID: A (arm64) /fixture/app\n");
     if (!result.ok) throw result.error;
     expect(result.value.result).toMatchObject({ uuid: validUuid });
     expect(result.value.limitations).toContain(
-      'dwarfdump --uuid returned malformed UUID "A"; using the unambiguous otool LC_UUID.',
+      'dwarfdump --uuid returned malformed UUID "A"; using the unambiguous binary load commands LC_UUID.',
     );
   });
 
@@ -331,7 +365,7 @@ describe("Mach-O UUID reconciliation", () => {
     if (!result.ok) throw result.error;
     expect(result.value.result).toMatchObject({ uuid: null });
     expect(result.value.limitations).toContain(
-      `dwarfdump --uuid (FEDCBA98-7654-3210-FEDC-BA9876543210) conflicts with otool LC_UUID (${validUuid}); the image UUID is unknown.`,
+      `dwarfdump --uuid (FEDCBA98-7654-3210-FEDC-BA9876543210) conflicts with binary load commands LC_UUID (${validUuid}); the image UUID is unknown.`,
     );
   });
 
@@ -342,7 +376,7 @@ describe("Mach-O UUID reconciliation", () => {
     expect(result.value.result).toMatchObject({ uuid: lower });
   });
 
-  it("uses a valid dwarfdump UUID when otool has no UUID observation", async () => {
+  it("uses a valid dwarfdump UUID when the binary has no UUID observation", async () => {
     const result = await runInspection(
       `UUID: ${validUuid} (arm64) /fixture/app\n`,
       [],
@@ -372,11 +406,11 @@ describe("Mach-O UUID reconciliation", () => {
     if (!result.ok) throw result.error;
     expect(result.value.result).toMatchObject({ uuid: null });
     expect(result.value.limitations).toContain(
-      `otool returned conflicting LC_UUID values ${JSON.stringify(validUuid)} and ${JSON.stringify("FEDCBA98-7654-3210-FEDC-BA9876543210")}`,
+      `binary load commands returned conflicting LC_UUID values ${JSON.stringify(validUuid)} and ${JSON.stringify("FEDCBA98-7654-3210-FEDC-BA9876543210")}`,
     );
   });
 
-  it("keeps conflicting duplicate dwarfdump rows unknown despite otool", async () => {
+  it("keeps conflicting duplicate dwarfdump rows unknown despite binary UUID", async () => {
     const conflictingUuid = "FEDCBA98-7654-3210-FEDC-BA9876543210";
     const result = await runInspection(
       `UUID: ${validUuid} (arm64) /fixture/app\nUUID: ${conflictingUuid} (arm64) /fixture/app\n`,
@@ -390,7 +424,7 @@ describe("Mach-O UUID reconciliation", () => {
 });
 
 describe("Mach-O slice command scheduling", () => {
-  const SLICE_TOOLS = ["otool", "nm", "dyld_info", "dyld_info", "dwarfdump"];
+  const SLICE_TOOLS = ["nm", "dyld_info", "dyld_info", "dwarfdump"];
 
   /** Finish later-launched slice commands first and record overlap. */
   const reorderingRunner = (failing: ReadonlySet<string> = new Set()) => {
@@ -415,6 +449,7 @@ describe("Mach-O slice command scheduling", () => {
 
   const inspectWith = (run: ReturnType<typeof reorderingRunner>["run"]) =>
     inspectNativeMacho({
+      readCommandNames: inspectionReader(),
       target: nativeMachoTarget("/fixture/app"),
       run,
       invocation: (capture) => ({
@@ -455,14 +490,11 @@ it.each(["10", "DSYM", "2"])(
   async (fileType) => {
     const diagnostic =
       "section '__TEXT/__text' has offset=0 but is not a zero-fill section type\n";
-    const runner = new NativeFixtureRunner({
-      otool: [
-        "Mach header",
-        "magic cputype cpusubtype caps filetype ncmds sizeofcmds flags",
-        `0xfeedfacf 16777228 0 0x00 ${fileType} 0 0 0x0`,
-      ].join("\n"),
-    });
+    const runner = new NativeFixtureRunner();
     const result = await inspectNativeMacho({
+      readCommandNames: inspectionReader(
+        inspectionImage({ fileType: fileType === "2" ? 2 : 10 }),
+      ),
       target: nativeMachoTarget("/fixture/debug-companion"),
       run: async (tool, args, _signal, acceptNonZeroIf) => {
         const captured = await runner.run(tool, args);
@@ -560,14 +592,9 @@ describe("dSYM diagnostic admission", () => {
       accepted: false,
     },
   ])("preserves $name", async ({ stdout, stderr, accepted }) => {
-    const runner = new NativeFixtureRunner({
-      otool: [
-        "Mach header",
-        "magic cputype cpusubtype caps filetype ncmds sizeofcmds flags",
-        "0xfeedfacf 16777228 0 0x00 10 0 0 0x0",
-      ].join("\n"),
-    });
+    const runner = new NativeFixtureRunner();
     const result = await inspectNativeMacho({
+      readCommandNames: inspectionReader(inspectionImage({ fileType: 10 })),
       target: nativeMachoTarget("/fixture/debug-companion"),
       run: async (tool, args, _signal, acceptNonZeroIf) => {
         const captured = await runner.run(tool, args);

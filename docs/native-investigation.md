@@ -537,7 +537,21 @@ support for core-dump analysis, historical FVMLIB layouts, or unobserved native
 diagnostic spellings. Unknown or contradictory header values and signalled
 commands remain failures.
 
-`inspect_macho.selected_architecture` identifies the exact selected lipo slice
+`inspect_macho` reads load-command framing and fields from the selected Mach-O
+bytes. It does not use line-delimited tool output to decide where a command,
+section, or embedded string begins. Names whose bytes are not valid UTF-8 have
+a null text value and retain their original bytes as lowercase hexadecimal in
+`name_bytes_hex`, `segment_bytes_hex`, or `path_bytes_hex`; fixed-width names
+stop at the first NUL, and command paths exclude their NUL terminator. Older
+retained Evidence may omit the byte fields. Large binary sizes and offsets that
+cannot be represented as safe JSON integers retain an exact hexadecimal field;
+the corresponding numeric field is null. A section alignment too large to
+represent in bytes retains `alignment_exponent` instead.
+
+Unknown or partially decoded commands retain their selected-slice-relative
+offset and size. Their unexamined fields are described in load-command coverage
+limitations; an exhaustive command inventory does not by itself establish that
+every payload field was decoded. `inspect_macho.selected_architecture` identifies the exact selected lipo slice
 and its `container_file_offset` in the input file. A thin Mach-O has a known
 offset of zero; an unknown universal-slice offset stays null. The Evidence
 subject format describes the input container: `mach-o-universal` for FAT files,
@@ -545,10 +559,10 @@ including those with one slice. The normalized result also reports the container
 in `format`; `selected_architecture` identifies the selected Mach-O image.
 Architecture `file_offset` values are container-relative. Entrypoint, segment
 and section `file_offset` values retain their source meaning and are relative
-to the selected Mach-O slice. Raw load-command fields retain their original values.
-A field otool prints more than once, such as each `LC_BUILD_VERSION` tool, is
-keyed `name #n` in print order. Each `LC_LINKER_OPTION` string is keyed
-`string #n` and checked against the declared `count`. Evidence locations map the LC_MAIN entrypoint and nonempty file-backed segment
+to the selected Mach-O slice. Decoded load-command fields retain their original
+values. Repeated fields, such as each `LC_BUILD_VERSION` tool, are keyed
+`name #n` in order. Each decoded `LC_LINKER_OPTION` string is keyed `string #n`
+and checked against the declared `count`. Evidence locations map the LC_MAIN entrypoint and nonempty file-backed segment
 ranges to container offsets by adding the observed slice offset. Zero-fill
 segments do not produce file ranges. When the selected slice's container offset
 is unknown, those mapped locations are omitted with an explicit limitation;
@@ -666,7 +680,7 @@ complete observation.
   summary keeps every decoded document and node/edge/coverage counts and
   retains the complete Evidence; page rows with `inspect_analysis_view`
   `view: {kind: "interface-builder", collection: "nodes", document:
-  "Contents/Resources/Base.lproj/MainMenu.nib", offset: 0, limit: 64}`.
+"Contents/Resources/Base.lproj/MainMenu.nib", offset: 0, limit: 64}`.
   `document` selects rows whose evidence names that exact
   `documents[].relative_path` (nodes and edges only); `source_truncated` keeps
   graph incompleteness visible on every page. `verify:interface-builder` compiles

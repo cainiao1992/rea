@@ -14,16 +14,14 @@ import type { SanitizedBrowserUrl } from "../domain/browserObservation.js";
 import {
   browserScenarioEventSchema,
   type BrowserScenarioEvent,
+  type BrowserScenarioEventAdmission,
+  type BrowserScenarioEventBudgetReason,
+  type BrowserScenarioEventOmissions,
 } from "../domain/browserScenarioCaptureValues.js";
 import type { BrowserScenarioSecrets } from "./BrowserScenarioSecrets.js";
 import type { BrowserNetworkContentSelection } from "../domain/browserNetworkEvidence.js";
 import type { BrowserNetworkHeaders } from "../domain/browserNetworkEvidence.js";
 import type { BrowserScenarioCaptureLimits } from "../domain/browserScenarioCaptureLimits.js";
-import type {
-  BrowserScenarioEventAdmission,
-  BrowserScenarioEventBudgetReason,
-  BrowserScenarioEventOmissions,
-} from "../domain/browserScenarioCaptureValues.js";
 import { DEFAULT_BROWSER_SCENARIO_CAPTURE_LIMITS } from "../domain/browserScenarioCaptureLimits.js";
 import { captureNetworkBody } from "./network/PlaywrightNetworkContent.js";
 import { PlaywrightScenarioNetwork } from "./network/PlaywrightScenarioNetwork.js";

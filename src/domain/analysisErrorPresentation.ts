@@ -21,6 +21,7 @@ import {
   EvidenceIntegrityError,
   EvidenceReferenceError,
   AnalysisSnapshotMismatchError,
+  ResourceSnapshotMismatchError,
 } from "./evidenceErrors.js";
 import {
   HopperRemoteError,
@@ -79,6 +80,10 @@ export const analysisErrorRemediationAction = (
     error.remediationAction !== undefined
   )
     return error.remediationAction;
+  if (error instanceof ResourceSnapshotMismatchError)
+    return error.operation === "export"
+      ? "Call close_binary without snapshot_path to close this resource-only session."
+      : "Open an executable analysis target before importing a binary analysis snapshot.";
   if (error instanceof AnalysisSnapshotMismatchError)
     return "Run analysis without this snapshot, then save a fresh snapshot using the intended artifact, provider, and analysis profile.";
   if (error instanceof AnalysisUnsupportedTargetError)

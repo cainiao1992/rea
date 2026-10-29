@@ -64,7 +64,7 @@ import { analysisErrorWithCancellation } from "../../domain/analysisErrorCancell
 import { ProviderAdapterError } from "../../domain/providerAdapterError.js";
 import { profilelessNativeDispatchProfile } from "./ProfilelessNativeWorkflowSnapshot.js";
 import type { AnalysisSnapshot } from "../../domain/analysisSnapshot.js";
-import { AnalysisSnapshotMismatchError } from "../../domain/evidenceErrors.js";
+import { ResourceSnapshotMismatchError } from "../../domain/evidenceErrors.js";
 import {
   parseBinaryTarget,
   type BinaryTargetResolverOptions,
@@ -1149,21 +1149,13 @@ export class BinarySession
 
   override exportAnalysisSnapshot() {
     if (this.#activeBundleResources !== undefined)
-      return err(
-        new AnalysisSnapshotMismatchError(
-          "Analysis snapshots do not apply to a resource-only app session because it has no executable identity or replay binding.",
-        ),
-      );
+      return err(new ResourceSnapshotMismatchError("export"));
     return super.exportAnalysisSnapshot();
   }
 
   override importAnalysisSnapshot(snapshot: AnalysisSnapshot) {
     if (this.#activeBundleResources !== undefined)
-      return err(
-        new AnalysisSnapshotMismatchError(
-          "Analysis snapshots do not apply to a resource-only app session because it has no executable identity or replay binding.",
-        ),
-      );
+      return err(new ResourceSnapshotMismatchError("import"));
     return super.importAnalysisSnapshot(snapshot);
   }
 

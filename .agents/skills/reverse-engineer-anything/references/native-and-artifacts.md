@@ -516,6 +516,11 @@ names), coverage and per-collection counts. Page rows with
 `view: {kind: "managed-members", collection: "call_edges", offset: 0, limit: 64}`
 over `types`, `exported_types`, `fields`, `methods`, `member_refs`, `call_edges`,
 `field_accesses` or `user_strings`.
+Use exact `names` and `declaring_types` filters before paging supported
+collections. For a compact method lookup, request `fields: ["name",
+"declaring_type", "signature"]`; omit `body` to avoid anchors. Identity tokens,
+original `source_index`, module/MVID and source coverage remain. Check
+`unresolved_filter_rows` before interpreting an empty match as absence.
 
 ### .NET NativeAOT
 

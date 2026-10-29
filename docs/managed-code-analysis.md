@@ -120,6 +120,50 @@ literal pool's own coverage. Older Evidence that never examined exported types
 or user strings reports a null count and refuses those pages rather than
 returning an empty one.
 
+To find specific retained members without returning their IL anchors, select
+exact names and defining types, then project columns:
+
+```json
+{
+  "source": {
+    "kind": "retained-evidence",
+    "evidence_id": "<parent_evidence_id>"
+  },
+  "view": {
+    "kind": "managed-members",
+    "collection": "methods",
+    "names": ["ParseNumber", "ParseReadNumber"],
+    "declaring_types": ["Newtonsoft.Json.JsonTextReader"],
+    "fields": ["name", "declaring_type", "signature"],
+    "offset": 0,
+    "limit": 64
+  }
+}
+```
+
+Filters are exact and case-sensitive; lists are alternatives and filters
+intersect. An empty list matches nothing. Names select `name` in types,
+exported types, fields, methods and member references; in call edges they select
+`target_name`, and in field accesses `field_name`. Declaring-type filters select
+`declaring_type` in fields/methods, `parent_name` in member references,
+`target_declaring_type` in call edges and `field_declaring_type` in field accesses.
+Types, exported types and user strings do not accept a declaring-type filter;
+user strings do not accept a name filter. No display strings are reparsed.
+
+`fields` accepts only columns of that collection. Omitting it preserves full
+rows, including method bodies. Selecting `body` explicitly returns the full
+recorded body and anchors; selecting no columns (`[]`) returns identity fields.
+Projected or filtered rows add their original `source_index`; tokens and source
+byte offsets remain, with defining/parent tokens or IL-site endpoints where
+applicable. The page retains module/MVID, artifact digest, parent Evidence,
+producer selection and source coverage. Full facts remain in the parent.
+
+Paging offsets and totals count known matches in original order. `source_count`
+counts the producer-returned collection; `unresolved_filter_rows` counts rows
+that could match but lack a requested name/type. Those candidates remain unknown
+and are excluded from the matched total. Exhausting the known matches does not
+prove absence among unresolved or unexamined source rows.
+
 #### CLI summary and saved member rows
 
 The CLI accepts the same `complete` and `summary` detail choices. Omitted or

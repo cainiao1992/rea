@@ -509,11 +509,13 @@ describe("native owned cancellation boundary", () => {
           try {
             readyObserved = (await readFile(ready, "utf8")) === "ready";
           } catch (cause: unknown) {
-            if (!(
-              cause instanceof Error &&
-              "code" in cause &&
-              cause.code === "ENOENT"
-            ))
+            if (
+              !(
+                cause instanceof Error &&
+                "code" in cause &&
+                cause.code === "ENOENT"
+              )
+            )
               throw cause;
           }
           if (readyObserved) break;
@@ -627,11 +629,13 @@ describe("native cancellation cleanup provenance", () => {
                     "ready"
                   );
                 } catch (cause: unknown) {
-                  if (!(
-                    cause instanceof Error &&
-                    "code" in cause &&
-                    cause.code === "ENOENT"
-                  ))
+                  if (
+                    !(
+                      cause instanceof Error &&
+                      "code" in cause &&
+                      cause.code === "ENOENT"
+                    )
+                  )
                     throw cause;
                   return false;
                 }
@@ -754,11 +758,13 @@ describe("native returned cleanup ownership", () => {
           try {
             readyObserved = (await readFile(ready, "utf8")) === "ready";
           } catch (cause: unknown) {
-            if (!(
-              cause instanceof Error &&
-              "code" in cause &&
-              cause.code === "ENOENT"
-            ))
+            if (
+              !(
+                cause instanceof Error &&
+                "code" in cause &&
+                cause.code === "ENOENT"
+              )
+            )
               throw cause;
           }
           if (readyObserved) break;

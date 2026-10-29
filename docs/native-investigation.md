@@ -680,7 +680,7 @@ complete observation.
   summary keeps every decoded document and node/edge/coverage counts and
   retains the complete Evidence; page rows with `inspect_analysis_view`
   `view: {kind: "interface-builder", collection: "nodes", document:
-"Contents/Resources/Base.lproj/MainMenu.nib", offset: 0, limit: 64}`.
+  "Contents/Resources/Base.lproj/MainMenu.nib", offset: 0, limit: 64}`.
   `document` selects rows whose evidence names that exact
   `documents[].relative_path` (nodes and edges only); `source_truncated` keeps
   graph incompleteness visible on every page. `verify:interface-builder` compiles

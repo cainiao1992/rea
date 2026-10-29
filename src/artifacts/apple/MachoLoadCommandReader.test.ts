@@ -38,6 +38,66 @@ import { javaClassFile } from "../../../tests/fixtures/javaClassFile.js";
 const read = (bytes: Uint8Array) =>
   readMachoImage(readerOf(bytes), bytes.length);
 
+it.skipIf(process.platform === "win32")(
+  "keeps non-UTF-8 symlink targets distinct from a real replacement character",
+  async () => {
+    const root = await createTestTempDirectory("rea-dylib-raw-symlink-");
+    const executable = machoImage({
+      commands: [
+        buildVersionCommand(1),
+        dylibCommand(LC.LOAD_DYLIB, "@loader_path/raw-link"),
+        dylibCommand(LC.LOAD_DYLIB, "@loader_path/unicode-link"),
+      ],
+    });
+    await writeFile(join(root, "App"), executable);
+    await writeFile(
+      join(root, "lib\ufffd"),
+      machoImage({
+        fileType: FILE_TYPE.dylib,
+        commands: [buildVersionCommand(1)],
+      }),
+    );
+    await symlink(
+      Buffer.from([0x6c, 0x69, 0x62, 0xff]),
+      join(root, "raw-link"),
+    );
+    await symlink("lib\ufffd", join(root, "unicode-link"));
+    const trace = await traceDylibResolution({
+      rootPath: root,
+      targetPath: join(root, "App"),
+      targetSha256: createHash("sha256").update(executable).digest("hex"),
+      enumerateRoots: false,
+      parameters: { roots: ["App"] },
+    });
+    expect(trace.edges.map((edge) => edge.resolution)).toEqual([
+      { status: "undetermined", image: null },
+      { status: "resolved", image: "lib\ufffd" },
+    ]);
+    expect(trace.coverage.status).toBe("partial");
+    expect(trace.limitations).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"raw-link":"6c6962ff"'),
+      ]),
+    );
+    await expect(
+      traceDylibResolution({
+        rootPath: root,
+        targetPath: join(root, "App"),
+        targetSha256: createHash("sha256").update(executable).digest("hex"),
+        enumerateRoots: false,
+        parameters: { roots: ["raw-link"] },
+      }),
+    ).rejects.toMatchObject({
+      issues: [
+        {
+          path: ["roots", 0],
+          message: expect.stringContaining("non-UTF-8 target bytes 6c6962ff"),
+        },
+      ],
+    });
+  },
+);
+
 it("retains unknown executable-root traversal after a complete callback and keeps known image facts", async () => {
   const root = await createTestTempDirectory("rea-dylib-traversal-callback-");
   const bytes = machoImage({ commands: [buildVersionCommand(1)] });

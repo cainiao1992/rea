@@ -638,6 +638,9 @@ complete observation.
   undecodable filenames and skipped symlinks, as partial coverage. Known
   executable roots remain available; unexamined names and symlink targets
   cannot establish an empty root set or the absence of other roots.
+  A dependency symlink whose target is not valid UTF-8 is undetermined, with
+  its stored target bytes in the limitation and partial coverage; a selected
+  root crossing such a symlink is refused with the same bytes in its diagnostic.
 - `inspect_asset_catalog` / `rea inspect-asset-catalog <app>` reads compiled
   `Assets.car` metadata through macOS `assetutil --info`. Catalog digests, raw
   rendition fields, pagination and exact UI resource-name matches are returned.

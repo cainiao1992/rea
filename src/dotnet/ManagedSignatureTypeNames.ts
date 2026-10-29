@@ -39,6 +39,7 @@ const NAME_SEPARATOR = Buffer.from([0]);
 
 interface NamedRow {
   readonly digest: Buffer;
+  readonly name: string;
   readonly depth: number;
 }
 
@@ -51,10 +52,10 @@ interface NamedRow {
  * A gap, a cycle, or nesting deeper than `MAX_TYPE_NESTING_DEPTH` has no
  * digest. `retain` is charged once per row read and once per remembered row.
  */
-export const nestedTypeDigests = (
+export const nestedTypeNames = (
   link: (row: number) => TypeLink | null,
-  retain: () => void,
-): ((row: number) => Buffer | null) => {
+  retain: (bytes?: number) => void,
+): ((row: number) => NamedRow | null) => {
   const named = new Map<number, NamedRow | null>();
   const remember = (row: number, value: NamedRow | null): void => {
     retain();
@@ -124,10 +125,21 @@ export const nestedTypeDigests = (
         .update(step.link.namespace)
         .update(NAME_SEPARATOR)
         .update(step.link.name);
-      inner = { digest: hash.digest(), depth };
+      // Charge each retained expanded path before allocation, including parents.
+      const ownLength =
+        step.link.namespace.length +
+        step.link.name.length +
+        Number(step.link.namespace.length > 0);
+      retain(((inner?.name.length ?? -1) + 1 + ownLength) * 6 + 2);
+      const ownName =
+        step.link.namespace.length === 0
+          ? step.link.name
+          : `${step.link.namespace}.${step.link.name}`;
+      const name = inner === null ? ownName : `${inner.name}/${ownName}`;
+      inner = { digest: hash.digest(), name, depth };
       remember(step.row, inner);
     }
-    return exceeded ? null : (inner?.digest ?? null);
+    return exceeded ? null : inner;
   };
 };
 
@@ -142,7 +154,7 @@ export const nestedTypeDigests = (
  * retained in `issues`, once per row. Each coded index and each row is
  * named and digested once, so repeated operands cost a lookup.
  */
-export const managedTypeNameDigests = (
+export const managedSignatureTypeNames = (
   layout: ManagedMetadataLayout,
   issues: ManagedParseIssue[],
   parsedTypes: Pick<ReturnType<typeof parseTypes>, "types" | "nesting">,
@@ -150,12 +162,16 @@ export const managedTypeNameDigests = (
 ): {
   readonly operand: SignatureTypeName;
   readonly declaration: DeclarationTypeName;
+  readonly displayName: (
+    operand: Parameters<SignatureTypeName>[0],
+  ) => string | null;
 } => {
-  const retain = () => managedDecodeBudget(layout).reserve(128, null);
+  const retain = (bytes = 128) =>
+    managedDecodeBudget(layout).reserve(bytes, null);
   managedDecodeBudget(layout).reserve(parsedTypes.types.length * 128, null);
   const types = new Map<number, ManagedType>();
   for (const { row, type } of parsedTypes.types) types.set(row, type);
-  const definitions = nestedTypeDigests((row) => {
+  const definitions = nestedTypeNames((row) => {
     if (!parsedTypes.nesting.complete) return null;
     const type = types.get(row);
     if (
@@ -195,33 +211,35 @@ export const managedTypeNameDigests = (
       enclosingRow,
     };
   }, retain);
-  const references = nestedTypeDigests((row) => {
+  const references = nestedTypeNames((row) => {
     const value = reference(row);
     return value?.scopeValid === true ? value : null;
   }, retain);
-  const digests = new Map<number, Buffer | null>();
-  const digestFor = (
+  const names = new Map<number, NamedRow | null>();
+  const nameFor = (
     key: number,
     table: number | undefined,
     row: number,
-  ): Buffer | null => {
-    let digest = digests.get(key);
-    if (digest === undefined) {
+  ): NamedRow | null => {
+    let named = names.get(key);
+    if (named === undefined) {
       managedDecodeBudget(layout).reserve(256, null);
-      digest =
+      named =
         table === TYPE_DEF
           ? definitions(row)
           : table === TYPE_REF
             ? references(row)
             : null;
-      digests.set(key, digest);
+      names.set(key, named);
     }
-    return digest;
+    return named;
   };
   return {
     operand: ({ value, coordinate }) =>
-      digestFor(value, coordinate.table, coordinate.row),
+      nameFor(value, coordinate.table, coordinate.row)?.digest ?? null,
     declaration: (table, row) =>
-      digestFor(row * 4 + Number(table === TYPE_REF), table, row),
+      nameFor(row * 4 + Number(table === TYPE_REF), table, row)?.digest ?? null,
+    displayName: ({ value, coordinate }) =>
+      nameFor(value, coordinate.table, coordinate.row)?.name ?? null,
   };
 };

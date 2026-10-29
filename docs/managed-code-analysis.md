@@ -476,8 +476,18 @@ raw digest stands in. Missing or unreadable TypeDef and TypeRef operands are
 reported as coverage issues. Invalid NestedClass rows retain their failure
 reasons and withhold TypeDef signature identities; type names and nesting are
 parsed once by their shared owner. Each current inspection records
-`signature_resolution: "type-names-v1"`, even when none of its operands can be
-resolved. Historical Evidence defaults this attestation to `null`. When either
+`signature_resolution: "type-names-v2"`, even when none of its operands can be
+resolved. Version 2 also appends readable names to signature operands, for
+example `class:7772 (AnalysisJob)`. Coded indexes remain build-local references;
+names are display text and do not change raw or resolved signature digests.
+Nested names use `Outer/Inner`. Generic instantiations keep their decoded
+arguments, for example ``class:9 (System.Collections.Generic.List`1)<string>``;
+custom modifiers are named too. Valid but unresolved TypeSpecs, invalid scopes,
+unreadable type names, cycles and nesting beyond the cap keep their raw operand
+spelling. Invalid or missing metadata coordinates retain the existing malformed
+signature result and source issue; rendering does not bypass validation.
+Version 1 Evidence remains readable and compares using the same digest policy.
+Historical Evidence defaults this attestation to `null`. When either
 observation predates resolution, both sides compare raw digests, which pair only where type rows agree,
 and the comparison reports that limitation. The signature is exact whether or
 not REA decoded it, so undecoded signatures pair by that tuple too, but they

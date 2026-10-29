@@ -2504,12 +2504,12 @@ it("decodes generic instantiation member signatures as complete coverage", () =>
   expect(result.methods[0]?.signature).toMatchObject({
     parse_status: "decoded",
     return_type: "void",
-    parameter_types: ["class:9<string>"],
+    parameter_types: ["class:9 (System.Func`1)<string>"],
     issue: null,
   });
   expect(result.fields[0]?.signature).toMatchObject({
     parse_status: "decoded",
-    field_type: "valuetype:13<var:0,mvar:1>",
+    field_type: "valuetype:13 (System.ValueTuple`2)<var:0,mvar:1>",
   });
   expect(result.coverage).toMatchObject({ state: "complete", issues: [] });
 });

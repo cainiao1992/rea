@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_TYPE_NESTING_DEPTH,
-  nestedTypeDigests,
-} from "./ManagedTypeNameDigests.js";
+  nestedTypeNames,
+} from "./ManagedSignatureTypeNames.js";
 
 /** Rows 1..length, each nested in the row before it. */
 const chain = (length: number) => {
@@ -18,14 +18,14 @@ const chain = (length: number) => {
         }
       : null;
   };
-  return { calls, digest: nestedTypeDigests(link, () => undefined) };
+  return { calls, digest: nestedTypeNames(link, () => undefined) };
 };
 
 describe("nested signature type digests", () => {
   it("reads each row of a chain within the nesting cap once", () => {
     const { calls, digest } = chain(MAX_TYPE_NESTING_DEPTH);
     for (let row = MAX_TYPE_NESTING_DEPTH; row >= 1; row -= 1)
-      expect(digest(row)).toBeInstanceOf(Buffer);
+      expect(digest(row)?.digest).toBeInstanceOf(Buffer);
 
     expect(calls).toHaveLength(MAX_TYPE_NESTING_DEPTH);
   });
@@ -35,7 +35,7 @@ describe("nested signature type digests", () => {
 
     expect(digest(4_000)).toBeNull();
     expect(calls.length).toBeLessThanOrEqual(MAX_TYPE_NESTING_DEPTH + 1);
-    expect(digest(MAX_TYPE_NESTING_DEPTH)).toBeInstanceOf(Buffer);
+    expect(digest(MAX_TYPE_NESTING_DEPTH)?.digest).toBeInstanceOf(Buffer);
     expect(digest(MAX_TYPE_NESTING_DEPTH + 1)).toBeNull();
   });
 
@@ -61,7 +61,7 @@ describe("nested signature type digests", () => {
           }
         : null;
     };
-    const digest = nestedTypeDigests(link, () => undefined);
+    const digest = nestedTypeNames(link, () => undefined);
     for (let row = 1_001; row <= 1_000 + children; row += 1)
       expect(digest(row)).toBeNull();
 
@@ -82,7 +82,7 @@ describe("nested signature type digests", () => {
   });
 
   it("does not name a type whose nesting is cyclic", () => {
-    const digest = nestedTypeDigests(
+    const digest = nestedTypeNames(
       (row) => ({
         namespace: "",
         name: `T${String(row)}`,
@@ -96,18 +96,24 @@ describe("nested signature type digests", () => {
   });
 
   it("tells a nested type from a top-level type with its joined name", () => {
-    const nested = nestedTypeDigests(
+    const nested = nestedTypeNames(
       (row) =>
         row === 1
           ? { namespace: "", name: "Outer", enclosingRow: null }
           : { namespace: "", name: "Inner", enclosingRow: 1 },
       () => undefined,
     );
-    const flat = nestedTypeDigests(
+    const flat = nestedTypeNames(
       () => ({ namespace: "", name: "Outer/Inner", enclosingRow: null }),
       () => undefined,
     );
 
-    expect(nested(2)).not.toEqual(flat(1));
+    const nestedName = nested(2);
+    const flatName = flat(1);
+    if (nestedName === null || flatName === null)
+      throw new Error("Expected both type names to resolve");
+    expect(nestedName.name).toBe("Outer/Inner");
+    expect(flatName.name).toBe(nestedName.name);
+    expect(nestedName.digest.equals(flatName.digest)).toBe(false);
   });
 });

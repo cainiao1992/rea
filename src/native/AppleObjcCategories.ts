@@ -16,6 +16,22 @@ export const boundClassName = (
 };
 
 /**
+ * Why a category's class reference names no class: it is null, or bound to a
+ * symbol other than `_OBJC_CLASS_$_`, such as the `_$s…CN` metadata symbol
+ * of a Swift class in another module.
+ */
+const unnamedClassReference = (
+  read: Pick<ObjcDispatchReaders, "bound">,
+  field: bigint,
+  category: string,
+): string => {
+  const bound = read.bound(field);
+  return bound === undefined
+    ? `Category ${category} class reference is null`
+    : `Category ${category} class reference is bound to ${bound.symbol}, which is not read as an Objective-C class name`;
+};
+
+/**
  * Decode `__objc_catlist` `category_t` records:
  * name, cls, instanceMethods, classMethods, protocols, instanceProperties.
  */
@@ -71,6 +87,15 @@ export const decodeObjcCategories = (input: {
               ),
             );
           }
+        else if (external === undefined)
+          input.issues.push(
+            issue(
+              "objc_properties_categories",
+              "category_class_unresolved",
+              unnamedClassReference(read, category + 8n, name),
+              `0x${(category + 8n).toString(16)}`,
+            ),
+          );
         const owner = className ?? `(${name})`;
         let budgetTruncated = false;
         const onTruncated = () => {

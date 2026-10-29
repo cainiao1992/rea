@@ -851,7 +851,11 @@ complete observation.
   and `__objc_catlist` categories are also decoded. Categories record the
   extended class, local or external, plus
   their methods, protocols and properties; category methods appear as
-  implementations with a `category`. Swift field-offset globals that are only
+  implementations with a `category`. A category whose class reference is null,
+  or is bound to a symbol other than `_OBJC_CLASS_$_`, such as the `_$s…CN`
+  metadata symbol of another module's Swift class, keeps a null class, and
+  `objc_properties_categories` coverage names that reference. Swift
+  field-offset globals that are only
   initialized at runtime stay unresolved. Generic, resilient, async and
   coroutine tables, and inherited overrides, have explicit unsupported or
   partial coverage. Other providers retain the

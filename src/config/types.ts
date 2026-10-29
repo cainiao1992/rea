@@ -14,6 +14,7 @@ import type { RegexWorkerHeapRequest } from "./regexWorkerHeapRequest.js";
 export interface AppConfig {
   readonly mcpToolFamilies?: readonly McpToolFamilies[number][];
   readonly mcpMaxResponseBytes?: number;
+  readonly mcpMaxInputElements?: number;
   readonly mcpInputSchemaProfile?: McpInputSchemaProfile;
   readonly mcpOutputSchemaProfile?: McpOutputSchemaProfile;
   readonly analysisProvider: AnalysisProviderSelector;

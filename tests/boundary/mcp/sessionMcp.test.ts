@@ -719,6 +719,7 @@ describe("json depth bounds over MCP", () => {
       directory,
       provider,
       resources,
+      4_096,
     );
     const input = INVESTIGATION_EXAMPLES.compare_process_captures.input;
     const baseline = await mcp.callTool({

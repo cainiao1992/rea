@@ -924,7 +924,6 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       producer.close();
     }
     const before = await sourceState(path);
-    const { call } = await connectLocalToolsMcp();
     const control = await cli.run({
       arguments: [
         "inspect-sqlite-database",
@@ -970,13 +969,21 @@ cliTest.runIf(SQLITE_NATIVE_LIMITS_AVAILABLE)(
       ],
       environment: { REA_LOG_LEVEL: "silent" },
     });
-    const response = await call("inspect_sqlite_database", {
+    const input = {
       path,
       schema_scope: "inventory",
       table: "records",
       columns,
       row_limit: 1,
+    };
+    // Admit this fixture's array elements and root members so the test still
+    // reaches SQLite's own capacity boundary rather than transport admission.
+    const { call } = await connectLocalToolsMcp({
+      REA_MCP_MAX_INPUT_ELEMENTS: String(
+        columns.length + Object.keys(input).length,
+      ),
     });
+    const response = await call("inspect_sqlite_database", input);
     const expectedError = {
       code: "resource_constraint",
       category: "resource_constraint",

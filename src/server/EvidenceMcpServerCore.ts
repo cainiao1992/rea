@@ -1,5 +1,6 @@
 import type { AnalysisSettings } from "../application/AnalysisSettings.js";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { DEFAULT_MCP_MAX_INPUT_ELEMENTS } from "../config/mcpInputBudget.js";
 
 import {
   specTypeSchemas,
@@ -232,6 +233,7 @@ export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
   private readonly compactPresentation:
     | CompactInputSchemaPresentation
     | undefined;
+  private readonly maximumInputElements: number;
 
   constructor(
     info: Implementation,
@@ -245,7 +247,10 @@ export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
       | ReadonlySet<string>
       | undefined = undefined,
   ) {
-    super(info, options);
+    const maximumInputElements =
+      options.maxToolInputElements ?? DEFAULT_MCP_MAX_INPUT_ELEMENTS;
+    super(info, { ...options, maxToolInputElements: maximumInputElements });
+    this.maximumInputElements = maximumInputElements;
     this.compactPresentation =
       compactPresentation === undefined
         ? undefined
@@ -334,6 +339,7 @@ export class EvidenceMcpServerCore extends RequestTrackingMcpServer {
         () => this.recordEvidence,
         () => this.delivery,
         this.outputSchemaProfile,
+        this.maximumInputElements,
       ),
     );
   }
@@ -369,6 +375,7 @@ class ErrorEvidenceTransport implements Transport {
       | undefined,
     private readonly currentDelivery: () => ToolResultDelivery,
     private readonly outputSchemaProfile: McpOutputSchemaProfile,
+    private readonly maximumInputElements: number,
   ) {
     if (transport.hasPerRequestStream !== undefined)
       this.hasPerRequestStream = transport.hasPerRequestStream;
@@ -572,12 +579,7 @@ class ErrorEvidenceTransport implements Transport {
         ? encodeToolResult(structured, budget, "error-text", targetContent)
         : measureMcpResultWithinBudget(sdkResultWithMarker, budget);
     const normalized = encoded.ok
-      ? this.normalizeSdkValidationError(
-          message,
-          tool,
-          targetContent,
-          sdkInputValidationDiagnostic(sdkDiagnostic, tool),
-        )
+      ? this.normalizeSdkInputError(message, tool, targetContent, sdkDiagnostic)
       : undefined;
     if (
       normalized !== undefined &&
@@ -735,26 +737,48 @@ class ErrorEvidenceTransport implements Transport {
       : fitted;
   }
 
-  private normalizeSdkValidationError(
+  private normalizeSdkInputError(
     message: JSONRPCMessage,
     tool: string | undefined,
     targetContent: boolean,
-    diagnostic: string | undefined,
+    text: string | undefined,
   ): JSONRPCMessage | undefined {
     if (
       tool === undefined ||
-      diagnostic === undefined ||
+      text === undefined ||
       !isJSONRPCResultResponse(message) ||
       !isCallToolResult(message.result)
     )
       return undefined;
-    const error = new AnalysisInputError(
-      tool,
-      {
-        userMessage: `The arguments for MCP tool ${tool} do not match its advertised input schema.`,
-      },
-      [{ path: [], reason: "invalid_value", message: diagnostic }],
-    );
+    let error: AnalysisInputError | AnalysisResourceConstraintError;
+    // The SDK owns counting and refusal before Standard Schema validation.
+    // Recognize its exact wire refusal using our configured fact, without
+    // reparsing the arguments or manufacturing a complete element count.
+    if (
+      text ===
+      `Invalid arguments for tool ${tool}: arguments contain more than the maximum of ${String(this.maximumInputElements)} elements`
+    ) {
+      error = new AnalysisResourceConstraintError(
+        tool,
+        "transport",
+        "The MCP tool arguments exceed the configured input element allowance; schema validation and tool execution did not start.",
+        { max_input_elements: this.maximumInputElements },
+        {
+          remediationAction:
+            "Reduce the combined array elements and object members in the arguments, or restart REA with a larger REA_MCP_MAX_INPUT_ELEMENTS allowance for this workload.",
+        },
+      );
+    } else {
+      const diagnostic = sdkInputValidationDiagnostic(text, tool);
+      if (diagnostic === undefined) return undefined;
+      error = new AnalysisInputError(
+        tool,
+        {
+          userMessage: `The arguments for MCP tool ${tool} do not match its advertised input schema.`,
+        },
+        [{ path: [], reason: "invalid_value", message: diagnostic }],
+      );
+    }
     const result = this.delivery.toErrorToolResult(error, targetContent);
     return {
       ...message,

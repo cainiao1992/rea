@@ -109,6 +109,9 @@ export const parseConfig = (
     ...(env.REA_MCP_MAX_RESPONSE_BYTES === undefined
       ? {}
       : { mcpMaxResponseBytes: env.REA_MCP_MAX_RESPONSE_BYTES }),
+    ...(env.REA_MCP_MAX_INPUT_ELEMENTS === undefined
+      ? {}
+      : { mcpMaxInputElements: env.REA_MCP_MAX_INPUT_ELEMENTS }),
     ...(env.REA_MCP_INPUT_SCHEMA_PROFILE === undefined
       ? {}
       : { mcpInputSchemaProfile: env.REA_MCP_INPUT_SCHEMA_PROFILE }),

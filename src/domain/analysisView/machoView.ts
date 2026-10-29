@@ -3,7 +3,10 @@ import { z } from "zod";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { uniqueSorted } from "../canonicalOrdering.js";
 import { isMachOFormat } from "../binaryTargetTypes.js";
-import { inspectMachoSchema } from "../native/nativeInspection.js";
+import {
+  inspectMachoSchema,
+  retainedInspectMachoSchema,
+} from "../native/nativeInspection.js";
 import { err, ok, type Result } from "../result.js";
 import { parseAnalysisViewResult } from "./analysisViewParent.js";
 import type {
@@ -25,6 +28,7 @@ const MACHO_COLLECTIONS = [
   "imports",
   "exports",
   "segments",
+  "encryption",
 ] as const;
 type MachoCollection = (typeof MACHO_COLLECTIONS)[number];
 
@@ -51,6 +55,7 @@ export const machoViewRows = {
   imports: exactRows(shape.imports.shape.items),
   exports: exactRows(shape.exports.shape.items),
   segments: exactRows(shape.segments.shape.items),
+  encryption: exactRows(shape.encryption.shape.items),
   provenance: exactRows(shape.provenance),
 };
 
@@ -90,7 +95,7 @@ type MachoReport = z.output<typeof inspectMachoSchema>;
 const parseMachoReport = (
   parent: AnalysisViewParent,
 ): Result<MachoReport, AnalysisError> => {
-  const parsed = parseAnalysisViewResult(inspectMachoSchema, parent);
+  const parsed = parseAnalysisViewResult(retainedInspectMachoSchema, parent);
   if (!parsed.ok) return parsed;
   if (parent.subject != null && !isMachOFormat(parent.subject.format))
     return err(
@@ -255,6 +260,8 @@ export const projectMachoView = (
       return ok(page("exports", report.exports.items));
     case "segments":
       return ok(page("segments", report.segments.items));
+    case "encryption":
+      return ok(page("encryption", report.encryption.items));
     case "provenance":
       return ok(page("provenance", report.provenance));
   }

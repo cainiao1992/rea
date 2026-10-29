@@ -33,6 +33,11 @@ import type { MachoCommandNames } from "./MachoCommandNames.js";
 import type { ResolvedMachoSlice } from "./NativeMachoSelectedSlice.js";
 import { reconcileMachoUuid } from "./parsers/machoUuid.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
+import { machoCpuSubtypeBase } from "../domain/apple/machoCpuIdentity.js";
+import type {
+  MachoEncryptionFacts,
+  MachoSliceEncryption,
+} from "../domain/apple/machoEncryption.js";
 import {
   conflictingUuidCommandEvidence,
   isMissingUuidDyldFailure,
@@ -50,9 +55,18 @@ interface NativeMachoObservation {
   readonly locations: readonly EvidenceLocation[];
 }
 
+/** Structural encryption facts, or why the target bytes were not read. */
+export type MachoEncryptionRead =
+  | MachoEncryptionFacts
+  | { readonly status: "unread"; readonly reason: string };
+
 interface NativeMachoInspectionContext {
   readonly target: BinaryTarget;
   readonly signal?: AbortSignal;
+  /** Read load-command encryption facts from the bytes the tools inspect. */
+  readonly readEncryption: (
+    signal?: AbortSignal,
+  ) => Promise<MachoEncryptionRead>;
   readonly run: (
     tool: string,
     arguments_: readonly string[],
@@ -317,6 +331,7 @@ export const inspectNativeMacho = async (
       new Set(parseNmSymbolNames(importNames.value.stdout)),
     );
   }
+  const encryption = await context.readEncryption(context.signal);
   const selectedArchitectureName =
     (selection.status === "selected" ? selection.architecture.name : null) ??
     (architectures.length === 1 ? (architectures[0]?.name ?? null) : null);
@@ -331,7 +346,7 @@ export const inspectNativeMacho = async (
     binary.sliceSize,
     parsedImports.items,
     captures[nmIndex]!,
-    architectures,
+    { format, architectures, encryption },
     context.target.path,
     {
       name: selectedArchitectureName,
@@ -413,13 +428,19 @@ const normalizeMacho = (
   sliceSize: number,
   parsedImports: ReturnType<typeof parseDyldImports>["items"],
   exportNames: NativeCommandCapture,
-  architectures: readonly LipoArchitecture[],
+  slices: {
+    readonly format: "thin" | "fat";
+    readonly architectures: readonly LipoArchitecture[];
+    readonly encryption: MachoEncryptionRead;
+  },
   artifactPath: string,
   selectedArchitecture: {
     readonly name: string | null;
     readonly container_file_offset: number | null;
   },
 ) => {
+  const { architectures } = slices;
+  const encryption = encryptionCoverage(slices);
   const byTool = captureLookup(captures);
   const dyldImportsCapture = byTool("dyld_info", 0);
   const dyldExportsCapture = byTool("dyld_info", 1);
@@ -481,6 +502,8 @@ const normalizeMacho = (
           "Export virtual addresses are unavailable because no file-backed image base was observed.",
         ]
       : []),
+    ...encryption.limitations,
+    ...encryption.items.flatMap(encryptionLimitation),
   ];
   return inspectMachoSchema.parse({
     format: containerFormat === "fat" ? "mach-o-universal" : "mach-o",
@@ -540,9 +563,82 @@ const normalizeMacho = (
       load.segmentLimitations.length === 0,
       load.segmentLimitations,
     ),
+    encryption,
     provenance,
     limitations,
   });
+};
+
+/** Label each slice with the one lipo record sharing its physical identity. */
+const encryptionCoverage = ({
+  format,
+  architectures,
+  encryption,
+}: {
+  readonly format: "thin" | "fat";
+  readonly architectures: readonly LipoArchitecture[];
+  readonly encryption: MachoEncryptionRead;
+}) => {
+  if (encryption.status !== "parsed")
+    return {
+      items: [],
+      total: null,
+      exhaustive: false,
+      limitations: [
+        encryption.status === "not-mach-o"
+          ? "Encryption load commands were not read: the structural reader did not recognize a Mach-O image."
+          : `Encryption load commands were not read: ${encryption.reason}`,
+      ],
+    };
+  const items = encryption.slices.map((slice) => {
+    const matches = architectures.filter((architecture) =>
+      lipoDescribesSlice(architecture, slice, format),
+    );
+    return {
+      ...slice,
+      architecture: matches.length === 1 ? (matches[0]?.name ?? null) : null,
+    };
+  });
+  return covered(items, true);
+};
+
+const lipoDescribesSlice = (
+  architecture: LipoArchitecture,
+  slice: MachoSliceEncryption,
+  format: "thin" | "fat",
+): boolean =>
+  (architecture.file_offset === null
+    ? format === "thin" && slice.container_file_offset === 0
+    : architecture.file_offset === slice.container_file_offset) &&
+  (architecture.size === null || architecture.size === slice.size) &&
+  (architecture.cpu_type_code === null ||
+    slice.cpu_type === null ||
+    architecture.cpu_type_code === slice.cpu_type) &&
+  (slice.cpu_subtype === null ||
+    (architecture.cpu_subtype_code === null
+      ? architecture.cpu_subtype_base === null ||
+        architecture.cpu_subtype_base === machoCpuSubtypeBase(slice.cpu_subtype)
+      : architecture.cpu_subtype_code === slice.cpu_subtype));
+
+const encryptionLimitation = (slice: MachoSliceEncryption): string[] => {
+  const name =
+    slice.architecture === null
+      ? `slice at offset ${slice.container_file_offset}`
+      : `${slice.architecture} slice`;
+  if (slice.status === "malformed" || slice.status === "unknown")
+    return [
+      `Encryption status of the ${name} is ${slice.status}: ${slice.reason ?? "no reason recorded"}.`,
+    ];
+  const { range } = slice;
+  if (slice.status !== "encrypted" || range === null) return [];
+  const cryptid = slice.commands[0]?.cryptid ?? null;
+  return range.container_start === range.container_end
+    ? [
+        `The ${name} declares encryption (cryptid ${cryptid}) over an empty range; no bytes are marked as ciphertext.`,
+      ]
+    : [
+        `Bytes ${range.container_start}-${range.container_end} (input file offsets, end exclusive) of the ${name} are ciphertext (cryptid ${cryptid}); disassembly, decompilation, strings and references derived from them do not describe program code.`,
+      ];
 };
 
 /** Slice output without the echoed operand path, which can contain any text. */

@@ -19,6 +19,7 @@ import {
   ArtifactFileCleanupFailure,
   type ArtifactFilePrimaryFacts,
 } from "../artifacts/ArtifactFileOperation.js";
+import { readMachoEncryption } from "../artifacts/apple/MachoEncryptionReader.js";
 import { snapshotEnvironment } from "../process/snapshotEnvironment.js";
 import {
   APPLE_DISPATCH_METADATA_ANALYSIS_PROFILE,
@@ -229,6 +230,12 @@ export class NativeMacOSProvider implements AnalysisProvider {
     );
   }
 }
+
+// Encryption range mapping in every slice shares a sixteenth of the output
+// budget at the 256 projected bytes reserved per Mach-O command record.
+const MACHO_ENCRYPTION_MAPPING_RECORDS = Math.floor(
+  NATIVE_COMMAND_OUTPUT_BUDGET_BYTES / 16 / 256,
+);
 
 class NativeMacOSClient implements AnalysisClient {
   readonly #pendingNativeUiRuntimes = new Set<NativeUiHelperRuntime>();
@@ -1284,6 +1291,19 @@ class NativeMacOSClient implements AnalysisClient {
                   ...(acceptNonZeroIf === undefined ? {} : { acceptNonZeroIf }),
                 }),
               invocation: (capture) => invocation(capture, this.target.path),
+              // Encryption facts come from the same identity-bound descriptor.
+              readEncryption: () =>
+                readMachoEncryption(
+                  (at, length) =>
+                    source.readSlice(
+                      0,
+                      source.bytes,
+                      Math.min(at, source.bytes),
+                      Math.max(0, Math.min(length, source.bytes - at)),
+                    ),
+                  source.bytes,
+                  MACHO_ENCRYPTION_MAPPING_RECORDS,
+                ),
               resolveSlice: (selected) =>
                 resolveSelectedMachoSlice(
                   source,

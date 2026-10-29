@@ -7,7 +7,10 @@ import {
   nativeMachoTarget,
 } from "../../tests/fixtures/nativeCommands.js";
 import { inspectNativeMacho } from "./NativeMachoInspection.js";
-import { inspectionReader } from "./NativeMachoInspection.fixture.js";
+import {
+  inspectionReader,
+  unreadEncryption,
+} from "./NativeMachoInspection.fixture.js";
 
 const inspect = async (options: {
   readonly diagnostic: string;
@@ -23,6 +26,7 @@ const inspect = async (options: {
   );
   return inspectNativeMacho({
     readCommandNames: inspectionReader(),
+    readEncryption: unreadEncryption,
     target: nativeMachoTarget(path),
     run: async (tool, args, _signal, acceptNonZeroIf) => {
       const result = await runner.run(tool, args);

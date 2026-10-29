@@ -1882,6 +1882,72 @@ describe("Mach-O load command reader failures", () => {
   });
 });
 
+describe("Mach-O load command reader defect precedence", () => {
+  it("keeps defect precedence when one image has several defects", async () => {
+    const shortRpath = new Uint8Array(8);
+    const shortView = new DataView(shortRpath.buffer);
+    shortView.setUint32(0, LC.RPATH, true);
+    shortView.setUint32(4, 8, true);
+    const unsized = new Uint8Array(16);
+    new DataView(unsized.buffer).setUint32(0, LC.RPATH, true);
+    const decodeFirst = {
+      status: "malformed",
+      reason: "load command 0 is too short to hold a string offset",
+    };
+    // An earlier command's decode defect wins over a later framing defect,
+    expect(await read(machoImage({ commands: [shortRpath, unsized] }))).toEqual(
+      decodeFirst,
+    );
+    // over a missing later command,
+    const missing = machoImage({ commands: [shortRpath] });
+    new DataView(missing.buffer).setUint32(16, 2, true);
+    expect(await read(missing)).toEqual(decodeFirst);
+    // and over unconsumed command bytes.
+    const unconsumed = machoImage({
+      commands: [shortRpath, rpathCommand("x")],
+    });
+    new DataView(unconsumed.buffer).setUint32(16, 1, true);
+    expect(await read(unconsumed)).toEqual(decodeFirst);
+
+    // The command-size limit is checked before the slice bounds.
+    const oversized = machoImage({});
+    new DataView(oversized.buffer).setUint32(
+      20,
+      MAX_LOAD_COMMAND_BYTES + 8,
+      true,
+    );
+    expect(await read(oversized)).toMatchObject({ status: "unsupported" });
+
+    // A malformed FAT slice wins over an earlier or later unsupported one.
+    const bigEndian = new Uint8Array(32);
+    new DataView(bigEndian.buffer).setUint32(0, 0xfeedfacf, false);
+    const overlong = machoImage({});
+    new DataView(overlong.buffer).setUint32(20, overlong.byteLength, true);
+    for (const slices of [
+      [bigEndian, overlong],
+      [overlong, bigEndian],
+    ]) {
+      const fat = fatImage(slices.map((bytes) => ({ cpu: CPU.arm64, bytes })));
+      expect(await read(fat)).toEqual({
+        status: "malformed",
+        reason: "load commands extend beyond the Mach-O slice",
+      });
+    }
+
+    // The first FAT range issue is reported, whatever its category.
+    const ranged = fatImage([
+      { cpu: CPU.arm64, bytes: machoImage({}) },
+      { cpu: CPU.x86_64, bytes: machoImage({ cpu: CPU.x86_64 }) },
+    ]);
+    new DataView(ranged.buffer).setUint32(8 + 16, 53, false);
+    new DataView(ranged.buffer).setUint32(8 + 20 + 12, ranged.length, false);
+    expect(await read(ranged)).toEqual({
+      status: "unsupported",
+      reason: "FAT architecture 0 alignment exponent 53 is unsupported",
+    });
+  });
+});
+
 it.each([true, false])(
   "rejects unconsumed command bytes in wide=%s headers",
   async (wide) => {

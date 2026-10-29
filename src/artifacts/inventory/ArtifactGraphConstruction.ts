@@ -136,7 +136,10 @@ export const createOccurrence = (
       entry.byteOffset === null ||
       entry.declaredSize === null
         ? null
-        : { offset: entry.byteOffset, length: entry.declaredSize },
+        : {
+            offset: entry.byteOffset,
+            length: entry.byteLength ?? entry.declaredSize,
+          },
     limitations: [...entry.limitations],
     ...(entry.declaredIntegrity === null
       ? {}
@@ -288,6 +291,7 @@ export const rootOccurrenceFor = (
       "dmg",
       "pkg",
       "pyinstaller",
+      "dotnet-bundle",
       "node-sea",
       "intel-hex",
       "srec",

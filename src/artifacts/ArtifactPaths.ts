@@ -2,7 +2,11 @@ import { posix } from "node:path";
 
 import { logicalPathNfc } from "../domain/artifactIdentity.js";
 import { compareUnicodeCodePoints } from "../domain/unicodeCodePointOrder.js";
-import { ArtifactReaderFailure, type ArtifactEntry } from "./ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  artifactFixedLimitFailure,
+  type ArtifactEntry,
+} from "./ArtifactReader.js";
 
 const ABSOLUTE_DRIVE_PATH = /^[A-Za-z]:[\\/]/u;
 
@@ -87,13 +91,27 @@ export const normalizeArtifactPath = (input: string): string => {
   return normalized;
 };
 
-/** Reject exact and same-spelling prefix collisions. Case-distinct names stay distinct. */
+/** Reject prefix collisions and optionally bound the allocated path tree. */
 export class ArtifactPathRegistry {
   readonly #root: PathTrieNode = { kind: undefined, children: new Map() };
+  #nodeCount = 0;
+
+  constructor(
+    private readonly budget?: {
+      readonly maxParts: number;
+      readonly maxNodes: number;
+    },
+  ) {}
 
   add(path: string, kind: ArtifactEntry["kind"]): void {
     if (!hasDestinationPath(kind)) return;
     const parts = path.split("/");
+    if (this.budget !== undefined && parts.length > this.budget.maxParts)
+      throw artifactFixedLimitFailure(
+        "Artifact path depth",
+        this.budget.maxParts,
+        "path parts",
+      );
     let node = this.#root;
     for (const [index, part] of parts.entries()) {
       if (node.kind !== undefined && node.kind !== "directory")
@@ -103,8 +121,18 @@ export class ArtifactPathRegistry {
         );
       let child = node.children.get(part);
       if (child === undefined) {
+        if (
+          this.budget !== undefined &&
+          this.#nodeCount >= this.budget.maxNodes
+        )
+          throw artifactFixedLimitFailure(
+            "Artifact path tree",
+            this.budget.maxNodes,
+            "path nodes",
+          );
         child = { kind: undefined, children: new Map() };
         node.children.set(part, child);
+        if (this.budget !== undefined) this.#nodeCount++;
       }
       node = child;
       if (index === parts.length - 1) {

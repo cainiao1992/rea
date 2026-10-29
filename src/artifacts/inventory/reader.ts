@@ -1,6 +1,4 @@
-import type { GodotPckAdmission } from "../GodotPckLocation.js";
-import type { PyInstallerAdmission } from "../pyinstaller/PyInstallerAdmission.js";
-import type { NodeSeaAdmission } from "../nodeSea/NodeSeaAdmission.js";
+import type { ArtifactReaderAdmission } from "../ArtifactReaderAdmission.js";
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import type {
   ArtifactReader,
@@ -15,18 +13,13 @@ import {
   isZipPackageFormat,
   ZIP_NON_ENTRY_LIMITATION,
 } from "../../domain/zipPackageFormat.js";
-import type { StableRegularFileDescriptor } from "../../filesystem/RegularFile.js";
 import { ESP_IMAGE_LIMITATIONS } from "../../domain/firmware/espImageFacts.js";
 
 export const createReader = (
   path: string,
   format: ArtifactOccurrence["artifact_format"],
   environment: Readonly<NodeJS.ProcessEnv>,
-  readerAdmission?:
-    | StableRegularFileDescriptor
-    | NodeSeaAdmission
-    | PyInstallerAdmission
-    | GodotPckAdmission,
+  readerAdmission?: ArtifactReaderAdmission,
   asarHeaderAdmission?: AsarHeaderAdmission,
   selectedPath?: string,
 ): ArtifactReader | undefined => {

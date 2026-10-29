@@ -1,7 +1,6 @@
-import type { GodotPckAdmission } from "./GodotPckLocation.js";
-import type { PyInstallerAdmission } from "./pyinstaller/PyInstallerAdmission.js";
-import type { NodeSeaAdmission } from "./nodeSea/NodeSeaAdmission.js";
+import type { ArtifactReaderAdmission } from "./ArtifactReaderAdmission.js";
 import type { AsarHeaderAdmission } from "../config/asarHeaderAdmission.js";
+import { DotnetBundleArtifactReader } from "./DotnetBundleArtifactReader.js";
 import { AsarArtifactReader } from "./AsarArtifactReader.js";
 import type { ArtifactReader } from "./ArtifactReader.js";
 import { HexRecordArtifactReader } from "./HexRecordArtifactReader.js";
@@ -21,7 +20,6 @@ import {
   isZipPackageFormat,
   type ZipPackageFormat,
 } from "../domain/zipPackageFormat.js";
-import type { StableRegularFileDescriptor } from "../filesystem/RegularFile.js";
 
 /** Formats with an artifact entry reader; availability policy belongs to the caller. */
 export type ArtifactReaderFormat =
@@ -29,6 +27,7 @@ export type ArtifactReaderFormat =
   | "asar"
   | "pyinstaller"
   | "node-sea"
+  | "dotnet-bundle"
   | "godot-pck"
   | "unityfs"
   | "uimage"
@@ -43,12 +42,7 @@ export type ArtifactReaderFormat =
 interface ArtifactReaderConstruction {
   readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly unreadableDirectories: "fail" | "omit";
-  readonly admission?:
-    | StableRegularFileDescriptor
-    | NodeSeaAdmission
-    | PyInstallerAdmission
-    | GodotPckAdmission
-    | undefined;
+  readonly admission?: ArtifactReaderAdmission | undefined;
   readonly asarHeaderAdmission?: AsarHeaderAdmission | undefined;
   /** Caller-selected root spelling; only ASAR companion lookup consumes this. */
   readonly selectedPath?: string | undefined;
@@ -95,6 +89,15 @@ export function createArtifactReader(
         admission !== undefined &&
           "kind" in admission &&
           admission.kind === "pyinstaller"
+          ? admission
+          : rootSource,
+      );
+    case "dotnet-bundle":
+      return new DotnetBundleArtifactReader(
+        path,
+        admission !== undefined &&
+          "kind" in admission &&
+          admission.kind === "dotnet-bundle"
           ? admission
           : rootSource,
       );

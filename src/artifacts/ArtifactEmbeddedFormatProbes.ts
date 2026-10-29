@@ -6,6 +6,7 @@ import {
   regularFileState,
   sameRegularFileState,
 } from "../filesystem/RegularFile.js";
+import { findDotnetBundleHeader } from "./dotnet/DotnetBundle.js";
 import { ArtifactReaderFailure } from "./ArtifactReader.js";
 import { abortIfNeeded } from "./ArtifactHash.js";
 import { locateGodotPck, type GodotPckLocation } from "./GodotPckLocation.js";
@@ -24,6 +25,7 @@ export interface ArtifactEmbeddedFormatProbeFacts {
   readonly sourceState: RegularFileState;
   readonly godotPck?: GodotPckLocation | null;
   readonly nodeSea?: NodeSeaLocation | null;
+  readonly dotnetBundleHeaderOffset?: number | null;
   readonly pyInstaller?: PyInstallerCookieObservation;
 }
 
@@ -92,6 +94,23 @@ export class ArtifactEmbeddedFormatProbes {
       throw new ArtifactReaderFailure(found.error.reason, found.error.message);
     this.#facts = { ...this.#facts, pyInstaller: found.value };
     return found.value.state === "located" ? found.value.cookie : undefined;
+  }
+
+  async dotnetBundle(): Promise<number | undefined> {
+    abortIfNeeded(this.signal);
+    if (this.#facts.dotnetBundleHeaderOffset !== undefined)
+      return this.#facts.dotnetBundleHeaderOffset ?? undefined;
+    // An apphost inside a recognized CArchive cannot claim its outer carrier.
+    const packaged = await this.pyInstaller();
+    const header = await findDotnetBundleHeader(
+      this.source.handle,
+      this.source.initial.size,
+      this.signal,
+      packaged?.archiveStart ?? this.source.initial.size,
+    );
+    abortIfNeeded(this.signal);
+    this.#facts = { ...this.#facts, dotnetBundleHeaderOffset: header ?? null };
+    return header;
   }
 
   completedFacts(): ArtifactEmbeddedFormatProbeFacts {

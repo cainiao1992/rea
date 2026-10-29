@@ -423,6 +423,15 @@ const directoryProbes = (
 const probesForFormat = (
   format: ArtifactInventoryResult["manifest"]["root_format"],
 ): ArtifactInspectionResult["next_probes"] => {
+  if (format === "dotnet-bundle")
+    return [
+      {
+        operation: "extract_artifact",
+        rationale:
+          "Extract members into a fresh owned directory, then inspect candidate files separately; bundle declarations do not establish their format.",
+        authority: "artifact-bytes",
+      },
+    ];
   if (["asar", "javascript-bundle"].includes(format))
     return [
       {

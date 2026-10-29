@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -300,6 +300,50 @@ const root = await mkdtemp(join(tmpdir(), "rea-dispatch-"));
 let report;
 try {
   const results = [];
+  const commands = 4097;
+  const commandTable = Buffer.alloc(32 + commands * 16);
+  commandTable.writeUInt32LE(0xfeedfacf);
+  commandTable.writeUInt32LE(0x0100000c, 4);
+  commandTable.writeUInt32LE(2, 12);
+  commandTable.writeUInt32LE(commands, 16);
+  commandTable.writeUInt32LE(commands * 16, 20);
+  for (let cursor = 32; cursor < commandTable.length; cursor += 16) {
+    commandTable.writeUInt32LE(0x2a, cursor); // LC_SOURCE_VERSION
+    commandTable.writeUInt32LE(16, cursor + 4);
+  }
+  const commandTablePath = join(root, "many-commands.macho");
+  await writeFile(commandTablePath, commandTable);
+  const cli = await artifactCliEvidence(
+    "inspect-native-dispatch-metadata",
+    commandTablePath,
+    ["--max-input-bytes", String(commandTable.length)],
+  );
+  const cliResult = nativeDispatchMetadataResultSchema.parse(
+    cli.normalized_result,
+  );
+  assert.deepEqual(cliResult.input_admission, {
+    maximum_bytes: commandTable.length,
+    source: "caller",
+    retained_bytes: commandTable.length,
+  });
+  assert.equal(
+    cliResult.result.target_selection.byte_length,
+    commandTable.length,
+  );
+  assert.deepEqual(cliResult.result.objc_classes, []);
+  await withArtifactMcp(commandTablePath, async (client) => {
+    const mcpResult = nativeDispatchMetadataResultSchema.parse(
+      await artifactMcpResult(client, "inspect_native_dispatch_metadata", {
+        max_input_bytes: commandTable.length,
+      }),
+    );
+    assert.deepEqual(mcpResult, cliResult);
+  });
+  results.push({
+    variant: "many-load-commands",
+    commands,
+    target_sha256: cliResult.target_sha256,
+  });
   for (const mode of LINK_MODES) {
     const objcPath = join(root, `fixture-${mode.mode}`);
     await exec("/usr/bin/xcrun", [

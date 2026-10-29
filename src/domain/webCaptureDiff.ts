@@ -43,6 +43,11 @@ export const compareWebCaptures = (
     dimensions,
     limitations: [
       "A changed status proves an observed difference; an unknown status means necessary comparison facts or coverage were unavailable.",
+      ...(!domValueLengthsComparable(before.dom, after.dom)
+        ? [
+            "DOM value-length comparison is unknown because units are missing or different; independent structural differences can still establish a change.",
+          ]
+        : []),
       "Network comparison covers only activity observed after each CDP attachment. WebSocket connections with the same URL are compared as an unordered collection of ordered frame streams, retaining connection counts; their individual identities are not stable across captures.",
       "Accessibility structure is compared when the tree is complete; text additionally requires complete selected text capture. A missing role leaves that node's role comparison unknown; independently observed differences can still establish a change.",
       "Storage key inventories are compared only when selected and complete; usage and quota are compared only when reported. Redacted content is compared through complete SHA-256 fingerprints.",
@@ -1052,6 +1057,37 @@ const compareAggregate = (
     reason,
   );
 
+const domValueLengthsComparable = (
+  before: WebPageInspection["dom"],
+  after: WebPageInspection["dom"],
+): boolean =>
+  (before.nodes.length === 0 && after.nodes.length === 0) ||
+  (before.node_value_length_unit !== undefined &&
+    before.node_value_length_unit === after.node_value_length_unit);
+
+/** Compare parsed node facts without serializing or copying the inventories. */
+const domNodesDiffer = (
+  before: WebPageInspection["dom"]["nodes"],
+  after: WebPageInspection["dom"]["nodes"],
+  compareLengths: boolean,
+): boolean =>
+  before.length !== after.length ||
+  before.some((node, index) => {
+    const next = after[index];
+    return (
+      next === undefined ||
+      node.index !== next.index ||
+      node.parent_index !== next.parent_index ||
+      node.node_type !== next.node_type ||
+      node.node_name !== next.node_name ||
+      (compareLengths && node.node_value_length !== next.node_value_length) ||
+      node.attribute_names.length !== next.attribute_names.length ||
+      node.attribute_names.some(
+        (name, position) => name !== next.attribute_names[position],
+      )
+    );
+  });
+
 const domDimension = (
   before: WebPageInspection,
   after: WebPageInspection,
@@ -1070,10 +1106,10 @@ const domDimension = (
       sectionsComplete(inspection, ["frames"]),
     );
   const changes: Change[] = [];
+  const lengthsComparable = domValueLengthsComparable(before.dom, after.dom);
   if (
     nodesComplete &&
-    digestCanonicalValue(before.dom.nodes) !==
-      digestCanonicalValue(after.dom.nodes)
+    domNodesDiffer(before.dom.nodes, after.dom.nodes, lengthsComparable)
   )
     changes.push({ identity: "document", change: "modified" });
   if (framesComplete && beforeFrames !== afterFrames)
@@ -1085,14 +1121,14 @@ const domDimension = (
       changes,
       reason: null,
     };
-  return nodesComplete && framesComplete
+  return nodesComplete && framesComplete && lengthsComparable
     ? { status: "unchanged", total_changes: 0, changes: [], reason: null }
     : {
         status: "unknown",
         total_changes: 0,
         changes: [],
         reason:
-          "DOM or frame capture was incomplete, or frame ancestry was unresolved in at least one observation.",
+          "DOM or frame capture was incomplete, frame ancestry was unresolved, or DOM value-length units were missing or different in at least one observation.",
       };
 };
 

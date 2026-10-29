@@ -1,3 +1,4 @@
+import { ProcessAdmissionError } from "./ProcessAdmissionError.js";
 import { PrivateRuntimeRoot } from "./PrivateRuntimeRoot.js";
 import type { Readable, Writable } from "node:stream";
 import {
@@ -211,14 +212,14 @@ export class OwnedWorkerRuntime {
     initialize?: (supervisor: ProviderProcessSupervisor) => Promise<void>,
   ): Promise<void> {
     if (this.#terminalCloseRequested || this.#closing)
-      return Promise.reject(new Error("Owned worker runtime is closing"));
+      return Promise.reject(new ProcessAdmissionError("runtime_closing"));
     if (this.#acquisition !== undefined) return this.#acquisition;
     if (this.#supervisor !== undefined && !this.#registry.has(this))
       return Promise.resolve();
     if (this.options.retryCleanup !== undefined && this.#registry.has(this))
       return this.#retryOwnedCleanup().then(() => {
         if (this.#terminalCloseRequested || this.#closing)
-          throw new Error("Owned worker runtime is closing");
+          throw new ProcessAdmissionError("runtime_closing");
         return this.start(spawnOptions, initialize);
       });
     const ownRetry = this.#registry.has(this)
@@ -241,7 +242,7 @@ export class OwnedWorkerRuntime {
   onStdout(listener: (chunk: Buffer | string) => void): void {
     const stream = this.#supervisor?.launch.process.stdout;
     if (stream === null || stream === undefined)
-      throw new Error("Owned worker runtime has no stdout stream");
+      throw new ProcessAdmissionError("stdout_missing");
     stream.on("data", listener);
     this.#stdoutListeners.add({ stream, listener });
   }
@@ -330,12 +331,12 @@ export class OwnedWorkerRuntime {
       | undefined,
   ): Promise<void> {
     await this.#registry.retry(this);
-    if (this.#closing) throw new Error("Owned worker runtime is closing");
+    if (this.#closing) throw new ProcessAdmissionError("runtime_closing");
     this.#root ??= await PrivateRuntimeRoot.create({
       prefix: this.options.rootPrefix,
     });
     this.#cleanupEpoch ??= new OwnedWorkerRuntimeCleanupEpoch(this.#root.path);
-    if (this.#closing) throw new Error("Owned worker runtime is closing");
+    if (this.#closing) throw new ProcessAdmissionError("runtime_closing");
     this.#lastRunId = spawnOptions.runId;
     const spawned = await (this.options.launcher ?? spawnOwnedProviderProcess)({
       ...spawnOptions,
@@ -356,9 +357,9 @@ export class OwnedWorkerRuntime {
     );
     // A close may have begun while spawn was pending. Adopt the process first;
     // close waits for this acquisition and then stops the exact adopted owner.
-    if (this.#closing) throw new Error("Owned worker runtime is closing");
+    if (this.#closing) throw new ProcessAdmissionError("runtime_closing");
     await initialize?.(this.#supervisor);
-    if (this.#closing) throw new Error("Owned worker runtime is closing");
+    if (this.#closing) throw new ProcessAdmissionError("runtime_closing");
   }
 
   async #stop(): Promise<ProviderProcessStopResult> {
@@ -430,7 +431,9 @@ export class OwnedWorkerRuntime {
       this.#inputFailure =
         cause instanceof Error
           ? cause
-          : new Error("Owned worker request stream failed", { cause });
+          : new ProcessAdmissionError("request_stream_failed", undefined, {
+              cause,
+            });
       this.options.onInputFailure?.(this.#inputFailure);
     };
     const onClose = (): void => {

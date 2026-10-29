@@ -124,9 +124,11 @@ shape, with the application's own locators, paths and headers:
 }
 ```
 
-Give every step a `timeout_ms`. A step without one waits until the scenario
-is cancelled, so a locator that never matches hangs the capture, and the
-client with it. Match `wait_for` locators to exactly one element.
+Give each step that accepts `timeout_ms` a deadline. Without one, a step waits
+until it completes or the scenario is cancelled, so a locator that never
+matches hangs the capture and the client with it. The `wait_for_timeout` pause
+instead uses `duration_ms` and does not accept `timeout_ms`. Match `wait_for`
+locators to exactly one element.
 
 1. Sign in through the UI: `fill` the user and password fields (the password
    as a secret reference), submit, then `wait_for` an element only a signed-in

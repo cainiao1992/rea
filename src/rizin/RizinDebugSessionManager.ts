@@ -1,3 +1,4 @@
+import { persistentDebuggerHostSupported } from "../process/PersistentDebuggerHost.js";
 import { randomUUID } from "node:crypto";
 import { isUtf8 } from "node:buffer";
 import { open, readlink, realpath, stat } from "node:fs/promises";
@@ -361,7 +362,7 @@ export class RizinDebugSessionManager {
   > {
     if (signal?.aborted)
       return err(rizinCancellation("start_rizin_debug_session", signal));
-    if (this.#platform !== "linux")
+    if (!persistentDebuggerHostSupported(this.#platform))
       return err(
         new AnalysisCapabilityUnavailableError(
           "rizin",

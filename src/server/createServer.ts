@@ -205,6 +205,7 @@ import { CutterBridgeClient } from "../cutter/CutterBridgeClient.js";
 import { CutterBridgeService } from "../cutter/CutterBridgeService.js";
 import { registerCutterTools } from "./registerCutterTools.js";
 import { GdbSessionManager } from "../gdb/GdbSessionManager.js";
+import { persistentDebuggerHostSupported } from "../process/PersistentDebuggerHost.js";
 import { registerGdbTools } from "./registerGdbTools.js";
 import { RizinDebugSessionManager } from "../rizin/RizinDebugSessionManager.js";
 import { registerRizinDebugTools } from "./registerRizinDebugTools.js";
@@ -299,6 +300,7 @@ const installSessionToolAvailability = (
   const basePolicy = sessionAvailabilityPolicy(options.availabilityPolicy, {
     optionalProviderLoadFailures: options.optionalProviderLoadFailures,
     hostUnsupported: {
+      persistentDebugger: !persistentDebuggerHostSupported(platform),
       pcapCapture: outsideVerifiedHost(
         options.pcapAnalysis,
         verifiedHost.pcapCapture,

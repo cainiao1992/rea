@@ -1,3 +1,4 @@
+import { persistentDebuggerHostSupported } from "../process/PersistentDebuggerHost.js";
 import { ABORTED, waitForAbortable } from "../process/AbortablePromise.js";
 import { snapshotGdbCommandRecords } from "./GdbCommandRecords.js";
 import { randomUUID } from "node:crypto";
@@ -639,7 +640,7 @@ export class GdbSessionManager {
           ? cancelledWithCallerReason("start_gdb_session", signal)
           : new AnalysisCancelledError("start_gdb_session"),
       );
-    if (this.#platform !== "linux")
+    if (!persistentDebuggerHostSupported(this.#platform))
       return err(
         new AnalysisCapabilityUnavailableError(
           "gdb",

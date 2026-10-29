@@ -161,8 +161,11 @@ locators to exactly one element.
 5. Update both objects and read each back, changing the fields a person
    would change (a name, an email address, a status, a due date) rather than
    only a description: a served update accepts only the members a recorded
-   update stored. Delete both and read each back (expect 404, or the object
-   marked deleted) and the list.
+   update stored. Run an action that turns something on or off (star,
+   bookmark, archive) twice in a row on one object, reading it back after
+   each: the second call shows whether it sets or flips the field, and the
+   environment serves the action only once a call has shown it. Delete both
+   and read each back (expect 404, or the object marked deleted) and the list.
 6. Vary what the two creates send, however you write them: the first every
    field the application takes, the second only what a person must give (its
    title or name), with the other fields left out or empty. A served create

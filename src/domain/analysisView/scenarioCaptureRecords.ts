@@ -88,6 +88,14 @@ export const scenarioContentMediaType = (
   captured(content)?.media_type ??
   headerValue(content?.headers, "content-type");
 
+/** Whether a request sent no body: Playwright exposed none and the request names no Content-Type, which the bodies browsers send carry. */
+const unsentBody = (
+  request: RequestEvent,
+  content: ContentEvent | undefined,
+): boolean =>
+  content?.body.state === "not_exposed" &&
+  !request.header_names.some((name) => name.toLowerCase() === "content-type");
+
 /** The request object HAR readers expect; a redacted URL is withheld so no path is templated from it. */
 const reportedRequest = (
   request: RequestEvent,
@@ -97,9 +105,15 @@ const reportedRequest = (
   const body = purpose === "manifest" ? captured(content) : undefined;
   const text = body === undefined ? undefined : utf8Text(body);
   const mimeType = scenarioContentMediaType(content);
+  const size =
+    body !== undefined && !body.redacted
+      ? body.bytes
+      : purpose === "manifest" && unsentBody(request, content)
+        ? 0
+        : -1;
   return {
     method: request.method,
-    bodySize: body !== undefined && !body.redacted ? body.bytes : -1,
+    bodySize: size,
     url: request.url.redacted ? null : request.url.url,
     ...(text === undefined || mimeType === undefined
       ? {}

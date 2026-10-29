@@ -323,6 +323,7 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
     member: z.string(),
     type: z.string(),
     fields: z.array(z.string()).min(1),
+    many: z.literal(true).exactOptional(),
   }),
   z.strictObject({ ...ruled, rule: z.literal("increment") }),
   z.strictObject({
@@ -343,6 +344,7 @@ const fieldRuleSchema = z.discriminatedUnion("rule", [
     member: z.string(),
   }),
   z.strictObject({ ...ruled, rule: z.literal("set"), value: jsonValueSchema }),
+  z.strictObject({ ...ruled, rule: z.literal("toggle") }),
 ]);
 const insertRuleSchema = z.union([
   z.strictObject({ rule: z.enum(["first", "last"]) }),

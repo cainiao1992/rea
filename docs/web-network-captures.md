@@ -740,7 +740,9 @@ one-element array member) that a later item read of a type first shows (served
 only with the path values its recorded call sent, unless it creates into the
 type's own collection, whose path has no parameters, and a `path` rule stores
 each of its path values), and otherwise `none` with reason `no-state-target`. A plan is built from the tool's first successful call: its
-request body must be a usable JSON object (as response bodies are usable), and
+request body must be a usable JSON object (as response bodies are usable), or
+absent for an item action (a scenario request is absent when Playwright exposed
+no body and it names no `Content-Type`, which the bodies browsers send carry), and
 the written entity must show in that call's response or in a later read before
 the next write. Each field of a created entity gets the first rule that
 explains it: generated `identity` (a sequence, UUID or token, by the recorded
@@ -780,15 +782,19 @@ with the entity leaves out a field only later reads showed, which no initial
 entity holds, when the entity does not hold it, as Vikunja's reads of tasks it
 did not create show no `subscription`. A `reference` is an object
 holding fields of the
-entity a sent member names, as the state holds it (a parent beside `parentId`):
+entity a sent member names, as the state holds it (a parent beside `parentId`),
+or a list of them, one per id a sent list names, in its order (`many`, tags
+beside `tagIds`):
 the member is accepted with any value, serving looks the entity up and refuses a
 call naming one the environment does not hold or holds in more than one
 collection, and the field is absent, from the entity and the create's answer,
 when the call does not send the member. An id naming entities of one type in
 several collections teaches no reference. Each later create widens its plan
 when, explained on its own, it agrees with it: both calls show the same fields
-but for a reference whose member a call without it did not send (one an earlier
-create added stays), every field both rule they rule alike (an echo one showed
+but for a reference whose member a call without it did not send, or sent as
+`null` or `[]` and stored so (one an earlier create added stays, and a call may
+send the member empty as that create did; one leaving it out stores no such field
+when the create the plan observes showed none), every field both rule they rule alike (an echo one showed
 sorted stays sorted, unless a call stored its strings out of order as sent),
 and a field neither rules holds one value, unless the later call's rule for it
 spells the earlier calls' value too: a `composed` or `template` string, or a
@@ -868,14 +874,17 @@ is unchanged) must be a clock, a nested clock, an increment, a slug, a fresh `un
 value, a `stamp` of the acting user, a value `derived` from the one member it
 stores nowhere, a `reference` to the entity a sent member names (kept by a call that names the entity the field already repeats), a `composed` string whose parts read members it stored as sent
 or fields it left as they were and spell the value before the call too, or for
-an item action a `set` of a scalar to the value it showed, or, for a `PUT`, a
+an item action a `set` of a scalar to the value it showed (a `toggle` once a
+later call flips back the boolean an earlier one set, when no call found it set
+already), or, for a `PUT`, a
 member it left out that the application cleared to an empty value, which calls
 that leave it out then store (`body.defaults`) as long as every call that left
 it out stored that value (a call naming a `reference` field's entity by its
 member does not leave the field out), or the plan is
 `unexplained-change`; an increment, slug, stamp, derived
-value or set must hold for every call of the tool, and an action is served
-only once a call found what it sets already set. A write is served only
+value, set or toggle must hold for every call of the tool, and an action is
+served only once a call found what it sets already set, or flipped back what it
+toggles. A write is served only
 with the query its first call sent, which serving applies to a call that
 leaves a parameter out and the catalog advertises as required. Every member every call sent is required, except by `PATCH` and
 `POST` updates and members a create sent empty. The state holds an update's
@@ -919,7 +928,10 @@ contradicted it; otherwise its `reason` is the first of its build reason
 (`no-call`, `body-unusable`, `no-observation`, `unexplained-change`),
 `contradicted` (with `contradicted_by`), `side-effect`, `unconfirmed` and `incomplete-entities` (an update or delete that answers with the entity, when no initial entity holds every field its recorded answer shows but those only later reads showed, counting for an update the fields its rules write, so it could answer only for entities the environment created). An otherwise served plan whose learned rules generate clock values is withheld with `unknown-clock` when no global clock start is established; its learned rules and confirming reads remain retained.
 `checked_record_ordinals` lists the confirming reads, `insert` places created
-entities (sorted by a field the collection's recorded order shows, else last),
+entities (sorted by a field the collection's recorded order shows, else last;
+a create a whole listing in collection order placed last is placed again by a
+field a later such listing shows it sorted by and no earlier one ruled out, the
+type's id field last),
 and `write_clock` is the end of the last timed record, to the next second, when
 all request completions are known; otherwise it is null. An
 update that writes the field its type's creates are sorted by moves its entity

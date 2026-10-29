@@ -741,7 +741,8 @@ const resolveReference = (
     targetPath !== undefined && isJsonModuleTarget(targetPath, targetKind);
   const targetImportsUnexamined =
     !targetIsJson &&
-    (resolution.resolution_status === "unavailable" ||
+    (resolution.unexamined_module_imports === true ||
+      resolution.resolution_status === "unavailable" ||
       (path !== null &&
         !context.applicationModuleReferencesRetained.has(path)));
   if (path === null) {

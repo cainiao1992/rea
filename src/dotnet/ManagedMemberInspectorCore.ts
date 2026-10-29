@@ -793,6 +793,20 @@ const readTypeSignature = (
   }
 };
 
+/**
+ * Signature decoders report blob-relative offsets; coverage issues use
+ * artifact file offsets.
+ */
+const artifactSignatureIssue = (
+  issue: ManagedParseIssue,
+  scope: string,
+  blobOffset: number,
+): ManagedParseIssue => ({
+  ...issue,
+  scope,
+  offset: issue.offset === null ? blobOffset : blobOffset + issue.offset,
+});
+
 /** Read validated LocalVarSig identity facts without projecting local type identities. */
 export const readLocalSignatureFacts = (
   layout: ManagedMetadataLayout,
@@ -843,14 +857,7 @@ export const readLocalSignatureFacts = (
         cause.issue.code !== "unsupported-signature")
     )
       throw cause;
-    return err({
-      ...cause.issue,
-      scope,
-      offset:
-        cause.issue.offset === null
-          ? blobOffset
-          : blobOffset + cause.issue.offset,
-    });
+    return err(artifactSignatureIssue(cause.issue, scope, blobOffset));
   }
 };
 
@@ -1178,6 +1185,7 @@ export const metadataSignature = (
     layout,
     issues,
     scope,
+    blobOffset,
     expectedKind,
   }: {
     readonly rawSha256: string;
@@ -1185,6 +1193,8 @@ export const metadataSignature = (
     readonly layout: ManagedMetadataLayout;
     readonly issues: ManagedParseIssue[];
     readonly scope: string;
+    /** Artifact file offset of the blob's first byte. */
+    readonly blobOffset: number;
     readonly expectedKind?: "field" | "method";
   },
 ): ManagedSignature => {
@@ -1193,7 +1203,7 @@ export const metadataSignature = (
     blob,
     layout,
     operands,
-    (issue) => issues.push(issue),
+    (issue) => issues.push(artifactSignatureIssue(issue, scope, blobOffset)),
     scope,
   );
   if (

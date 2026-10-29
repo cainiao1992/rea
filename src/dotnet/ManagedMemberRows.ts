@@ -118,7 +118,7 @@ export const parseFields = (
         layout,
         signatureTypeName,
         issues,
-        { scope: `Field:${token}.signature`, kind: "field" },
+        { scope: `Field:${token}.signature`, kind: "field", artifact: bytes },
       );
       core.set(token, {
         token,
@@ -269,7 +269,7 @@ export const parseMemberRefs = (
         layout,
         signatureTypeName,
         issues,
-        { scope: `MemberRef:${token}.signature` },
+        { scope: `MemberRef:${token}.signature`, artifact: bytes },
       );
       refs.push({
         token,
@@ -397,7 +397,11 @@ export const parseMethods = ({
         layout,
         signatureTypeName,
         issues,
-        { scope: `MethodDef:${token}.signature`, kind: "method" },
+        {
+          scope: `MethodDef:${token}.signature`,
+          kind: "method",
+          artifact: bytes,
+        },
       );
       core.set(token, {
         ...member,
@@ -565,7 +569,12 @@ const budgetedSignature = (
   layout: ManagedMetadataLayout,
   signatureTypeName: SignatureTypeName,
   issues: ManagedParseIssue[],
-  owner: { readonly scope: string; readonly kind?: "field" | "method" },
+  owner: {
+    readonly scope: string;
+    readonly kind?: "field" | "method";
+    /** The artifact the blob was read from, for artifact issue offsets. */
+    readonly artifact: Buffer;
+  },
 ): ReturnType<typeof metadataSignature> => {
   const budget = managedDecodeBudget(layout);
   budget.admitTransient(
@@ -580,6 +589,7 @@ const budgetedSignature = (
         layout,
         issues,
         scope: owner.scope,
+        blobOffset: bytes.byteOffset - owner.artifact.byteOffset,
         ...(owner.kind === undefined ? {} : { expectedKind: owner.kind }),
       }),
       budget,

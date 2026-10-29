@@ -249,32 +249,55 @@ it("refuses an existing or parentless output directory and leaves it as it was",
   };
   const empty = join(root, "empty");
   const busy = join(root, "busy");
+  const regular = join(root, "regular");
   await mkdir(empty);
   await mkdir(busy);
   await writeFile(join(busy, "notes.md"), "keep");
-  for (const output_directory of [empty, busy]) {
+  await writeFile(regular, "keep");
+  for (const [output_directory, dry_run] of [
+    [empty, false],
+    [busy, true],
+    [regular, true],
+  ] as const) {
     const refused = await client.callTool({
       name: TOOL,
-      arguments: { source, output_directory },
+      arguments: { source, output_directory, dry_run },
     });
     expect(refused.isError).toBe(true);
     expect(parseMcpToolError(refused).error).toMatchObject({
       code: "invalid_request",
+      message: "Output root already exists",
       details: {
         operation: TOOL,
-        issues: [{ path: ["output_directory"], reason: "invalid_value" }],
+        issues: [
+          {
+            path: ["output_directory"],
+            reason: "invalid_value",
+            message: "Output root already exists",
+          },
+        ],
       },
     });
   }
   expect(await readdir(empty)).toEqual([]);
   expect(await readdir(busy)).toEqual(["notes.md"]);
+  expect(await readFile(regular, "utf8")).toBe("keep");
   const parentless = await client.callTool({
     name: TOOL,
-    arguments: { source, output_directory: join(root, "missing", "env") },
+    arguments: {
+      source,
+      output_directory: join(root, "missing", "env"),
+      dry_run: true,
+    },
   });
   expect(parentless.isError).toBe(true);
   expect(parseMcpToolError(parentless).error).toMatchObject({
-    details: { issues: [{ path: ["output_directory"] }] },
+    message: "Output parent is unavailable",
+    details: {
+      issues: [
+        { path: ["output_directory"], message: "Output parent is unavailable" },
+      ],
+    },
   });
   await expect(access(join(root, "missing"))).rejects.toMatchObject({
     code: "ENOENT",

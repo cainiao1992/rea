@@ -317,6 +317,16 @@ overlap and archive expansion checks. The native streaming decoder keeps the
 existing 128 MiB Zstandard window cap; frames requiring a larger window are
 refused. Deprecated method 20 and other unregistered ZIP codecs remain unsupported.
 
+Inventory and extract U-Boot FIT images:
+
+```sh
+rea inspect-artifact ./boot.itb --json
+rea extract-artifact ./boot.itb --json
+```
+
+See [U-Boot FIT images](fit-images.md) for recognition, data sources, hashes
+and limits.
+
 Inspect local model declarations without loading weights:
 
 ```bash

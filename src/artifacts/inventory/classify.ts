@@ -171,7 +171,8 @@ export const classifyAndHashRootForInventory = async (
       format === "node-sea" ||
       format === "intel-hex" ||
       format === "srec" ||
-      format === "esp-image";
+      format === "esp-image" ||
+      format === "fit";
     outcome = {
       kind: "completed",
       value: {

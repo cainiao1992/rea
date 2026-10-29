@@ -591,6 +591,7 @@ const requireExtractableFormat = async (
     format !== "intel-hex" &&
     format !== "srec" &&
     format !== "esp-image" &&
+    format !== "fit" &&
     format !== "mach-o-universal" &&
     !isZipPackageFormat(format)
   ) {

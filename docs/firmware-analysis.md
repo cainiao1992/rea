@@ -323,3 +323,11 @@ addresses are facts from the header, not proven entry points, and compressed
 payloads stay as stored. Intel HEX/S-record and FIT images are separate
 readers and are not covered here. See [U-Boot legacy uImage](uimage.md) for
 component padding, preserved names, resource policies and verification scope.
+
+## Inspect U-Boot FIT images
+
+Use `inspect-artifact` / `inspect_artifact` on a U-Boot FIT (`.itb`) for its
+images, declared load and entry addresses, configurations and verified hashes,
+then `extract-artifact` / `extract_artifact` for one raw file per image.
+Decoding is portable and requires no external tool. See
+[U-Boot FIT images](fit-images.md).

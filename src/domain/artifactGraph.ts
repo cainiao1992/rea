@@ -91,6 +91,7 @@ const artifactFormatSchema = z.enum([
   "intel-hex",
   "srec",
   "esp-image",
+  "fit",
   "unknown",
 ]);
 
@@ -103,6 +104,7 @@ const artifactContentFormatSchema = artifactFormatSchema.extract([
   "intel-hex",
   "srec",
   "esp-image",
+  "fit",
   "mach-o-universal",
   "mach-o",
   "elf",

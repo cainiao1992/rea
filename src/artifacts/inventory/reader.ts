@@ -88,6 +88,11 @@ export const inventoryCoverage = (
               "uImage inventory establishes the 64-byte legacy header facts and stored payload bytes. Compressed payloads are not decompressed, and the image is not executed.",
             ]
           : []),
+        ...(reader.format === "fit"
+          ? [
+              "FIT inventory reports each /images node's stored bytes and its declared type, architecture, OS, compression, load and entry. Image data is not decompressed or decrypted, signatures are not verified, nothing is executed, and load and entry addresses are declarations.",
+            ]
+          : []),
         ...traversal.limitations,
       ],
     };
@@ -116,7 +121,8 @@ export const inventoryCoverage = (
     format === "node-sea" ||
     format === "intel-hex" ||
     format === "srec" ||
-    format === "esp-image"
+    format === "esp-image" ||
+    format === "fit"
   )
     return {
       coverage: { scope: "container-entries", status: "unknown" },

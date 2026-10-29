@@ -90,7 +90,7 @@ export const copyArtifactEntry = (entry: ArtifactEntry): ArtifactEntry => ({
     entry.declaredIntegrity === null ? null : { ...entry.declaredIntegrity },
   ...(entry.formatMetadata === undefined
     ? {}
-    : { formatMetadata: { ...entry.formatMetadata } }),
+    : { formatMetadata: structuredClone(entry.formatMetadata) }),
   ...(entry.sourceIdentity === undefined
     ? {}
     : { sourceIdentity: { ...entry.sourceIdentity } }),
@@ -136,19 +136,32 @@ const sameDeclaredIntegrity = (
     left.algorithm === right.algorithm &&
     left.digest === right.digest);
 
-/** Format metadata contracts contain only primitive source fields. */
-const sameFormatMetadata = (
-  left: ArtifactFormatMetadata | undefined,
-  right: ArtifactFormatMetadata | undefined,
-): boolean =>
-  left === right ||
-  (left !== undefined &&
-    right !== undefined &&
+/** Compare cloned JSON facts structurally while retaining the primitive fast path. */
+const sameFormatMetadata = (left: unknown, right: unknown): boolean => {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right))
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameFormatMetadata(value, right[index]))
+    );
+  if (
+    left === null ||
+    right === null ||
+    typeof left !== "object" ||
+    typeof right !== "object"
+  )
+    return false;
+  return (
     Object.keys(left).length === Object.keys(right).length &&
     Object.entries(left).every(
       ([key, value]) =>
-        Object.hasOwn(right, key) && Reflect.get(right, key) === value,
-    ));
+        Object.hasOwn(right, key) &&
+        sameFormatMetadata(value, Reflect.get(right, key)),
+    )
+  );
+};
 
 /** One entry or subtree deliberately excluded from a traversal. */
 export interface ArtifactTraversalOmission {
@@ -184,6 +197,7 @@ export interface ArtifactReader {
     | "intel-hex"
     | "srec"
     | "esp-image"
+    | "fit"
     | "file";
   entries(
     signal?: AbortSignal,

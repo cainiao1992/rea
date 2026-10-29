@@ -6,6 +6,7 @@ import {
   isObject,
   locateItem,
   at,
+  same,
   type JsonObject,
   type ParsedRequestBody,
   requestJson,
@@ -34,6 +35,7 @@ import {
 import { otherFields } from "./environmentStateWriteGenerated.js";
 import {
   contradictsEarlierCalls,
+  defaultsDisagree,
   disagreesWithCall,
   keptFields,
   rememberCall,
@@ -45,11 +47,19 @@ import {
 } from "./environmentStateWriteCalls.js";
 import {
   laterObservation,
+  respelledInstant,
   shownBefore,
   viewFields,
   type Observed,
+  type ObservationSearch,
+  type ObservedRead,
 } from "./environmentStateWriteObserve.js";
-import { plannedBody, restampedFields } from "./environmentStateWriteStamps.js";
+import {
+  plannedBody,
+  readSpellsCoarser,
+  readSpelledClocks,
+  restampedFields,
+} from "./environmentStateWriteStamps.js";
 import { readClock } from "./environmentStateWriteValues.js";
 import type { CreateEvidence } from "./environmentStateWriteExplain.js";
 import {
@@ -98,6 +108,8 @@ export interface WriteDraft {
   readonly starts: Map<string, number>;
   /** Collections of accepted create calls, used to check late sequence adoption. */
   readonly createCollections: string[];
+  /** The largest integer each echoed field held on an accepted create, which a sequence adopted later must count past. */
+  readonly sentLargest: Map<string, number>;
   /** The collection a create writes into when its own path names no state type: the one its returned id was read under. */
   readonly linked?: string | undefined;
   /** Fields an item action's call found already at the value it sets them to. */
@@ -487,6 +499,49 @@ const outcomes = (
   return { targets, target, recorded };
 };
 
+/** The item read after an update that spells a clock the update stamped at a coarser precision, which serving stores it as. */
+const spelledReadBack = (
+  context: EffectContext,
+  step: WriteStep,
+  target: {
+    readonly type: string;
+    readonly idField: string;
+    readonly collection: string;
+    readonly id: string;
+  },
+  call: { readonly rules: readonly FieldRule[]; readonly after: JsonObject },
+): ObservedRead | undefined => {
+  const read = laterObservation(
+    searchFrom(context, step),
+    itemReads(context, target),
+  );
+  if (read === undefined || context.viewOf(read.ordinal)?.shape !== "item")
+    return undefined;
+  const respelled = call.rules.some((rule) => {
+    if (rule.rule !== "clock") return false;
+    const [own, shown] = [
+      ownMember(call.after, rule.field),
+      ownMember(read.object, rule.field),
+    ];
+    return respelledInstant(own, shown) && readSpellsCoarser(own, shown);
+  });
+  return respelled
+    ? { ordinal: read.ordinal, pointer: read.pointer, shape: "item" }
+    : undefined;
+};
+
+/** The object the plan's kept read-back shows, which serving spells every update's clocks by. */
+const keptRead = (
+  search: ObservationSearch,
+  read: ObservedRead | undefined,
+): JsonObject | undefined =>
+  read === undefined
+    ? undefined
+    : search.withBody(read.ordinal, (body) => {
+        const object = body === undefined ? undefined : at(body, read.pointer);
+        return isObject(object) ? object : undefined;
+      });
+
 /** Build an update plan from its exemplar, or add what a later call showed. */
 const buildUpdate = (
   context: EffectContext,
@@ -639,6 +694,11 @@ export const updateEntity = (
     refuse(draft, step, "unexplained-change");
     return recorded();
   }
+  // What the read after the call showed, for members its answer left out that a default must agree with.
+  const read = laterObservation(
+    searchFrom(context, step),
+    itemReads(context, { type, idField, collection, id }),
+  )?.object;
   // Each call must agree with the plan; one on an unknown entity cannot be checked, so it adds nothing to the plan.
   if (
     built(draft) &&
@@ -648,6 +708,17 @@ export const updateEntity = (
         entity.fields,
         after.object,
         explained,
+      ) ||
+      // A member calls left out is cleared by every one or by none.
+      // A reference this call or an earlier one showed counts its member as the field's, whichever came first.
+      defaultsDisagree(explained.body.defaults, { earlier: draft.updates }, [
+        ...rules,
+        ...explained.rules,
+      ]) ||
+      defaultsDisagree(
+        draft.plan.body?.defaults,
+        { earlier: [], sent: body, after: { ...read, ...after.object } },
+        [...rules, ...explained.rules],
       ))
   ) {
     if (!unknown) refuse(draft, step, "unexplained-change");
@@ -656,6 +727,21 @@ export const updateEntity = (
   draft.plan.rules = rules;
   noteFixedWidths(draft.fixedWidth, after.object);
   buildUpdate(context, draft, step, { after, explained, idField });
+  // Serving stores the clocks it stamps as the read after the update spells them.
+  const readBack = spelledReadBack(
+    context,
+    step,
+    { type, idField, collection, id },
+    { rules: explained.rules, after: after.object },
+  );
+  if (
+    readBack !== undefined &&
+    draft.plan.observation !== null &&
+    draft.plan.observation.read === undefined
+  )
+    Object.assign(draft.plan, {
+      observation: { ...draft.plan.observation, read: readBack },
+    });
   noteAmpersands(draft.ampersands, explained.rules, after.object);
   // Serving reads the plan's observation, so the gate does too; generated values are this call's.
   const written = updatedFields(
@@ -684,15 +770,20 @@ export const updateEntity = (
   rememberCall(
     context.io.retain,
     draft,
-    { before: entity.fields, after: after.object, sent: body, kept },
+    { before: entity.fields, after: after.object, sent: body, kept, read },
     explained.unstamped,
   );
-  // Response reproducibility is established before the read owner adopts a stored clock spelling.
-  const stored = restampedFields(
-    searchFrom(context, step),
-    itemReads(context, { type, idField, collection, id }),
-    written.value,
+  // Response reproducibility is established before the read owner adopts a stored clock spelling; serving spells every update's clocks as the plan's kept read-back does, so replay does too.
+  const search = searchFrom(context, step);
+  const stored = readSpelledClocks(
     draft.plan.rules,
+    restampedFields(
+      search,
+      itemReads(context, { type, idField, collection, id }),
+      written.value,
+      draft.plan.rules,
+    ),
+    keptRead(search, draft.plan.observation?.read),
   );
   context.io.retain(
     64 +

@@ -104,7 +104,10 @@ const sameObserved = (left: ObservedValue, right: ObservedValue): boolean =>
 /** The equality facts a modelled update showed, scalar inputs it sent, and fields it kept, which later rules must reproduce. */
 export interface UpdateCall {
   readonly shown: ReadonlyMap<string, ObservedValue>;
+  /** Members its answer left out that the read after it showed, which a default must agree with too. */
+  readonly read: ReadonlyMap<string, ObservedValue>;
   readonly sent: ReadonlyMap<string, JsonValue>;
+  readonly sentMembers: ReadonlySet<string>;
   readonly kept: readonly string[];
 }
 
@@ -228,11 +231,21 @@ export const refinedBody = (
   const accepted = later.accepted.filter(
     (member) => !body.accepted.includes(member),
   );
+  const held = body.defaults ?? [];
+  const defaults = [
+    ...held,
+    ...(later.defaults ?? []).filter(
+      (entry) => !held.some((kept) => kept.member === entry.member),
+    ),
+  ];
   return {
     ...body,
+    ...(defaults.length === 0 ? {} : { defaults }),
     // A later call may be the first to show the body repeating the path's id.
     identity: body.identity ?? later.identity,
     accepted: [...body.accepted, ...accepted],
+    // A member is required only when every call sent it.
+    required: body.required.filter((member) => later.required.includes(member)),
     fixed: [
       ...body.fixed,
       ...later.fixed.filter((entry) => !fixed.has(entry.member)),
@@ -314,6 +327,42 @@ export const appliedUpdate = (
   };
 };
 
+/** Whether defaults disagree with a call that left their member out: a remembered call, or this one, showed it otherwise. */
+export const defaultsDisagree = (
+  defaults: WriteBody["defaults"],
+  calls: {
+    readonly earlier: readonly UpdateCall[];
+    readonly sent?: JsonObject;
+    readonly after?: JsonObject;
+  },
+  rules: readonly FieldRule[],
+): boolean => {
+  // A call that named a reference's entity by its member supplied the field.
+  const sources = new Map(
+    rules.flatMap((rule) =>
+      rule.rule === "reference" ? [[rule.field, rule.member] as const] : [],
+    ),
+  );
+  const supplied = (sent: (member: string) => boolean, member: string) =>
+    sent(member) || (sources.has(member) && sent(sources.get(member)!));
+  return (defaults ?? []).some(
+    ({ member, value }) =>
+      calls.earlier.some((call) => {
+        const stored = call.shown.get(member) ?? call.read.get(member);
+        return (
+          !supplied((name) => call.sentMembers.has(name), member) &&
+          stored !== undefined &&
+          !same(stored, observedValue(value))
+        );
+      }) ||
+      (calls.sent !== undefined &&
+        calls.after !== undefined &&
+        !supplied((name) => Object.hasOwn(calls.sent!, name), member) &&
+        Object.hasOwn(calls.after, member) &&
+        !same(calls.after[member], value)),
+  );
+};
+
 /** Keep what a modelled update call showed, which later calls' rules must reproduce, and the fields it found already set. */
 export const rememberCall = (
   retain: (bytes: number) => void,
@@ -328,6 +377,8 @@ export const rememberCall = (
     readonly after: JsonObject;
     readonly sent: JsonObject;
     readonly kept: readonly string[];
+    /** The entity as the read after the call showed it, when one did. */
+    readonly read?: JsonObject | undefined;
   },
   /** Clocks the call left as they were in its own second, which show neither a stamp nor a kept value. */
   sameSecond: readonly string[],
@@ -342,8 +393,29 @@ export const rememberCall = (
     ]),
   );
   for (const field of unstamped) shown.delete(field);
-  const facts = { shown, sent: scalars(call.sent), kept };
-  retain(64 + jsonTextCodeUnits([...facts.shown, ...facts.sent, kept]) * 2);
+  const read = new Map(
+    Object.entries(call.read ?? {})
+      .filter(([field]) => !Object.hasOwn(call.after, field))
+      .map(([field, value]) => [field, observedValue(value)]),
+  );
+  const facts = {
+    shown,
+    read,
+    sent: scalars(call.sent),
+    sentMembers: new Set(Object.keys(call.sent)),
+    kept,
+  };
+  retain(
+    64 +
+      jsonTextCodeUnits([
+        ...facts.shown,
+        ...facts.read,
+        ...facts.sent,
+        [...facts.sentMembers],
+        kept,
+      ]) *
+        2,
+  );
   draft.updates.push(facts);
   for (const field of steadyFields(draft.plan.rules, call.before, call.after))
     draft.steady.add(field);

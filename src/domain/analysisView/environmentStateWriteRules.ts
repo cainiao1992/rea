@@ -53,12 +53,13 @@ export type GeneratedRule =
       readonly rule: "identity";
       readonly generator: "sequence" | "uuid" | "token";
     }
-  /** One past the largest value its scope holds, and never below `start`, a value the first create took above them. */
+  /** One past the largest value its scope holds, and never below `start`, a value the first create took above them; with `sent`, the value a call sends instead. */
   | {
       readonly field: string;
       readonly rule: "sequence";
       readonly scope: "collection" | "type";
       readonly start?: number;
+      readonly sent?: true;
     }
   | { readonly field: string; readonly rule: "unique" }
   /** The value kept with each UUID at the pointers (`*` for any array index) replaced by a fresh one, as rewritten child rows are. */

@@ -155,8 +155,9 @@ locators to exactly one element.
    with varied free text. After each write, and before the next one, read the
    object back by id and then its list: create 1, read 1, list, create 2,
    read 2, list; never several writes before their reads.
-4. Leave more than a second between a create and its first edit
-   (`wait_for_timeout` with `duration_ms: 1100`).
+4. Leave more than a second between two creates and between a create and its
+   first edit (`wait_for_timeout` with `duration_ms: 1100`), so lists sorted
+   by creation time show them in order.
 5. Update both objects and read each back, changing the fields a person
    would change (a name, an email address, a status, a due date) rather than
    only a description: a served update accepts only the members a recorded

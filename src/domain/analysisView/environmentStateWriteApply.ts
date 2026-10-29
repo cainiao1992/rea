@@ -229,8 +229,11 @@ const ruledValue = (
   switch (rule.rule) {
     case "reference":
       return referencedValue(rule, body, referenced);
-    case "identity":
     case "sequence":
+      return rule.sent === true && Object.hasOwn(body, rule.field)
+        ? ok(body[rule.field]!)
+        : generate(rule);
+    case "identity":
     case "unique":
     case "renewed":
     case "clock":
@@ -360,7 +363,21 @@ export const createdFields = (
   idField?: string,
 ): Applied<JsonObject> => {
   if (plan.body === null) return err("The tool has no modelled body.");
-  const call = withBlanks(plan.body, sentCall);
+  // A member a `sequence` with `sent` numbers when a call leaves it out takes the next number, not an empty value one sent.
+  const numbered = new Set(
+    plan.rules.flatMap((rule) =>
+      rule.rule === "sequence" && rule.sent === true ? [rule.field] : [],
+    ),
+  );
+  const call = withBlanks(
+    {
+      ...plan.body,
+      blank: (plan.body.blank ?? []).filter(
+        ({ member }) => !numbered.has(member),
+      ),
+    },
+    sentCall,
+  );
   const problem = bodyProblem(plan.body, call, {
     entity: { ...copiedShapes(plan.rules, observed), ...observed },
   });
@@ -489,6 +506,18 @@ export const updatedFields = (
         setOwnMember(written, rule.field, value.value);
     }
   }
+  // A member the call leaves out takes the default a whole-object update showed; one a reference names by its member is not left out.
+  for (const { member, value } of plan.body.defaults ?? [])
+    if (
+      !Object.hasOwn(sent, member) &&
+      !plan.rules.some(
+        (rule) =>
+          rule.rule === "reference" &&
+          rule.field === member &&
+          Object.hasOwn(sent, rule.member),
+      )
+    )
+      setOwnMember(written, member, value);
   const unspelled = derive(
     plan.rules.filter(
       (rule) => rule.rule !== "slug" || Object.hasOwn(sent, rule.from),

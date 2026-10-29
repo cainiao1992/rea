@@ -411,16 +411,16 @@ const writeTextPartsOwned = async (
           }),
           cause.lease,
         );
+      const failure = classifyWriteFailure(cause.outcome.error);
       return stagedCleanupFailure(
-        new EvidenceFileError(
-          "write",
-          fileAccessFailureReason(cause.outcome.error),
-          {
-            cause,
-            path: requestedPath,
-            cleanup,
-          },
-        ),
+        new EvidenceFileError("write", failure.reason, {
+          cause,
+          path: requestedPath,
+          cleanup,
+          ...(failure.systemCode === undefined
+            ? {}
+            : { systemCode: failure.systemCode }),
+        }),
         cause.lease,
       );
     }
@@ -437,13 +437,30 @@ const writeTextPartsOwned = async (
           path: requestedPath,
         }),
       );
+    const failure = classifyWriteFailure(cause);
     return err(
-      new EvidenceFileError("write", fileAccessFailureReason(cause), {
+      new EvidenceFileError("write", failure.reason, {
         cause,
         path: requestedPath,
+        ...(failure.systemCode === undefined
+          ? {}
+          : { systemCode: failure.systemCode }),
       }),
     );
   }
+};
+
+/** Recognize only host codes that establish a publication resource refusal. */
+const classifyWriteFailure = (
+  cause: unknown,
+): {
+  readonly reason: EvidenceFileError["reason"];
+  readonly systemCode?: "EFBIG" | "ENOSPC" | "EDQUOT";
+} => {
+  const code = fileErrorCode(cause);
+  return code === "EFBIG" || code === "ENOSPC" || code === "EDQUOT"
+    ? { reason: "storage-limit", systemCode: code }
+    : { reason: fileAccessFailureReason(cause) };
 };
 
 /** The retained staging lease clears this error only when a retry confirms release. */

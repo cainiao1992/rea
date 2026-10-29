@@ -1,3 +1,7 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { writeAmpRegistrationBackup } from "./cli/ampRegistrationBackup.js";
 import { registerGpuCommands } from "./cli/gpuCommands.js";
 import { registerNativeFunctionMatchingCommands } from "./cli/nativeFunctionMatchingCommands.js";
 import { registerCaptureCommands } from "./cli/captureCommands.js";
@@ -263,6 +267,214 @@ export const createCli = (
           })
         )(1);
         return Promise.resolve();
+      }
+      // Incur's mcp add parser only understands spaced `--agent amp` forms; an
+      // equals form like `--agent=amp` is silently ignored, which would drop
+      // the requested agent and register against the default target. Normalize
+      // equals forms back to spaced forms before handing over to Incur.
+      const serveArguments = normalized.flatMap((token) => {
+        if (token.startsWith("--agent=") || token.startsWith("--command=")) {
+          const separator = token.indexOf("=");
+          const value = token.slice(separator + 1);
+          return value === "" ? [token] : [token.slice(0, separator), value];
+        }
+        return [token];
+      });
+      // Incur's Amp registration overwrites an existing rea entry (dropping its
+      // environment map) and reports success even when the settings file
+      // prevents a save. Guard that path: reject a settings file REA cannot
+      // update, back up the file, preserve the caller's environment, and verify
+      // the registration landed.
+      const ampRequested =
+        command.some(
+          (token, index) => token === "--agent" && command[index + 1] === "amp",
+        ) || command.includes("--agent=amp");
+      if (ampRequested) {
+        const settingsPath = join(homedir(), ".config", "amp", "settings.json");
+        let priorEnv: unknown;
+        let guardError: string | undefined;
+        let settingsText: string | undefined;
+        let parsedSettings: Record<string, unknown> | undefined;
+        try {
+          if (existsSync(settingsPath))
+            settingsText = readFileSync(settingsPath, "utf8");
+        } catch (cause) {
+          guardError = `Unable to read Amp settings.json: ${
+            cause instanceof Error ? cause.message : String(cause)
+          }`;
+        }
+        if (settingsText !== undefined) {
+          try {
+            const parsed: unknown = JSON.parse(settingsText);
+            if (
+              typeof parsed !== "object" ||
+              parsed === null ||
+              Array.isArray(parsed)
+            )
+              guardError = "Amp settings.json must contain a JSON object.";
+            else parsedSettings = parsed as Record<string, unknown>;
+          } catch (cause) {
+            guardError = `Amp settings.json is not valid JSON: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`;
+          }
+        }
+        if (parsedSettings !== undefined && settingsText !== undefined) {
+          const servers = parsedSettings["amp.mcpServers"];
+          if (
+            servers !== undefined &&
+            (typeof servers !== "object" ||
+              servers === null ||
+              Array.isArray(servers))
+          )
+            guardError =
+              "amp.mcpServers must be an object in Amp settings.json.";
+          else {
+            const entry =
+              typeof servers === "object" && servers !== null
+                ? (servers as Record<string, unknown>)["rea"]
+                : undefined;
+            if (typeof entry === "object" && entry !== null)
+              priorEnv = (entry as Record<string, unknown>)["env"];
+          }
+        }
+        const reportValidationError = (message: string): void => {
+          const output = parseCliOutputArguments(normalized);
+          if (!output.validation.ok)
+            write(renderCliOutputArgumentError(output.validation));
+          else
+            write(
+              renderCliDocument(
+                {
+                  code: "VALIDATION_ERROR",
+                  message,
+                  fieldErrors: [
+                    {
+                      code: "invalid_value",
+                      missing: false,
+                      path: "amp",
+                      message,
+                    },
+                  ],
+                },
+                output.format,
+                process.stdout.isTTY === true,
+              ),
+            );
+          (
+            options?.exit ??
+            ((code: number) => {
+              process.exitCode = code;
+            })
+          )(1);
+        };
+        if (guardError !== undefined) {
+          reportValidationError(`${guardError} Fix it before registering.`);
+          return Promise.resolve();
+        }
+
+        const runRegistration = (backupPath?: string): Promise<void> => {
+          const result = serveStrict(
+            serveArguments,
+            options ?? {},
+            (tokens, selected) =>
+              serveDeclared(tokens, selected, (declared, declaredOptions) =>
+                serve(
+                  adaptCliOutputArgumentsForIncur(declared),
+                  declaredOptions,
+                ),
+              ),
+          );
+          return result.then(() => {
+            let failure: string | undefined;
+            try {
+              if (!existsSync(settingsPath))
+                failure = "Amp settings.json was not created.";
+              else {
+                const text = readFileSync(settingsPath, "utf8");
+                const parsed = JSON.parse(text) as Record<string, unknown>;
+                const servers = parsed["amp.mcpServers"];
+                if (
+                  typeof servers !== "object" ||
+                  servers === null ||
+                  Array.isArray(servers) ||
+                  !("rea" in servers)
+                )
+                  failure =
+                    "Amp settings.json does not contain the rea registration after mcp add.";
+                else {
+                  const entry = (servers as Record<string, unknown>)["rea"];
+                  if (
+                    priorEnv !== undefined &&
+                    typeof entry === "object" &&
+                    entry !== null &&
+                    (entry as Record<string, unknown>)["env"] === undefined
+                  ) {
+                    (entry as Record<string, unknown>)["env"] = priorEnv;
+                    writeFileSync(
+                      settingsPath,
+                      `${JSON.stringify(parsed, null, 2)}\n`,
+                    );
+                  }
+                }
+              }
+            } catch (cause) {
+              failure = cause instanceof Error ? cause.message : String(cause);
+            }
+            if (failure !== undefined) {
+              const output = parseCliOutputArguments(normalized);
+              if (output.validation.ok)
+                write(
+                  renderCliDocument(
+                    {
+                      code: "VALIDATION_ERROR",
+                      message: failure,
+                      fieldErrors: [
+                        {
+                          code: "invalid_value",
+                          missing: false,
+                          path: "amp",
+                          message: failure,
+                        },
+                      ],
+                    },
+                    output.format,
+                    process.stdout.isTTY === true,
+                  ),
+                );
+              (
+                options?.exit ??
+                ((code: number) => {
+                  process.exitCode = code;
+                })
+              )(1);
+            } else if (backupPath !== undefined)
+              process.stderr.write(
+                `Amp MCP registration backup retained at ${backupPath}\n`,
+              );
+          });
+        };
+
+        if (settingsText === undefined) return runRegistration();
+        return writeAmpRegistrationBackup(settingsPath, settingsText).then(
+          (backup) => {
+            if (!backup.ok) {
+              const { kind, path, detail } = backup.error;
+              reportValidationError(
+                `Unable to create Amp settings backup (${kind}) at ${path}: ${detail}`,
+              );
+              return;
+            }
+            return runRegistration(backup.value);
+          },
+          (cause: unknown) => {
+            const detail =
+              cause instanceof Error ? cause.message : String(cause);
+            reportValidationError(
+              `Unable to create Amp settings backup: ${detail}`,
+            );
+          },
+        );
       }
     }
     const result = serveStrict(normalized, options ?? {}, (tokens, selected) =>

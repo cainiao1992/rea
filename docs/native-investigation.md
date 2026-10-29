@@ -757,6 +757,11 @@ complete observation.
   files and universal slices before metadata decoding. CPU subtypes and
   capability bits remain source facts; an `arm64` request may select an
   `arm64e` image under the existing slice preference policy.
+  Objective-C class, protocol and category lists require eight-byte entries;
+  Swift type and conformance sections require four-byte entries. Misaligned
+  section lengths and unsupported non-PowerPC big-endian CPU declarations return
+  `unsupported_target` with the selected path and precise reason. Recovery
+  selects a well-formed or supported artifact and reopens that target.
   The byte reader holds the whole selected file in memory, so it admits files up
   to 64 MiB / 67108864 bytes by default. Select a larger budget with
   `max_input_bytes` (CLI `--max-input-bytes`), at most 1 GiB / 1073741824

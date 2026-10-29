@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
+import { UNSIGNED_ATTRIBUTES_LIMITATION } from "../../src/native/pe/PeCertificateParser.js";
 import { toolContract } from "../../src/contracts/toolContracts.js";
 import {
   peCertificateFixture,
@@ -30,6 +31,32 @@ cliTest(
     ).toBe("11223344");
   },
 );
+
+cliTest("reports unsigned attributes through CLI and MCP", async ({ cli }) => {
+  const root = await createTestTempDirectory("rea-pe-cert-unsigned-attrs-");
+  const path = join(root, "timestamped.exe");
+  const payload = pkcs7SignedDataFixture(undefined, undefined, undefined, [
+    [1, 3, 6, 1, 4, 1, 311, 3, 3, 1],
+  ]);
+  await writeFile(path, peCertificateFixture(true, payload));
+  const result = await cli.run({
+    arguments: ["inspect-pe-certificates", path, "--json"],
+  });
+  expect(result.exitCode, result.stderr).toBe(0);
+  const call = await cli.sharedMcpCall!();
+  const response = await call("inspect_pe_certificates", { path });
+  expect(response.isError, JSON.stringify(response)).not.toBe(true);
+  for (const value of [result.json, response.structuredContent]) {
+    const report = toolContract("inspect_pe_certificates").outputSchema.parse(
+      value,
+    ).normalized_result;
+    expect(report.coverage.status).toBe("partial");
+    expect(
+      report.entries[0]?.pkcs7?.signers[0]?.unsigned_attribute_oids,
+    ).toEqual(["1.3.6.1.4.1.311.3.3.1"]);
+    expect(report.limitations).toContain(UNSIGNED_ATTRIBUTES_LIMITATION);
+  }
+});
 
 cliTest(
   "inspects SignedData with an indefinite constructed ContentInfo envelope",

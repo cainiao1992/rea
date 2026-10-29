@@ -21,7 +21,10 @@ import {
   PeCertificateAsn1Failure,
   readAsn1,
 } from "./PeCertificateAsn1.js";
-import { parsePeCertificates } from "./PeCertificateParser.js";
+import {
+  parsePeCertificates,
+  UNSIGNED_ATTRIBUTES_LIMITATION,
+} from "./PeCertificateParser.js";
 
 const defaults = inspectPeCertificatesInputSchema.parse({
   path: "/artifacts/app.exe",
@@ -69,6 +72,36 @@ it("reads PE32 and PE32+ PKCS#7 certificate tables", () => {
       examined_entries: 1,
       certificates: 1,
     });
+  }
+});
+
+it("reports unsigned attribute OIDs and incomplete nested coverage", () => {
+  const types = [
+    [1, 3, 6, 1, 4, 1, 311, 3, 3, 1],
+    [1, 3, 6, 1, 4, 1, 311, 2, 4, 1],
+  ];
+  for (const plus of [false, true]) {
+    const report = peCertificatesSchema.parse(
+      parse(
+        peCertificateFixture(
+          plus,
+          pkcs7SignedDataFixture(undefined, undefined, undefined, types),
+        ),
+      ),
+    );
+    expect(
+      report.entries[0]?.pkcs7?.signers[0]?.unsigned_attribute_oids,
+    ).toEqual(["1.3.6.1.4.1.311.3.3.1", "1.3.6.1.4.1.311.2.4.1"]);
+    expect(report.coverage).toMatchObject({
+      status: "partial",
+      certificates: 1,
+    });
+    expect(report.limitations).toContain(UNSIGNED_ATTRIBUTES_LIMITATION);
+    const control = parse(peCertificateFixture(plus));
+    expect(
+      control.entries[0]?.pkcs7?.signers[0]?.unsigned_attribute_oids,
+    ).toBeNull();
+    expect(control.coverage.status).toBe("complete");
   }
 });
 

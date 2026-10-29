@@ -1,11 +1,16 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect } from "vitest";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import type { AnySchema } from "ajv";
 import { toolContract } from "../../../src/contracts/toolContracts.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
-import { peCertificateFixture } from "../../../src/native/pe/PeCertificates.fixture.js";
+import {
+  peCertificateFixture,
+  pkcs7SignedDataFixture,
+} from "../../../src/native/pe/PeCertificates.fixture.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { mcpTest, type TestMcp } from "../../support/mcp/mcpFixture.js";
 import { repeatedCertificateSignedData } from "../../fixtures/peCertificateAllowance.js";
@@ -17,6 +22,46 @@ const connect = async (mcp: TestMcp) => {
   const client = await mcp.connect(createServer({ kind: "session", session }));
   return { client, session };
 };
+
+mcpTest(
+  "advertised output schema accepts partial unsigned-attribute evidence",
+  async ({ mcp }) => {
+    const { client, session } = await connect(mcp);
+    try {
+      const advertised = (await client.listTools()).tools.find(
+        (tool) => tool.name === "inspect_pe_certificates",
+      );
+      if (advertised?.outputSchema === undefined)
+        throw new Error("PE certificates output schema is missing");
+      const schema = advertised.outputSchema as AnySchema;
+      const ajv = new Ajv2020({ strict: false, validateFormats: false });
+      expect(ajv.validateSchema(schema)).toBe(true);
+      const validate = ajv.compile(schema);
+      const root = await createTestTempDirectory("rea-pe-cert-schema-");
+      const path = join(root, "timestamped.exe");
+      await writeFile(
+        path,
+        peCertificateFixture(
+          false,
+          pkcs7SignedDataFixture(undefined, undefined, undefined, [
+            [1, 3, 6, 1, 4, 1, 311, 3, 3, 1],
+          ]),
+        ),
+      );
+      const result = await client.callTool({
+        name: "inspect_pe_certificates",
+        arguments: { path },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(
+        validate(result.structuredContent),
+        JSON.stringify(validate.errors),
+      ).toBe(true);
+    } finally {
+      await session.close();
+    }
+  },
+);
 
 mcpTest(
   "advertises inspect_pe_certificates and reads PKCS#7 signer identity",

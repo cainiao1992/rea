@@ -445,6 +445,7 @@ export interface ParsedSigner {
   readonly serial_hex: string | null;
   readonly subject_key_identifier_hex: string | null;
   readonly authenticated_attributes: boolean;
+  readonly unsigned_attribute_oids: readonly string[] | null;
 }
 
 const signerIdentifier = (
@@ -517,7 +518,22 @@ const parseSigner = (
   if (signature.content.length === 0)
     return fail("SignerInfo signature OCTET STRING is empty.");
   cursor += 2;
-  if (children[cursor]?.tag === 0xa1) cursor += 1;
+  let unsignedAttributeOids: string[] | null = null;
+  const unsigned = children[cursor];
+  if (unsigned?.tag === 0xa1) {
+    unsignedAttributeOids = unsigned.children.map((attribute) => {
+      const fields = sequence(attribute, "SignerInfo unsigned attribute");
+      const oid = fields[0];
+      if (fields.length !== 2 || oid?.tag !== 0x06 || fields[1]?.tag !== 0x31)
+        return fail(
+          "SignerInfo unsigned attribute is missing its type or values.",
+        );
+      // OID text expands into decimal arcs and is retained in the result.
+      chargeDecodedName(names, oid.content.length * 4);
+      return decodeOid(oid.content);
+    });
+    cursor += 1;
+  }
   if (cursor !== children.length)
     return fail("SignerInfo has unexpected trailing fields.");
   return {
@@ -527,6 +543,7 @@ const parseSigner = (
     serial_hex,
     subject_key_identifier_hex,
     authenticated_attributes: authenticated,
+    unsigned_attribute_oids: unsignedAttributeOids,
   };
 };
 

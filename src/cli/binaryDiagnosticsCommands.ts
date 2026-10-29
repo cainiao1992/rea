@@ -87,7 +87,7 @@ export const registerBinaryDiagnosticsCommands = (
     description:
       "Inspect an Apple .ips crash report without executing a target",
     args: z.object({
-      path: z.string().describe("Local Apple .ips crash report"),
+      path: localPathStringSchema.describe("Local Apple .ips crash report"),
     }),
     options: z.object({
       maxFileBytes: inspectAppleIpsInputSchema.shape.max_file_bytes,
@@ -280,7 +280,9 @@ export const registerBinaryDiagnosticsCommands = (
   cli.command(CLI_COMMANDS.inspectPeImports, {
     description:
       "Inspect PE import and delay-load table identities without executing the image",
-    args: z.object({ path: z.string().describe("Local PE32/PE32+ image") }),
+    args: z.object({
+      path: localPathStringSchema.describe("Local PE32/PE32+ image"),
+    }),
     options: z.object({
       maxFileBytes: inspectPeImportsInputSchema.shape.max_file_bytes,
       maxDlls: inspectPeImportsInputSchema.shape.max_dlls,

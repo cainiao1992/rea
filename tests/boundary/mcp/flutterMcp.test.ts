@@ -10,11 +10,14 @@ import { ok } from "../../../src/domain/result.js";
 import { createServer } from "../../../src/server/createServer.js";
 import { createTestBinarySession } from "../../fixtures/binarySession.js";
 import { createFlutterBuildAnalysisProvider } from "../../../src/composition/flutter.js";
-import { flutterResultSchemas } from "../../../src/domain/flutter/flutterBuildAnalysis.js";
+import {
+  ABI_SELECTOR_MESSAGE,
+  flutterResultSchemas,
+} from "../../../src/domain/flutter/flutterBuildAnalysis.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 import { aotFixtureImage } from "../../../src/flutter/FlutterBuild.fixture.js";
 import { createFlutterApk } from "../../fixtures/flutterApk.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
-import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 it.each([
   { label: "ARM64-V8A", paired: false },
@@ -261,7 +264,12 @@ it("advertises and enforces the same Unicode selector grammar through MCP", asyn
       category: "invalid_input",
       details: {
         operation: "inspect_dart_aot",
-        issues: [{ path: ["abi"] }],
+        issues: [
+          {
+            path: ["abi"],
+            message: ABI_SELECTOR_MESSAGE,
+          },
+        ],
       },
     });
   }

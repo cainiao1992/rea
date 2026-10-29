@@ -20,7 +20,7 @@
 
 **[Site web](https://rea.tools/fr/) · [Guides](https://rea.tools/fr/guides/) · [Études de cas](https://rea.tools/fr/showcase/)**
 
-[Démarrage rapide](#démarrage-rapide) · [Comment fonctionne REA](#comment-fonctionne-rea) · [Ce que vous pouvez analyser](#ce-que-vous-pouvez-analyser) · [Études de cas](#études-de-cas) · [Créer des environnements RL](#build-rl-environments) · [Questions fréquentes](#questions-fréquentes) · [Outils GNU objdump et Rizin](../reverse-engineering-tools.md) · [Documentation](#documentation)
+[Démarrage rapide](#démarrage-rapide) · [Comment fonctionne REA](#comment-fonctionne-rea) · [Ce que vous pouvez analyser](#ce-que-vous-pouvez-analyser) · [Études de cas](#études-de-cas) · [Créer des environnements RL](#build-rl-environments) · [Questions fréquentes](#questions-fréquentes) · [Documentation](#documentation)
 
 <code>npx rea-agents setup</code>
 
@@ -188,6 +188,8 @@ REA nécessite Node.js 22.x (>=22.23.4), 24.x (>=24.22.1) ou 26+ (>=26.12.1), ai
 | Signatures APK               | Signataires v1/v2/v3/v3.1, empreintes de certificats, rotation des clés et cohérence interne des condensats | Inspection statique intégrée; `inspect_apk_signature`                                                                                     |
 
 L'inspection statique JavaScript et .NET lit les fichiers fournis sans exécuter l'application. La capture à l'exécution lance la cible choisie ou interagit avec elle avec vos permissions utilisateur ; chaque guide d'exécution décrit ses effets.
+
+Pour inspecter les binaires natifs hors ligne, REA prend aussi en charge GNU objdump et Rizin, que vous devez fournir vous-même. Le [guide des outils de rétro-ingénierie](../reverse-engineering-tools.md) décrit la configuration des fournisseurs, les commandes CLI et les limites des Evidence. REA n’installe ni ne met à jour ces deux fournisseurs.
 
 <a id="choosing-a-deep-analysis-provider"></a>
 

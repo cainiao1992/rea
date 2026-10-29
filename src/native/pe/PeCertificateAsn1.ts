@@ -222,6 +222,11 @@ const requireBitStringContent = (content: Buffer, label: string): void => {
   const unused = content[0];
   if (unused === undefined || unused > 7)
     return fail(`${label} BIT STRING is truncated or has invalid unused bits.`);
+  if (
+    (content.length === 1 && unused !== 0) ||
+    ((content[content.length - 1] ?? 0) & ((1 << unused) - 1)) !== 0
+  )
+    return fail(`${label} BIT STRING has invalid padding bits.`);
 };
 
 const requireBitString = (

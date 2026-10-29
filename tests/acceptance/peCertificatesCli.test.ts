@@ -13,6 +13,45 @@ import { repeatedCertificateSignedData } from "../fixtures/peCertificateAllowanc
 import { createTestTempDirectory } from "../fixtures/temporaryDirectory.js";
 import { cliTest } from "../support/cli/cliFixture.js";
 
+cliTest.for(["pubkey", "signature"])(
+  "rejects nonzero BIT STRING padding in %s through the public CLI",
+  async (field, { cli }) => {
+    const root = await createTestTempDirectory("rea-pe-cert-bit-padding-");
+    const path = join(root, "padding.exe");
+    const payload = pkcs7SignedDataFixture();
+    const marker = Buffer.concat([
+      Buffer.from([0x03, field.length + 1, 0]),
+      Buffer.from(field),
+    ]);
+    const at = payload.indexOf(marker);
+    expect(at).toBeGreaterThanOrEqual(0);
+    payload[at + 2] = 1;
+    await writeFile(path, peCertificateFixture(false, payload));
+    const invalid = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+    expect(invalid.exitCode).toBe(1);
+    expect(invalid.json).toMatchObject({
+      code: "invalid_request",
+      details: { operation: "inspect_pe_certificates" },
+    });
+    // Only zero the advertised unused bit; all ASN.1 lengths stay unchanged.
+    const last = at + marker.length - 1;
+    payload[last] = payload[last]! & 0xfe;
+    await writeFile(path, peCertificateFixture(false, payload));
+    const valid = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+    expect(valid.exitCode, valid.stderr).toBe(0);
+    const evidence = toolContract("inspect_pe_certificates").outputSchema.parse(
+      valid.json,
+    );
+    expect(
+      evidence.normalized_result.entries[0]?.pkcs7?.certificates[0]?.serial_hex,
+    ).toBe("11223344");
+  },
+);
+
 cliTest(
   "reports PKCS#7 signer identity through the public CLI",
   async ({ cli }) => {

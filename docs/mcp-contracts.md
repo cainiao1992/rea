@@ -800,6 +800,22 @@ inspection fails or is cancelled before a provider client exists. If no client
 remains, no provider run or health observation is available; follow the cleanup
 error's reported resources.
 
+## Initial target at startup
+
+MCP normally starts without a target; use `open_binary` to select one during the
+session. To open a target before serving MCP, set `HOPPER_TARGET_PATH` to the
+selected path in REA's launch environment. `HOPPER_TARGET_KIND` accepts
+`executable` (the default) or `database`. Despite the names, these are initial
+session settings; the configured provider still determines how the target is
+opened. If the initial open fails, REA reports the failure and exits with code 1
+without serving MCP. Shutdown during startup cancels and cleans up the open as
+described below.
+
+The source-checkout helper `node scripts/print-mcp-config.mjs /path/to/target`
+prints a registration containing these settings; `--kind database` selects the
+database kind. The helper is not part of the installed npm package. `rea setup`
+does not copy these one-shot target settings into generated registrations.
+
 ## Transports
 
 The eager stdio runtime owns SIGINT, SIGTERM and stdin EOF before opening an

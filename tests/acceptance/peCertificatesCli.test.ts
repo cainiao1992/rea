@@ -144,6 +144,43 @@ cliTest(
 );
 
 cliTest(
+  "rejects surrogate pairs in BMPString certificate names and accepts valid neighboring code units",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-pe-cert-cli-bmp-");
+    const path = join(root, "bmp.exe");
+    const payload = pkcs7SignedDataFixture("ABCD");
+    const nameAt = payload.indexOf(
+      Buffer.from([0x0c, 0x04, 0x41, 0x42, 0x43, 0x44]),
+    );
+    expect(nameAt).toBeGreaterThanOrEqual(0);
+    // Equal-size replacement keeps the DER lengths and all unrelated fields intact.
+    Buffer.from([0x1e, 0x04, 0xd8, 0, 0xdc, 0]).copy(payload, nameAt);
+    await writeFile(path, peCertificateFixture(false, payload));
+    const invalid = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+    expect(invalid.exitCode).toBe(1);
+    expect(invalid.json).toMatchObject({
+      code: "invalid_request",
+      details: { operation: "inspect_pe_certificates" },
+    });
+    Buffer.from([0x1e, 0x04, 0xd7, 0xff, 0xe0, 0]).copy(payload, nameAt);
+    await writeFile(path, peCertificateFixture(false, payload));
+    const valid = await cli.run({
+      arguments: ["inspect-pe-certificates", path, "--json"],
+    });
+    expect(valid.exitCode, valid.stderr).toBe(0);
+    const evidence = toolContract("inspect_pe_certificates").outputSchema.parse(
+      valid.json,
+    );
+    expect(
+      evidence.normalized_result.entries[0]?.pkcs7?.certificates[0]?.issuer
+        .text,
+    ).toBe("commonName=\ud7ff\ue000, organizationName=REA Tests");
+  },
+);
+
+cliTest(
   "inventories repeated certificates within both decoder allowances",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-pe-cert-cli-repeated-");

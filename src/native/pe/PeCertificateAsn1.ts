@@ -126,7 +126,7 @@ export const decodeOid = (content: Buffer): string => {
   }
 };
 
-const decodeUtf16Be = (bytes: Buffer, budget: DecodedNameBudget): string => {
+const decodeBmpString = (bytes: Buffer, budget: DecodedNameBudget): string => {
   if (bytes.length % 2 !== 0) return fail("BMPString length is odd.");
   // Charge before the copy. Appending one character at a time retains a
   // cons-string chain of about sixteen heap bytes per source byte.
@@ -134,8 +134,11 @@ const decodeUtf16Be = (bytes: Buffer, budget: DecodedNameBudget): string => {
   if (bytes.length === 0) return "";
   const decoded = Buffer.allocUnsafe(bytes.length);
   for (let index = 0; index < bytes.length; index += 2) {
-    decoded[index] = bytes[index + 1] ?? 0;
-    decoded[index + 1] = bytes[index] ?? 0;
+    const codeUnit = bytes.readUInt16BE(index);
+    // BMPString is UCS-2: even a paired UTF-16 surrogate is not a BMP character.
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdfff)
+      return fail("BMPString holds a surrogate code point.");
+    decoded.writeUInt16LE(codeUnit, index);
   }
   return decoded.toString("utf16le");
 };
@@ -182,7 +185,7 @@ const decodeDirectoryString = (
     case 0x1c:
       return decodeUtf32Be(node.content, budget);
     case 0x1e:
-      return decodeUtf16Be(node.content, budget);
+      return decodeBmpString(node.content, budget);
     case 0x0c:
     case 0x13:
     case 0x16:

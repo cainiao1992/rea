@@ -1048,8 +1048,8 @@ Malformed format values and token windows fail with `INVALID_OUTPUT_VALUE` in th
 selected structured format. Token limits and offsets must be nonnegative safe
 integers; zero selects an empty window. These checks run before command execution. `--json` is indented on a terminal and compact when piped or
 redirected, which keeps large results smaller for agents and scripts; pipe
-through `jq .` for indented files. Output selection and formatting do not change
-operation status.
+through `jq .` for indented files. A formatting refusal exits nonzero even when
+the underlying operation succeeded.
 
 `--format md` escapes backslashes, pipes, and inline Markdown syntax in table
 headers and cells so source text is displayed literally, and renders cell line
@@ -1060,6 +1060,12 @@ use JSON inside their owning Markdown cells, retaining the field names and
 values instead of replacing them with an object label. Table widths are measured
 iteratively, so an admitted row page is not limited by the JavaScript function
 argument count.
+
+Markdown refuses selected NUL characters and unpaired UTF-16 surrogates because
+renderers or UTF-8 output would substitute them. TOON refuses selected unpaired
+surrogates for the same UTF-8 reason. Use JSON or YAML to retain those values.
+An authored replacement character and valid supplementary characters are not
+treated as malformed.
 
 `--format csv` and `--format tsv` export one selected row collection. Select an
 exact array path with `--filter-output` and provide comma-separated direct
@@ -1080,7 +1086,8 @@ delimiter, quotes, or line breaks are quoted and embedded quotes are doubled.
 Values are emitted as UTF-8 without Unicode normalization. Missing and `null`
 cells are empty; booleans and finite numbers use their ordinary text forms.
 String cells and headers that begin with spreadsheet formula syntax are refused
-with a structured error; JSON retains those values unchanged.
+with a structured error; unpaired surrogates in selected cells or headers are
+also refused. JSON retains those values unchanged.
 
 Delimited output does not flatten nested Evidence or nested field values.
 It returns a structured error and a nonzero status if the filter does not

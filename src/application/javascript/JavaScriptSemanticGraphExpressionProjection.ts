@@ -5,6 +5,7 @@ import {
 } from "../../domain/javascript/javascriptSourceCoordinates.js";
 import type { JavaScriptSourceRange } from "../../domain/javascript/javascriptStaticAnalysisTypes.js";
 import type { JavaScriptSemanticGraphNode } from "../../domain/javascript/javascriptSemanticGraphSchemas.js";
+import { compositeKey } from "../../domain/unicodeCodePointOrder.js";
 import type { SemanticFlowProjectionContext } from "./JavaScriptSemanticGraphFlowProjection.js";
 import {
   addSemanticGraphRelation,
@@ -71,10 +72,11 @@ const operatorLiteralIndex = (
       return node;
     seen.add(node.node_id);
     const entry = { node, range, order: order++ };
-    const id = `${literalValueKey(value)}\0${javascriptSourceRangeKey(range)}`;
-    const group = byValue.get(literalValueKey(value)) ?? [];
+    const valueKey = literalValueKey(value);
+    const id = compositeKey([valueKey, javascriptSourceRangeKey(range)]);
+    const group = byValue.get(valueKey) ?? [];
     group.push(entry);
-    byValue.set(literalValueKey(value), group);
+    byValue.set(valueKey, group);
     if (!exact.has(id)) exact.set(id, entry);
     return node;
   };
@@ -92,7 +94,7 @@ const operatorLiteralIndex = (
         )
           best = entry;
       };
-      consider(exact.get(`${valueKey}\0${operandKey}`));
+      consider(exact.get(compositeKey([valueKey, operandKey])));
       const group = byValue.get(valueKey) ?? [];
       let low = 0;
       let high = group.length;

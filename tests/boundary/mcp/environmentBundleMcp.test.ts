@@ -202,6 +202,40 @@ it("copies a capture Evidence file byte for byte and plans without writing on a 
   ).toBe(0);
 });
 
+it("attributes source file admission and JSON failures to source.path", async () => {
+  const { client } = await connect();
+  const root = await createTestTempDirectory("rea-bundle-source-errors-");
+  await mkdir(join(root, "directory"));
+  await writeFile(join(root, "invalid-utf8"), Buffer.from([0xff]));
+  await writeFile(join(root, "invalid-json"), "{");
+  for (const [name, reason] of [
+    ["missing", "invalid_value"],
+    ["directory", "invalid_value"],
+    ["invalid-utf8", "invalid_format"],
+    ["invalid-json", "invalid_format"],
+  ] as const) {
+    const output = join(root, `out-${name}`);
+    const result = await client.callTool({
+      name: TOOL,
+      arguments: {
+        source: { kind: "evidence-file", path: join(root, name) },
+        output_directory: output,
+        dry_run: true,
+      },
+    });
+    const { error } = parseMcpToolError(result);
+    expect(error).toMatchObject({
+      code: "invalid_request",
+      recovery: { kind: "inspect_input_contract", operation: TOOL },
+      details: { issues: [{ path: ["source", "path"], reason }] },
+    });
+    expect(JSON.stringify(error)).not.toContain(
+      "inline JSON cannot be exported",
+    );
+    await expect(access(output)).rejects.toMatchObject({ code: "ENOENT" });
+  }
+});
+
 it("refuses an existing or parentless output directory and leaves it as it was", async () => {
   const { client, session } = await connect();
   const capture = analysisViewCaptureEvidence(

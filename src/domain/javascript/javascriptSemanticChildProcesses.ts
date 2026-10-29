@@ -13,6 +13,7 @@ import {
   type JavaScriptExpressionShapeResolver,
 } from "./javascriptSemanticExpressionShapes.js";
 import {
+  readExactJavaScriptLiteral,
   semanticStaticPropertyName,
   staticJavaScriptTruthiness,
   staticObjectProperty,
@@ -68,8 +69,10 @@ export const collectJavaScriptSemanticChildProcesses = (
   state: JavaScriptSemanticAnalysisState,
   callables: readonly JavaScriptSemanticCallable[],
 ): ChildProcessAnalysis => {
-  const candidates = collectSpawns(program, state, callables);
   const context = createSemanticExpressionShapeResolver(state);
+  const candidates = collectSpawns(program, state, callables).filter(
+    (candidate) => !forkRejectsStdioArray(candidate, context),
+  );
   const childProcessSpawns = candidates.map((candidate) =>
     immutableSpawn(candidate, context),
   );
@@ -442,6 +445,40 @@ const stdioMode = (
   if (method === "fork" && staticJavaScriptTruthiness(value) !== undefined)
     return unsetStdioMode(expression, method, context);
   return "dynamic";
+};
+
+/**
+ * Node's `fork` requires an explicit `stdio` array to carry the IPC channel. An
+ * array that provably omits `"ipc"` throws ERR_CHILD_PROCESS_IPC_REQUIRED
+ * synchronously, before any child process exists, so it is not a spawn at all.
+ * A string `stdio` is normalised with `"ipc"` appended, so only the array form
+ * can omit it; a spread or unreadable element may still supply the channel and
+ * is therefore left alone.
+ */
+const forkRejectsStdioArray = (
+  candidate: SpawnCandidate,
+  context: ChildSpawnContext,
+): boolean => {
+  if (candidate.method !== "fork") return false;
+  const { options } = spawnArguments(candidate, context);
+  if (options === undefined) return false;
+  const expression = unwrapJavaScriptExpression(options).node;
+  if (context.isNullish(expression)) return false;
+  const lookup = staticObjectProperty(expression, "stdio", context.isNullish);
+  if (lookup.status !== "explicit") return false;
+  const value = unwrapJavaScriptExpression(lookup.value).node;
+  if (!t.isArrayExpression(value)) return false;
+  const literals = value.elements.map((element) =>
+    element === null || t.isSpreadElement(element)
+      ? undefined
+      : readExactJavaScriptLiteral(element),
+  );
+  if (literals.some((literal) => literal === undefined || !literal.found))
+    return false;
+  return !literals.some(
+    (literal) =>
+      literal !== undefined && literal.found && literal.value === "ipc",
+  );
 };
 
 /**

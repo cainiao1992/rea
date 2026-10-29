@@ -14,6 +14,7 @@ import { flutterResultSchemas } from "../../../src/domain/flutter/flutterBuildAn
 import { aotFixtureImage } from "../../../src/flutter/FlutterBuild.fixture.js";
 import { createFlutterApk } from "../../fixtures/flutterApk.js";
 import { createApplicationMcpHarness } from "../../fixtures/applicationMcpHarness.js";
+import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
 it.each([
   { label: "ARM64-V8A", paired: false },
@@ -255,12 +256,13 @@ it("advertises and enforces the same Unicode selector grammar through MCP", asyn
       name: "inspect_dart_aot",
       arguments: arguments_,
     });
-    expect(refused.isError).toBe(true);
-    expect(refused.content).toContainEqual({
-      type: "text",
-      text: expect.stringContaining(
-        "abi: ABI must be the exact lib/ directory label",
-      ),
+    expect(parseMcpToolError(refused).error).toMatchObject({
+      code: "invalid_request",
+      category: "invalid_input",
+      details: {
+        operation: "inspect_dart_aot",
+        issues: [{ path: ["abi"] }],
+      },
     });
   }
 });

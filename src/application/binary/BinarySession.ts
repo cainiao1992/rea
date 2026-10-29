@@ -44,6 +44,7 @@ import { InvestigationRecords } from "../investigation/InvestigationRecords.js";
 import { recordEvidenceSources } from "../investigation/recordEvidenceSources.js";
 import { BinarySessionRecords } from "./BinarySessionRecords.js";
 import { binarySessionStatus } from "./BinarySessionStatus.js";
+import { isSourceEvidenceRetainable } from "./AnalysisSnapshotCache.js";
 import type { BinarySessionDetail } from "../../contracts/sessionStatusContract.js";
 import {
   resolveSessionOpen,
@@ -1178,7 +1179,7 @@ export class BinarySession
   execute(
     name: Parameters<AnalysisOperationPort["execute"]>[0],
     arguments_: Readonly<Record<string, JsonValue>>,
-    options?: Pick<ExecutionOptions, "signal" | "selectorOrigin">,
+    options?: ExecutionOptions,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const generation = this.#transitionGeneration;
     const call = this.#execute(name, arguments_, options, this.#transition);
@@ -1190,7 +1191,7 @@ export class BinarySession
   executeIfProviderReady(
     name: Parameters<AnalysisOperationPort["execute"]>[0],
     arguments_: Readonly<Record<string, JsonValue>>,
-    options?: Pick<ExecutionOptions, "signal" | "selectorOrigin">,
+    options?: Pick<ExecutionOptions, "signal" | "selectorOrigin" | "workScope">,
   ): Promise<Result<AnalysisExecution, AnalysisError> | undefined> {
     const active = this.#active;
     if (
@@ -1249,7 +1250,7 @@ export class BinarySession
   async #execute(
     name: Parameters<AnalysisOperationPort["execute"]>[0],
     arguments_: Readonly<Record<string, JsonValue>>,
-    options: Pick<ExecutionOptions, "signal" | "selectorOrigin"> | undefined,
+    options: ExecutionOptions | undefined,
     transition: Promise<void>,
   ): Promise<Result<AnalysisExecution, AnalysisError>> {
     const transitioned = await this.#waitForTransition(
@@ -1329,7 +1330,11 @@ export class BinarySession
       );
       if (!sourcesRecorded.ok) return sourcesRecorded;
     }
-    if (execution.ok && cacheable && profile !== undefined) {
+    if (
+      execution.ok &&
+      isSourceEvidenceRetainable(name, capability, arguments_) &&
+      profile !== undefined
+    ) {
       const evidence = createAnalysisExecutionEvidence(
         name,
         arguments_,
@@ -1346,7 +1351,7 @@ export class BinarySession
       const recorded = this.recordEvidence(evidence);
       if (!recorded.ok) return recorded;
       const retained = { ...execution.value, evidenceId: evidence.evidence_id };
-      if (execution.value.cachePolicy !== "live")
+      if (cacheable && execution.value.cachePolicy !== "live")
         this.recordSnapshot({
           target: active.target,
           profile,

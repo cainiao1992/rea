@@ -21,6 +21,7 @@ import {
 } from "./providerStartupTimeout.js";
 import {
   DEFAULT_GHIDRA_STARTUP_TIMEOUT_MS,
+  DEFAULT_HOPPER_CALLER_SCAN_BUDGET_MS,
   DEFAULT_HOPPER_STARTUP_TIMEOUT_MS,
 } from "../domain/analysisResourceLimits.js";
 import { mcpInputSchemaProfileSchema } from "./mcpInputSchemaProfile.js";
@@ -99,6 +100,9 @@ const environmentSchema = z.object({
   ),
   REA_HOPPER_STARTUP_TIMEOUT_MS: providerStartupTimeoutSchema.default(
     DEFAULT_HOPPER_STARTUP_TIMEOUT_MS,
+  ),
+  REA_HOPPER_CALLER_SCAN_BUDGET_MS: providerStartupTimeoutSchema.default(
+    DEFAULT_HOPPER_CALLER_SCAN_BUDGET_MS,
   ),
   REA_SWIFTC_COMPILE_TIMEOUT_MS: providerStartupTimeoutSchema.default(
     DEFAULT_SWIFTC_COMPILE_TIMEOUT_MS,

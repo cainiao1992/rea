@@ -2585,7 +2585,12 @@ export class AdbProvider {
           { device: input.serial, path: devicePath },
           selection,
           adbArguments(input.serial, ["shell", "sha256sum", devicePath]),
-          { timeoutMs: SHELL_TIMEOUT_MS, maxOutputBytes: 1024 },
+          {
+            timeoutMs: SHELL_TIMEOUT_MS,
+            // sha256sum echoes the path, escaping special characters, so a
+            // long path must not exhaust the budget for the digest line.
+            maxOutputBytes: 1024 + 2 * Buffer.byteLength(devicePath),
+          },
           signal,
         );
         if (!deviceDigest.ok) {

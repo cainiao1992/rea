@@ -1007,6 +1007,13 @@ export class PcapProvider {
       if (metadata.sha256 !== null && metadata.sha256 !== identity.sha256)
         throw new AnalysisProtocolError(
           "capinfos SHA256 disagrees with the owned capture snapshot",
+          {
+            diagnostics: {
+              reason: "capture_sha256_mismatch",
+              capinfos_sha256: metadata.sha256,
+              snapshot_sha256: identity.sha256,
+            },
+          },
         );
     } catch (cause) {
       throw withOutputCleanup(cause, info);
@@ -1119,6 +1126,13 @@ export class PcapProvider {
     if (fields.packetCount !== metadata.packetCount)
       throw new AnalysisProtocolError(
         `capinfos counted ${String(metadata.packetCount)} packets but tshark returned ${String(fields.packetCount)}`,
+        {
+          diagnostics: {
+            reason: "packet_count_mismatch",
+            capinfos_packet_count: metadata.packetCount,
+            tshark_packet_count: fields.packetCount,
+          },
+        },
       );
     const captured = {
       result: {

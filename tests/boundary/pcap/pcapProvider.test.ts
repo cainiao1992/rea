@@ -158,6 +158,66 @@ it("inspects a capture with endpoints, DNS, TLS SNI, and HTTP", async () => {
   expect(result.coverage).toBe("complete");
 });
 
+it.each([0, 1])(
+  "preserves packet-count mismatch facts while accepting an empty capture: capinfos=%s",
+  async (count) => {
+    const { provider, root } = await providerWith({
+      tsharkJson: "[]",
+      dnsJson: "[]",
+      capinfosText: `File type: pcap\nFile encapsulation: Ethernet\nNumber of packets: ${String(count)}\n`,
+    });
+    const path = await captureFixture(root);
+    const result = await provider.execute({
+      operation: "inspect_pcap_capture",
+      input: { path },
+    });
+    if (count === 0) {
+      if (!result.ok) throw result.error;
+      expect(result.value.result).toMatchObject({
+        packet_count: 0,
+        coverage: "complete",
+      });
+    } else {
+      if (result.ok) throw new Error("Expected contradictory counts");
+      expect(projectAnalysisError(result.error)).toMatchObject({
+        code: "unreadable_output",
+        details: {
+          diagnostics: {
+            reason: "packet_count_mismatch",
+            capinfos_packet_count: 1,
+            tshark_packet_count: 0,
+          },
+        },
+      });
+    }
+  },
+);
+
+it("retains both observed digests when capinfos disagrees with the snapshot", async () => {
+  const reported = "0".repeat(64);
+  const { provider, root } = await providerWith({
+    capinfosText: `File type: pcap\nFile encapsulation: Ethernet\nNumber of packets: 0\nSHA256: ${reported}\n`,
+  });
+  const path = await captureFixture(root);
+  const result = await provider.execute({
+    operation: "inspect_pcap_capture",
+    input: { path },
+  });
+  if (result.ok) throw new Error("Expected contradictory snapshot digest");
+  expect(projectAnalysisError(result.error)).toMatchObject({
+    code: "unreadable_output",
+    details: {
+      diagnostics: {
+        reason: "capture_sha256_mismatch",
+        capinfos_sha256: reported,
+        snapshot_sha256: createHash("sha256")
+          .update("pcap-fixture-bytes")
+          .digest("hex"),
+      },
+    },
+  });
+});
+
 it("retains an absolute HTTP request target without a Host-derived full URI", async () => {
   const { provider, root } = await providerWith({ httpAbsoluteUriOnly: true });
   const path = await captureFixture(root);

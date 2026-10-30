@@ -519,23 +519,35 @@ describe("Ghidra raw-binary profile", () => {
 });
 
 describe("Ghidra Mach-O slice support", () => {
-  it("declines parsed thin arm64_32 Mach-O targets", () => {
+  it("declines parsed thin arm64_32 Mach-O targets, naming every admitted family", () => {
     const parsed = parseExecutableHeader(
       thinMach(0xcefaedfe, 0x0200000c),
       "arm64",
     );
     if (!parsed.ok) throw new Error("Expected valid arm64_32 Mach-O target");
-    expect(
-      provider().inspectTargetSupport({
-        path: "/tmp/watch.o",
-        sha256: "a".repeat(64),
-        kind: "executable",
-        ...parsed.value,
-      }),
-    ).toMatchObject({
-      status: "unsupported",
-      code: "architecture_unsupported",
+    const support = provider().inspectTargetSupport({
+      path: "/tmp/watch.o",
+      sha256: "a".repeat(64),
+      kind: "executable",
+      ...parsed.value,
     });
+    if (support.status !== "unsupported") throw new Error("Expected a refusal");
+    expect(support.code).toBe("architecture_unsupported");
+    expect(support.reason.match(/\w+/gu)).toEqual(
+      expect.arrayContaining([
+        "arm64_32",
+        "x86",
+        "x86_64",
+        "arm",
+        "arm64",
+        "mips",
+        "riscv",
+        "powerpc",
+        "hexagon",
+        "6502",
+        "m68k",
+      ]),
+    );
   });
   it("refuses universal targets whose selected slice cannot be enforced", () => {
     const ghidra = provider();

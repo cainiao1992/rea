@@ -26,6 +26,7 @@ import {
   ghidraPinnedLanguage,
   ghidraProfileDisabledAnalyzers,
   ghidraProfileLanguageOverride,
+  ghidraProfilePinnedLanguage,
   sameGhidraDisabledAnalyzers,
   sameGhidraLanguageOverride,
 } from "./GhidraAnalysisProfile.js";
@@ -35,7 +36,6 @@ import {
 } from "./GhidraDisabledAnalyzers.js";
 import {
   ghidraMipsProfileMismatchReason,
-  ghidraPinnedMipsLanguage,
   GHIDRA_MIPS_SOFT_FLOAT_STORAGE,
   ghidraMips1Limitations,
   ghidraMipsSoftFloatFailure,
@@ -253,20 +253,21 @@ export const createGhidraProviderClient = (input: {
   const parameterLanguage = ghidraProfileLanguageOverride(
     committedProfile.parameters,
   );
-  const pinnedLanguage = ghidraPinnedMipsLanguage(committedProfile.parameters);
+  const pinnedLanguage = ghidraProfilePinnedLanguage(
+    committedProfile.parameters,
+  );
   const targetLanguage = ghidraPinnedLanguage(target);
   if (pinnedLanguage !== undefined && targetLanguage === undefined)
     return err(
       new ProviderAdapterError("ghidra", "open_binary", {
         diagnostics: {
-          reason:
-            "The committed profile pins a MIPS language that the current target does not establish; reopen an admitted target to resolve a new profile.",
+          reason: `The committed profile pins the ${pinnedLanguage.languageId} language, which the current target does not establish; reopen an admitted target to resolve a new profile.`,
         },
       }),
     );
   // Provider-pinned profiles declare their language through the same
   // parameter slot caller-configured profiles use, so only an environment
-  // override conflicts with the legacy pin; the slot itself carries it.
+  // override conflicts with the pin; the slot itself carries it.
   if (
     pinnedLanguage !== undefined &&
     config.ghidraLanguageOverride !== undefined
@@ -274,8 +275,7 @@ export const createGhidraProviderClient = (input: {
     return err(
       new ProviderAdapterError("ghidra", "open_binary", {
         diagnostics: {
-          reason:
-            "The committed legacy MIPS profile pins its import language; REA_GHIDRA_LANGUAGE_ID/REA_GHIDRA_COMPILER_SPEC_ID cannot be combined with it. Reopen the target without the override.",
+          reason: `The committed profile pins its import language, ${pinnedLanguage.languageId}; REA_GHIDRA_LANGUAGE_ID/REA_GHIDRA_COMPILER_SPEC_ID cannot be combined with it. Reopen the target without the override.`,
         },
       }),
     );

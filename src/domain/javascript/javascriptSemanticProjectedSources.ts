@@ -3,10 +3,7 @@ import type {
   JavaScriptSemanticAnalysisState,
   JavaScriptSemanticBindingState,
 } from "./javascriptSemanticState.js";
-import {
-  semanticPropertyPathKeyMatches,
-  type JavaScriptSemanticPropertyPath,
-} from "./javascriptSemanticPropertyPaths.js";
+import type { JavaScriptSemanticPropertyPath } from "./javascriptSemanticPropertyPaths.js";
 import { unwrapJavaScriptExpression } from "./javascriptAstValues.js";
 import {
   semanticObjectPropertyReferences,
@@ -26,6 +23,11 @@ import {
   semanticReferenceSourcesInactive,
 } from "./javascriptSemanticReferenceSources.js";
 import { semanticStoredSourceSelection } from "./javascriptSemanticIterationSources.js";
+import {
+  semanticEffectPathCandidates,
+  semanticEffectPathMatches,
+  semanticSomeEffectPathCandidate,
+} from "./javascriptSemanticEffectPathIndex.js";
 import {
   semanticAliasSelectionChoices,
   type SemanticAliasSelectionPath,
@@ -301,20 +303,7 @@ const projectedSourceFactsAtRead = (
   const matches = (
     effect: JavaScriptSemanticBindingState["memberWrites"][number],
   ) =>
-    path.length > 0 &&
-    effect.path.length <= path.length &&
-    effect.path.every((key, index) => {
-      const selected = path[index];
-      return (
-        selected !== undefined &&
-        semanticAliasSelectionChoices(selected).some(
-          (choice) =>
-            choice === null ||
-            typeof choice === "object" ||
-            semanticPropertyPathKeyMatches(key, String(choice)),
-        )
-      );
-    }) &&
+    semanticEffectPathMatches(effect.path, path) &&
     (effect.receiverInitializers === undefined ||
       effect.receiverInitializers.length === 0 ||
       captured.length === 0 ||
@@ -329,7 +318,10 @@ const projectedSourceFactsAtRead = (
     semanticEffectTiming(selectedAt(effect.path.length), effect.node, state) !==
       "after" &&
     !targetsReplacedPrefix(effect);
-  const writes = binding.memberWrites.filter(matches);
+  const writes = semanticEffectPathCandidates(
+    binding.memberWrites,
+    path,
+  ).filter(matches);
   let replacement:
     | JavaScriptSemanticBindingState["memberWrites"][number]
     | undefined;
@@ -374,7 +366,9 @@ const projectedSourceFactsAtRead = (
           (replacement.assignedSources?.[0]?.target?.start ?? -1)));
   if (
     includeUnknown &&
-    binding.escapedPaths.some(
+    semanticSomeEffectPathCandidate(
+      binding.escapedPaths,
+      path,
       (effect) => matches(effect) && !superseded(effect),
     )
   )

@@ -296,20 +296,11 @@ const projectedSourceFactsAtRead = (
         )
       );
     });
+  // Every condition is a pure query. Test the selected path first: it is the
+  // cheapest and rejects most records of a binding with many member paths.
   const matches = (
     effect: JavaScriptSemanticBindingState["memberWrites"][number],
   ) =>
-    (effect.receiverInitializers === undefined ||
-      effect.receiverInitializers.length === 0 ||
-      captured.length === 0 ||
-      effect.receiverInitializers.some((receiver) =>
-        captured.some(
-          (source) =>
-            source.node === receiver.node &&
-            JSON.stringify(source.projection) ===
-              JSON.stringify(receiver.projection),
-        ),
-      )) &&
     path.length > 0 &&
     effect.path.length <= path.length &&
     effect.path.every((key, index) => {
@@ -324,6 +315,17 @@ const projectedSourceFactsAtRead = (
         )
       );
     }) &&
+    (effect.receiverInitializers === undefined ||
+      effect.receiverInitializers.length === 0 ||
+      captured.length === 0 ||
+      effect.receiverInitializers.some((receiver) =>
+        captured.some(
+          (source) =>
+            source.node === receiver.node &&
+            JSON.stringify(source.projection) ===
+              JSON.stringify(receiver.projection),
+        ),
+      )) &&
     semanticEffectTiming(selectedAt(effect.path.length), effect.node, state) !==
       "after" &&
     !targetsReplacedPrefix(effect);

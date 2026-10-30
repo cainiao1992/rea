@@ -993,6 +993,14 @@ When Hopper cannot start in CI, run
 `rea doctor --provider hopper --json` in the failing runner.
 Structured failures distinguish private-display dependencies, an unsupported
 demo dialog or build, process-ownership conflicts, and an early lifecycle exit.
+Once launcher authentication succeeds, an absent first-run dialog is reported as
+`demo_dialog_absent` rather than a build or publisher rejection. The watcher
+waits 10 seconds by default. Set `REA_HOPPER_DEMO_DIALOG_TIMEOUT_MS` in the
+environment that starts REA to a positive decimal integer of milliseconds from
+1 to 2147483647 when a slower host needs a longer window. An invalid value is
+`invalid_dialog_timeout`: the error names that setting, shows the rejected
+value and its source, lists the allowed range, and asks you to correct the
+setting and restart REA.
 If a private-display probe times out or is cancelled and its process cleanup
 fails, REA retains that exact probe owner and reports `cleanup_incomplete`.
 Session close retries the probe before releasing its cleanup marker; doctor

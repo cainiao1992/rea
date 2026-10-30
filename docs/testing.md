@@ -1600,16 +1600,22 @@ workflows run static checks and the Linux suite. Website changes run website
 checks. Provider workflow changes validate the workflow and run that provider's
 verifier. Changes under `bridge/ghidra/` also select the `ghidra_bridge` lane,
 which compiles the packaged bridge sources against the pinned Ghidra 12.1.4
-jars with `npm run verify:ghidra:bridge-sources`. It never launches Ghidra or
-imports a target, so a missing import fails the PR instead of every Ghidra
-session. The launcher, compiler and package checks share named required source
+jars with `npm run verify:ghidra:bridge-sources`. That compile step never
+launches Ghidra or imports a target, so a missing import fails the PR instead
+of every Ghidra session. The launcher, compiler and package checks share named required source
 roles. The manifest must match the complete Java cohort, so deleting a helper
 or adding an unregistered dependency cannot silently change the shipped set.
 The preflight reuses the provider's Java Properties parser with the pinned Node
 toolchain's native type stripping, without an npm install or runtime build.
 The shared release policy owns the verified version and JDK major. CI checks
 the archive pin before downloading and verifies the extracted SDK version;
-changes to these source owners also select the compile lane.
+changes to these source owners also select the compile lane. After compiling,
+the lane launches headless Ghidra on source-owned instruction bytes with
+`-noanalysis`. The ARM/Thumb probe sets each instruction's mode explicitly and
+checks the bridge's decoder-context readback. The decode probes check that
+`ARM:LE:32:Cortex`, `ARM:LE:32:v8-m` and `Xtensa:LE:32:default` decode their
+bytes from each language's default context. The bytes are never executed, and
+edits to those probe scripts also select the lane.
 Manual-provider/Android workflow changes run workflow validation only.
 The four-version SQLite compatibility matrix has its own `sqlite` scope for
 SQLite implementation, contracts, CLI/MCP registration, fixtures, and shared

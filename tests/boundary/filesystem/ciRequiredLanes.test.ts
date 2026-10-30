@@ -213,6 +213,7 @@ it("holds native and provider fan-out behind static validation while portable fe
     "changes",
     "static",
     "static-deep",
+    "python",
     "build",
     "test-shard",
     "test-source",
@@ -382,6 +383,8 @@ it("binds provider build reuse to the current run while keeping standalone dispa
     "web_runtime",
     "web_source_map",
     "agentenv",
+    "packet_capture",
+    "signal_recording",
   ];
   const buildTerms = z
     .string()
@@ -574,6 +577,9 @@ it.each([
       ["workflows", "static"],
       ["ghidra_bridge", "ghidra_bridge"],
       ["agentenv", "agentenv"],
+      ["python", "python"],
+      ["packet_capture", "packet_capture"],
+      ["signal_recording", "signal_recording"],
     ] as const) {
       // GitHub exposes only direct dependencies in the required job's needs context.
       const needs: Record<

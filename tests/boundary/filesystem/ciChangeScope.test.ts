@@ -103,6 +103,27 @@ async function classify(
   return z.record(z.string(), z.unknown()).parse(JSON.parse(result.stdout));
 }
 
+it.each([
+  ["bridge/native/rea_lldb_tracer.py", "python"],
+  ["bridge/pwndbg/test_core_context.py", "python"],
+  ["tests/support/analysis-efficiency/test_signal_oracle.py", "python"],
+  ["scripts/run-python-tests.py", "python"],
+  ["src/captures/CaptureProvider.ts", "packet_capture"],
+  ["tests/boundary/mcp/packetCaptureMcp.test.ts", "packet_capture"],
+  ["src/signals/RecordingProvider.ts", "signal_recording"],
+  ["tests/boundary/mcp/signalRecordingMcp.test.ts", "signal_recording"],
+  ["src/process/LinuxResourceLimits.ts", "packet_capture"],
+  ["src/process/LinuxResourceLimits.ts", "signal_recording"],
+  ["scripts/ci/require-provider-tests.mjs", "packet_capture"],
+  ["scripts/ci/require-provider-tests.mjs", "signal_recording"],
+])("selects %s for %s", async (path, scope) => {
+  const { directory, base } = await fixture();
+  const head = await change(directory, [path]);
+  expect(await classify(directory, base, head)).toMatchObject({
+    [scope]: true,
+  });
+});
+
 it("reuses only scheduled qualification and preserves every explicit full request", async () => {
   const { directory, base } = await fixture();
   const reused = await classify(directory, base, base, "schedule", false, true);

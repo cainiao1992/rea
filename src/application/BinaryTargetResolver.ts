@@ -85,6 +85,11 @@ import { hasUnityFsHeader } from "../domain/unityfsFormat.js";
 import { detectHexRecordEncoding } from "../domain/firmware/hexRecords.js";
 import { hasFitImagesNode } from "../domain/firmware/fitImage.js";
 import {
+  locateEspFlashLayout,
+  type EspFlashSelection,
+} from "../domain/firmware/espFlashLocation.js";
+import { espFlashSelectionError } from "../domain/firmware/espFlashSelection.js";
+import {
   ESP8266_REFUSAL,
   recognizeEspImage,
 } from "../domain/firmware/espImage.js";
@@ -136,6 +141,8 @@ export interface BinaryTargetResolverOptions {
   readonly formatHint?: ExecutableFormatHint;
   readonly architecture?: BinaryArchitecture;
   readonly entryPoint?: string;
+  /** Inputs for format=esp-flash-image; rejected with any other format. */
+  readonly espFlash?: EspFlashSelection;
   readonly signal?: AbortSignal;
   readonly resources?: ArtifactResourceScope;
 }
@@ -273,6 +280,18 @@ const readOpenedBinaryTarget = async (
   const hostArchitecture = options.hostArchitecture ?? process.arch;
   const { targetKind, formatHint, signal, architecture, entryPoint } = options;
   throwIfTargetResolutionCancelled(signal);
+  // Flash inputs pair with one format; check before any hint branch.
+  const flashPairing = espFlashSelectionError({
+    format: formatHint,
+    flashOffset: options.espFlash?.flashOffset,
+    partitionTableOffset: options.espFlash?.partitionTableOffset,
+  });
+  if (flashPairing !== undefined)
+    return err(
+      new BinaryTargetError(path, flashPairing, {
+        constraint: "load_selection_rejected",
+      }),
+    );
   if (formatHint === "raw-binary") {
     if (targetKind !== undefined && targetKind !== "executable")
       return err(
@@ -360,6 +379,45 @@ const readOpenedBinaryTarget = async (
       dol: admitted.value.header,
     });
   }
+  if (formatHint === "esp-flash-image") {
+    if (targetKind !== undefined && targetKind !== "archive")
+      return err(
+        new BinaryTargetError(
+          path,
+          "ESP flash image format requires an archive target kind",
+          { constraint: "load_selection_rejected" },
+        ),
+      );
+    const selection = options.espFlash ?? {};
+    // An encrypted dump has no readable table: unknown, not malformed.
+    const located = await locateEspFlashLayout(
+      metadata.size,
+      (position, length) => readHandleRange(handle, position, length, signal),
+      selection,
+      { explicit: true, ...(signal === undefined ? {} : { signal }) },
+    );
+    if (!located.ok)
+      return err(
+        new BinaryTargetError(
+          path,
+          `ESP flash image layout is not recognized: ${located.error}`,
+          { constraint: "file_format_rejected" },
+        ),
+      );
+    return ok({
+      path,
+      sourcePath,
+      artifactSelectedPath: selectedPath,
+      sha256: await sha256Handle(handle, path, metadata, signal),
+      kind: "archive",
+      format: "esp-flash-image",
+      espFlash: {
+        selected: true,
+        flashOffset: selection.flashOffset ?? null,
+        partitionTableOffset: selection.partitionTableOffset ?? null,
+      },
+    });
+  }
   if (formatHint === "dos-com") {
     if (targetKind !== undefined && targetKind !== "executable")
       return err(
@@ -412,6 +470,17 @@ const readOpenedBinaryTarget = async (
       artifactSelectedPath: selectedPath,
       sha256: await sha256Handle(handle, path, metadata, signal),
     };
+    if (artifactFormat === "esp-flash-image")
+      return ok({
+        ...identity,
+        kind: "archive",
+        format: artifactFormat,
+        espFlash: {
+          selected: false,
+          flashOffset: null,
+          partitionTableOffset: null,
+        },
+      });
     return isArchiveFormat(artifactFormat)
       ? ok({ ...identity, kind: "archive", format: artifactFormat })
       : ok({ ...identity, kind: "artifact", format: artifactFormat });
@@ -682,6 +751,14 @@ const detectArtifactFormat = async (
   if (hasUImageMagic(magic)) return "uimage";
   const hexRecords = detectHexRecordEncoding(magic);
   if (hexRecords !== undefined) return hexRecords;
+  // A C3 or S3 dump begins with its bootloader, so a layout comes first.
+  const flash = await locateEspFlashLayout(
+    initial.size,
+    (position, length) => readHandleRange(handle, position, length, signal),
+    {},
+    { explicit: false, ...(signal === undefined ? {} : { signal }) },
+  );
+  if (flash.ok) return "esp-flash-image";
   const esp = recognizeEspImage(magic, initial.size);
   if (esp === "esp8266")
     throw new BinaryTargetError(path, ESP8266_REFUSAL, {
@@ -766,6 +843,7 @@ const isArchiveFormat = (
     "intel-hex",
     "srec",
     "esp-image",
+    "esp-flash-image",
     "fit",
   ].includes(format);
 

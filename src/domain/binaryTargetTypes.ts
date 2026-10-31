@@ -299,6 +299,8 @@ export type BinaryTarget =
           | "intel-hex"
           | "srec"
           | "esp-image"
+          | "uf2"
+          | "dfuse"
           | "fit";
       })
   | (BinaryTargetIdentity &

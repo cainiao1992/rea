@@ -1,4 +1,5 @@
 import {
+  artifactDfuCrc32PairSchema,
   artifactIntegrityClaimSchema,
   artifactSha256PairSchema,
   artifactMd5PairSchema,
@@ -95,6 +96,8 @@ export const ARTIFACT_FORMAT_IDS = [
   "intel-hex",
   "srec",
   "esp-image",
+  "uf2",
+  "dfuse",
   "esp-flash-image",
   "fit",
   "unknown",
@@ -114,6 +117,8 @@ const artifactContentFormatSchema = artifactFormatSchema.extract([
   "intel-hex",
   "srec",
   "esp-image",
+  "uf2",
+  "dfuse",
   "fit",
   "mach-o-universal",
   "mach-o",
@@ -198,6 +203,7 @@ const integrityContradictionBaseSchema = z.object({
 export const integrityContradictionSchema = z.union([
   integrityContradictionBaseSchema.extend(artifactSha256PairSchema.shape),
   integrityContradictionBaseSchema.extend(artifactMd5PairSchema.shape),
+  integrityContradictionBaseSchema.extend(artifactDfuCrc32PairSchema.shape),
 ]);
 
 /**

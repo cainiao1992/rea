@@ -121,6 +121,8 @@ const TARGETS: TargetFixtures = {
   "godot-pck": { ...archive, format: "godot-pck" },
   unityfs: { ...archive, format: "unityfs" },
   uimage: { ...archive, format: "uimage" },
+  uf2: { ...archive, format: "uf2" },
+  dfuse: { ...archive, format: "dfuse" },
   dmg: { ...archive, format: "dmg" },
   pkg: { ...archive, format: "pkg" },
   "intel-hex": { ...archive, format: "intel-hex" },

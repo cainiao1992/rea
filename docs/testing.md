@@ -2038,6 +2038,13 @@ tool before building and warns when esptool is not the pinned v5.6.0.
 `REA_XTENSA_ESP32_GCC` adds an ESP32 Xtensa build. See
 [ESP images](esp-image.md).
 
+`npm run verify:uf2` needs only a Python that runs esptool, named by
+`REA_ESPTOOL_PYTHON` (default `python3`). It writes inputs at known addresses,
+builds UF2 files with esptool's `merge-bin --format uf2` (v4 `merge_bin`) with
+and without MD5 and with 256-byte payloads, and concatenates two chips'
+outputs. Inspection and extraction through the built CLI must return each input
+at its address under the familyID esptool itself reports. It is not part of CI.
+See [UF2 and DfuSe images](uf2-dfuse.md).
 `npm run verify:esp-flash` needs the same tools and an ESP-IDF checkout
 (`REA_ESP_IDF_PATH`) for `gen_esp32part.py` and `otatool.py`. It builds
 partition tables, assembles dumps with `esptool merge-bin`, writes OTA records

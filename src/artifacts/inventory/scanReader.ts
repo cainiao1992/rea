@@ -1,7 +1,9 @@
 import type { AsarHeaderAdmission } from "../../config/asarHeaderAdmission.js";
 import {
+  artifactContainerIntegrityDetails,
   artifactIntegrityPair,
   artifactIntegrityDetails,
+  type ArtifactContainerIntegrityPair,
   type ArtifactIntegrityPair,
 } from "../../domain/artifactIntegrity.js";
 import { isAbsolute } from "node:path";
@@ -89,6 +91,8 @@ export const scanReader = async (
   readonly inesRegionScan: InesRegionScan | undefined;
   readonly unknownParentOccurrences: ReadonlySet<MutableOccurrence>;
   readonly traversal: ArtifactReaderTraversal;
+  /** A recorded disagreement between the root's own checksum and its bytes. */
+  readonly rootContradiction: ArtifactContainerIntegrityPair | undefined;
 }> => {
   const { nodes, occurrences, pendingContradictions } = emptyScan();
   if (reader === undefined)
@@ -100,6 +104,7 @@ export const scanReader = async (
       inesRegionScan: undefined,
       unknownParentOccurrences: new Set(),
       traversal: { status: "complete", limitations: [] },
+      rootContradiction: undefined,
     };
   const context: ScanContext = {
     reader,
@@ -120,6 +125,7 @@ export const scanReader = async (
     traversal: new ArtifactTraversalObservation(),
   };
   await visitArtifactEntries(context, reader, "");
+  const rootContradiction = containerContradiction(reader, integrity);
   // Archive directories may appear after their children. Resolve containment
   // against the complete index before directory identities are materialized.
   const byPath = indexDestinationOccurrencesByPath(occurrences);
@@ -148,7 +154,26 @@ export const scanReader = async (
           },
     unknownParentOccurrences: parentResolution.unknownParentOccurrences,
     traversal: context.traversal.snapshot(),
+    rootContradiction,
   };
+};
+
+/** Apply the integrity policy to a checksum the root declares over its own bytes. */
+const containerContradiction = (
+  reader: ArtifactReader,
+  integrity: ArtifactIntegrityPolicyName,
+): ArtifactContainerIntegrityPair | undefined => {
+  const pair = reader.containerIntegrity?.();
+  if (pair === undefined || pair.declared_crc32 === pair.observed_crc32)
+    return undefined;
+  if (integrity === "fail")
+    throw new ArtifactReaderFailure(
+      "integrity",
+      "Artifact integrity metadata disagrees with content: .",
+      undefined,
+      artifactContainerIntegrityDetails(".", pair),
+    );
+  return pair;
 };
 
 const inventoryEntries = (

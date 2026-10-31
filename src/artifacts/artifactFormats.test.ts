@@ -38,6 +38,8 @@ type FormatsWithReaders =
   | "intel-hex"
   | "srec"
   | "esp-image"
+  | "uf2"
+  | "dfuse"
   | "esp-flash-image"
   | "fit";
 

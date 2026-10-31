@@ -17,6 +17,7 @@ import type { ArtifactReaderAdmission } from "./ArtifactReaderAdmission.js";
 import { AsarArtifactReader } from "./AsarArtifactReader.js";
 import type { BunStandaloneAdmission } from "./bun/BunStandaloneAdmission.js";
 import { BunStandaloneArtifactReader } from "./BunStandaloneArtifactReader.js";
+import { DfuSeArtifactReader } from "./DfuSeArtifactReader.js";
 import { DirectoryArtifactReader } from "./DirectoryArtifactReader.js";
 import type { DotnetBundleAdmission } from "./dotnet/DotnetBundleAdmission.js";
 import { DotnetBundleArtifactReader } from "./DotnetBundleArtifactReader.js";
@@ -36,6 +37,7 @@ import type { NodeSeaAdmission } from "./nodeSea/NodeSeaAdmission.js";
 import { NodeSeaArtifactReader } from "./NodeSeaArtifactReader.js";
 import type { PyInstallerAdmission } from "./pyinstaller/PyInstallerAdmission.js";
 import { PyInstallerArtifactReader } from "./PyInstallerArtifactReader.js";
+import { Uf2ArtifactReader } from "./Uf2ArtifactReader.js";
 import { UImageArtifactReader } from "./UImageArtifactReader.js";
 import { UnityFsArtifactReader } from "./UnityFsArtifactReader.js";
 import { ZipArtifactReader } from "./ZipArtifactReader.js";
@@ -368,6 +370,26 @@ const NON_ZIP_FORMATS = {
     readerLimitation: ESP_IMAGE_LIMITATIONS.inventoryScope,
     createReader: (path, options) =>
       new EspImageArtifactReader(path, sourceOf(options)),
+  }),
+  uf2: container("uf2", {
+    roleContainer: true,
+    retainClassifiedSource: true,
+    extractable: true,
+    absentInventory: "unavailable",
+    readerLimitation:
+      "UF2 inventory decodes main-flash block payloads into address-contiguous regions per familyID. It does not establish CPU, byte order, memory map, or an entry point; a familyID names a target family, and gaps are unwritten, not zero.",
+    createReader: (path, options) =>
+      new Uf2ArtifactReader(path, sourceOf(options)),
+  }),
+  dfuse: container("dfuse", {
+    roleContainer: true,
+    retainClassifiedSource: true,
+    extractable: true,
+    absentInventory: "unavailable",
+    readerLimitation:
+      "DfuSe inventory lists each target element as one region at its declared address. It does not establish CPU, byte order, memory map, or an entry point; an alternate setting selects a device memory, not an address space REA can interpret.",
+    createReader: (path, options) =>
+      new DfuSeArtifactReader(path, sourceOf(options)),
   }),
   "esp-flash-image": container("esp-flash-image", {
     roleContainer: true,

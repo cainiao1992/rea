@@ -534,9 +534,18 @@ const createExtractionResult = (
   const selectedIds = new Set(
     selected.map(({ occurrence }) => occurrence.occurrence_id),
   );
-  const integrityContradictions = inventory.integrity_contradictions.filter(
-    ({ occurrence_id: id }) => selectedIds.has(id),
+  // A root contradiction covers the container bytes every extracted file came from.
+  const rootId = inventory.occurrences.find(
+    (row) => row.logical_path === ".",
+  )?.occurrence_id;
+  const rootContradicted = inventory.integrity_contradictions.some(
+    ({ occurrence_id: id }) => id === rootId,
   );
+  const integrityContradictions = inventory.integrity_contradictions.filter(
+    ({ occurrence_id: id }) => selectedIds.has(id) || id === rootId,
+  );
+  const extractedContradictions =
+    integrityContradictions.length - (rootContradicted ? 1 : 0);
   const extractionSemantic = {
     source_manifest_id: inventory.manifest.manifest_id,
     selected_occurrence_ids: selected
@@ -572,11 +581,16 @@ const createExtractionResult = (
         ? "All regular files exposed by the active artifact reader were materialized."
         : "All inventoried regular files exposed by the active reader were materialized; source traversal coverage is unknown, so the output is not established as a complete source copy.",
       "Publication verifies the selected inventoried regular files; it does not establish complete content decoding.",
-      ...(integrityContradictions.length === 0
+      ...(extractedContradictions === 0
         ? []
         : [
-            `${String(integrityContradictions.length)} extracted file(s) contradict declared integrity metadata; their bytes are observed-untrusted.`,
+            `${String(extractedContradictions)} extracted file(s) contradict declared integrity metadata; their bytes are observed-untrusted.`,
           ]),
+      ...(rootContradicted
+        ? [
+            "The container contradicts its declared integrity metadata; every extracted file is observed-untrusted.",
+          ]
+        : []),
     ],
   });
 };

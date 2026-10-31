@@ -329,6 +329,16 @@ overlap and archive expansion checks. The native streaming decoder keeps the
 existing 128 MiB Zstandard window cap; frames requiring a larger window are
 refused. Deprecated method 20 and other unregistered ZIP codecs remain unsupported.
 
+Inventory and extract UF2 or DfuSe regions:
+
+```sh
+rea inspect-artifact ./firmware.uf2 --json
+rea extract-artifact ./firmware.dfu --json
+```
+
+See [UF2 and DfuSe images](uf2-dfuse.md) for recognition, families, numbering,
+the DfuSe suffix CRC and limits.
+
 Inventory and extract U-Boot FIT images:
 
 ```sh

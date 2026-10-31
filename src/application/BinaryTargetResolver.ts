@@ -5,6 +5,10 @@ import {
 import { readFileHandleRange } from "../filesystem/readFileHandleRange.js";
 import { readPeCoffHeader } from "../domain/peCoffHeader.js";
 import {
+  nesContainerFormat,
+  parseInesLayout,
+} from "../domain/inesContainer.js";
+import {
   regularFileCancellation,
   RegularFileCleanupFailure,
   RegularFileCancelled,
@@ -22,18 +26,13 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { constants, type Stats } from "node:fs";
 import { createHash } from "node:crypto";
-import {
-  access,
-  lstat,
-  realpath,
-  stat,
-  type FileHandle,
-} from "node:fs/promises";
+import { access, realpath, stat, type FileHandle } from "node:fs/promises";
 import { extname } from "node:path";
 
 import { BinaryTargetError } from "../domain/configurationErrors.js";
 import {
-  sameRegularFileState,
+  assertStableRegularFileIdentity,
+  RegularFileChangedError,
   type StableRegularFileDescriptor,
 } from "../filesystem/RegularFile.js";
 import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
@@ -455,10 +454,13 @@ const readOpenedBinaryTarget = async (
   const artifactFormat =
     targetKind === "database"
       ? undefined
-      : await detectArtifactFormat(classificationPath, source, signal);
+      : await detectArtifactFormat(classificationPath, source, signal, path);
   if (
     targetKind === "database" ||
-    (targetKind === undefined && path.toLowerCase().endsWith(".hop"))
+    (targetKind === undefined &&
+      artifactFormat !== "ines" &&
+      artifactFormat !== "plist" &&
+      path.toLowerCase().endsWith(".hop"))
   )
     return ok({
       path,
@@ -720,6 +722,7 @@ const detectArtifactFormat = async (
   path: string,
   source: StableRegularFileDescriptor,
   signal?: AbortSignal,
+  sourcePath = path,
 ): Promise<
   | Exclude<
       BinaryTarget["format"],
@@ -740,6 +743,16 @@ const detectArtifactFormat = async (
   const lower = path.toLowerCase();
   // Fill the prefix so a short host read cannot hide a signature.
   const magic = Buffer.from(await readHandleRange(handle, 0, 4096, signal));
+  try {
+    await assertStableRegularFileIdentity(handle, sourcePath, initial, {
+      symlinks: "reject",
+      ...(signal === undefined ? {} : { signal }),
+    });
+  } catch (cause: unknown) {
+    throwIfTargetResolutionCancelled(signal);
+    throw cause;
+  }
+  throwIfTargetResolutionCancelled(signal);
   if (
     magic.length >= 8 &&
     magic.subarray(0, 8).equals(Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]))
@@ -749,6 +762,15 @@ const detectArtifactFormat = async (
       "WebAssembly v1 artifacts are not supported by the native opening route",
       { constraint: "wasm_requires_static_inspection" },
     );
+  if (nesContainerFormat(magic) !== undefined) {
+    const parsed = parseInesLayout(magic, initial.size);
+    throwIfTargetResolutionCancelled(signal);
+    if (!parsed.ok)
+      throw new BinaryTargetError(path, parsed.error, {
+        constraint: "file_format_rejected",
+      });
+    return "ines";
+  }
   if (hasZipSignature(magic)) return zipRootPackageFormat(lower);
   if (hasGodotPckHeader(magic)) return "godot-pck";
   if (hasUnityFsHeader(magic)) return "unityfs";
@@ -839,6 +861,7 @@ const isArchiveFormat = (
   isZipPackageFormat(format) ||
   [
     "asar",
+    "ines",
     "godot-pck",
     "unityfs",
     "uimage",
@@ -925,12 +948,21 @@ const sha256Handle = async (
       throw new BinaryTargetError(path, "target grew while being read");
   }
   throwIfTargetResolutionCancelled(signal);
-  const [opened, currentPath] = await Promise.all([handle.stat(), lstat(path)]);
-  if (
-    !sameRegularFileState(initial, opened) ||
-    !sameRegularFileState(initial, currentPath) ||
-    position !== initial.size
-  )
+  try {
+    await assertStableRegularFileIdentity(handle, path, initial, {
+      symlinks: "reject",
+      ...(signal === undefined ? {} : { signal }),
+    });
+  } catch (cause: unknown) {
+    throwIfTargetResolutionCancelled(signal);
+    if (cause instanceof RegularFileChangedError)
+      throw new BinaryTargetError(path, "target changed while being read", {
+        cause,
+      });
+    throw cause;
+  }
+  throwIfTargetResolutionCancelled(signal);
+  if (position !== initial.size)
     throw new BinaryTargetError(path, "target changed while being read");
   return hash.digest("hex");
 };

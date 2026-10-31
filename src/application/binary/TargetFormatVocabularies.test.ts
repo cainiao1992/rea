@@ -117,6 +117,7 @@ const TARGETS: TargetFixtures = {
   hsp: { ...archive, format: "hsp" },
   "app-pack": { ...archive, format: "app-pack" },
   asar: { ...archive, format: "asar" },
+  ines: { ...archive, format: "ines" },
   "godot-pck": { ...archive, format: "godot-pck" },
   unityfs: { ...archive, format: "unityfs" },
   uimage: { ...archive, format: "uimage" },

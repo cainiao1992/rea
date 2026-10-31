@@ -6,6 +6,7 @@ import {
 import { artifactFormatMetadataSchema } from "./artifactFormatMetadata.js";
 import { z } from "zod";
 import { prefixedDigestSchema } from "./../domain/digests.js";
+import { inesInventorySchema } from "./inesContainer.js";
 
 /** Entry kinds or subtrees deliberately excluded by an artifact traversal. */
 export const artifactTraversalOmissionKindSchema = z.enum([
@@ -62,6 +63,7 @@ export const ARTIFACT_FORMAT_IDS = [
   "zip",
   "pkg",
   "asar",
+  "ines",
   "godot-pck",
   "unityfs",
   "uimage",
@@ -104,6 +106,7 @@ const artifactFormatSchema = z.enum(ARTIFACT_FORMAT_IDS);
 
 /** Formats established from bytes or a virtual directory tree, independent of path roles. */
 const artifactContentFormatSchema = artifactFormatSchema.extract([
+  "ines",
   "zip",
   "godot-pck",
   "unityfs",
@@ -246,6 +249,7 @@ export const artifactInventoryResultSchema = z.strictObject({
   occurrences: z.array(artifactOccurrenceSchema),
   edges: z.array(artifactEdgeSchema),
   provenance: z.array(artifactCommandSchema),
+  ines: inesInventorySchema.exactOptional(),
   integrity_contradictions: z.array(integrityContradictionSchema),
   coverage: artifactInventoryCoverageSchema,
   limitations: z.array(z.string()),

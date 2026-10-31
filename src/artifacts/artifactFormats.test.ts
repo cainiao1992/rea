@@ -27,6 +27,7 @@ type FormatsWithReaders =
   | "bun-standalone"
   | "dmg"
   | "asar"
+  | "ines"
   | "godot-pck"
   | "unityfs"
   | "uimage"

@@ -290,6 +290,7 @@ export type BinaryTarget =
         readonly format:
           | ZipPackageFormat
           | "asar"
+          | "ines"
           | "godot-pck"
           | "unityfs"
           | "uimage"

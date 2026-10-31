@@ -24,6 +24,7 @@ export const evidenceSubjectFormatSchema = z.enum([
   "hsp",
   "app-pack",
   "asar",
+  "ines",
   "godot-pck",
   "unityfs",
   "uimage",

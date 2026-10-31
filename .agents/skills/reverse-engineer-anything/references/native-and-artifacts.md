@@ -585,6 +585,16 @@ REA. Symlinks and encrypted entries are inventory facts, not extractable files.
 The result reports the materialized directory; callers do not choose the
 destination. No separate permission grant is needed.
 
+For classic iNES cartridges, `open_binary` recognizes the byte signature without
+an executable architecture. `inspect_artifact` retains header facts and each
+PRG/CHR file unit's offset, length and SHA-256; its nested inventory's
+`ines.reconstruction` verifies the actual ordered region bytes against the
+whole-file digest. Extraction includes the original header, optional trainer
+and uninterpreted trailing bytes. These file units are not mapper/CPU bank
+maps. NES 2.0, UNIF, dirty legacy headers and truncated payloads are explicitly
+refused. No emulator or 6502 analysis is performed. See the
+[iNES guide](https://github.com/morluto/rea/blob/main/docs/ines-containers.md).
+
 Native DMG traversal automatically uses a read-only mount on supported macOS
 hosts, with an owned temporary mount directory and cleanup. It needs no approval
 flag. Unsupported hosts or mount failures remain explicit limitations; do not

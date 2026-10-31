@@ -9,7 +9,10 @@ import {
   ZIP_PACKAGE_FORMATS,
   type ZipPackageFormat,
 } from "../domain/zipPackageFormat.js";
-import type { ArtifactReader } from "./ArtifactReader.js";
+import {
+  ArtifactReaderFailure,
+  type ArtifactReader,
+} from "./ArtifactReader.js";
 import type { ArtifactReaderAdmission } from "./ArtifactReaderAdmission.js";
 import { AsarArtifactReader } from "./AsarArtifactReader.js";
 import type { BunStandaloneAdmission } from "./bun/BunStandaloneAdmission.js";
@@ -25,6 +28,7 @@ import { EspImageArtifactReader } from "./EspImageArtifactReader.js";
 import { FitArtifactReader } from "./FitArtifactReader.js";
 import type { GodotPckAdmission } from "./GodotPckLocation.js";
 import { GodotPckArtifactReader } from "./GodotPckArtifactReader.js";
+import { InesArtifactReader, INES_LIMITATION } from "./InesArtifactReader.js";
 import { HexRecordArtifactReader } from "./HexRecordArtifactReader.js";
 import { MachOSliceArtifactReader } from "./MachOSliceArtifactReader.js";
 import { NativeDmgArtifactReader } from "./NativeDmgArtifactReader.js";
@@ -243,6 +247,22 @@ const NON_ZIP_FORMATS = {
           ? {}
           : { selectedPath: options.selectedPath }),
       }),
+  }),
+  ines: container("ines", {
+    roleContainer: true,
+    retainClassifiedSource: true,
+    extractable: true,
+    absentInventory: "unavailable",
+    readerLimitation: INES_LIMITATION,
+    createReader: (path, options) => {
+      const source = sourceOf(options);
+      if (source === undefined)
+        throw new ArtifactReaderFailure(
+          "integrity",
+          "iNES inventory requires its admitted source descriptor",
+        );
+      return new InesArtifactReader(path, source);
+    },
   }),
   "godot-pck": container("godot-pck", {
     roleContainer: true,

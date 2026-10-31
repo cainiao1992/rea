@@ -1470,6 +1470,11 @@ cached byte spans and a Ghidra comparison. See the [Linux report](https://github
 for measured scope and limitations. Windows, PE and universal Mach-O remain
 unverified by this lane.
 
+Kuna 1.986 passed the fixture and a separate small, source-owned Mach-O with
+symbols and stripped on macOS arm64, including the Ghidra comparison and owned
+cleanup. Linux and other hosts have not been verified with 1.986; this check is
+not a repeat of the larger 1.833 matrix.
+
 ## DOS Ghidra analysis
 
 `npm run verify:ghidra:dos` requires the supported Ghidra and JDK installation

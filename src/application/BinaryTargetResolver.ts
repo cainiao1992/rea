@@ -45,7 +45,11 @@ import type {
 } from "../domain/binaryTargetTypes.js";
 import { err, ok, type Result } from "../domain/result.js";
 import { readMipsElfMetadata } from "./MipsElfMetadata.js";
-import { validateElfDeclaredRanges } from "../domain/elfDeclaredRanges.js";
+import {
+  validateElfDeclaredRanges,
+  type ElfDeclarationRead,
+} from "../domain/elfDeclaredRanges.js";
+import { readRiscvIsaDeclaration } from "../domain/riscvIsaDeclaration.js";
 import {
   resolveAppleBundleExecutable,
   type ResolvedAppBundle,
@@ -1107,8 +1111,26 @@ const readElfMetadata = async (
   const { fileSize, hostArchitecture, signal } = options;
   const parsed = parseExecutableHeader(bytes, hostArchitecture, fileSize);
   if (!parsed.ok || parsed.value.format !== "elf") return parsed;
-  const ranges = await readElfDeclaredRanges(handle, bytes, fileSize, signal);
+  const ranges = await readElfDeclarations(
+    handle,
+    bytes,
+    validateElfDeclaredRanges(bytes, fileSize),
+    signal,
+  );
   if (!ranges.ok) return ranges;
+  if (parsed.value.architecture === "riscv")
+    return ok({
+      ...parsed.value,
+      riscv: {
+        ...parsed.value.riscv,
+        isa: await readElfDeclarations(
+          handle,
+          bytes,
+          readRiscvIsaDeclaration(bytes, fileSize),
+          signal,
+        ),
+      },
+    });
   if (parsed.value.architecture !== "mips" || parsed.value.mips.elfClass !== 32)
     return parsed;
   const declarations = await readMipsElfMetadata(
@@ -1133,15 +1155,18 @@ const readElfMetadata = async (
   });
 };
 
-/** Borrow the admitted descriptor; every request is at most one 64 KiB table chunk. */
-const readElfDeclaredRanges = async (
+/**
+ * Satisfy one ELF declaration reader from the admitted descriptor. Every
+ * request is at most one 64 KiB chunk, and the reader consumes each chunk
+ * before its next request reuses the window.
+ */
+const readElfDeclarations = async <T>(
   handle: FileHandle,
   prefix: Buffer,
-  fileSize: number,
+  steps: Generator<ElfDeclarationRead, T, Buffer>,
   signal?: AbortSignal,
-): Promise<Result<null, string>> => {
-  const ranges = validateElfDeclaredRanges(prefix, fileSize);
-  let next = ranges.next();
+): Promise<T> => {
+  let next = steps.next();
   let window: Buffer | undefined;
   while (!next.done) {
     throwIfTargetResolutionCancelled(signal);
@@ -1166,7 +1191,7 @@ const readElfDeclaredRanges = async (
       }
       bytes = bytes.subarray(0, length);
     }
-    next = ranges.next(bytes);
+    next = steps.next(bytes);
   }
   return next.value;
 };

@@ -65,6 +65,7 @@
     "bridge/ghidra/ReaGhidraAnalysisOptions.java",
     "bridge/ghidra/ReaGhidraNoReturnFix.java",
     "bridge/ghidra/ReaGhidraMipsSoftFloat.java",
+    "bridge/ghidra/ReaGhidraRiscvCallingConvention.java",
     "bridge/ghidra/ReaGhidraPrepareRaw.java",
     "bridge/ghidra/ReaGhidraPrepareDol.java",
     "bridge/android/ReaJadxBridge.java",

@@ -533,8 +533,11 @@ shared `~/.agents/skills`.
 For Command Code, setup writes `mcpServers.rea` into the user-level
 `~/.commandcode/mcp.json` (`%USERPROFILE%\.commandcode\mcp.json` on Windows).
 Entries carry `transport: "stdio"`, `enabled: true`, `command`, `args`, and
-`env`. Doctor accepts only `transport: "stdio"` for that entry; a registration
-that omits `transport` or names another transport is reported as invalid.
+`env`. Doctor reads the entry's transport from `transport`, falling back to
+`type`, case-insensitively. An entry with `http` or `sse`, or with a `url` and
+no `command`, selects a remote connection rather than REA's stdio launcher, so
+its alignment is reported as unknown. A transport tag that is not text is
+invalid.
 Setup manages only this user-scope file, and installs the bundled skill under
 the shared `~/.agents/skills`.
 

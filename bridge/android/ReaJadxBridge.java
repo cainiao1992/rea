@@ -49,7 +49,7 @@ class ReaJadxBridge {
   // REA reads this identity from this source (JadxRelease.ts), so it is typed
   // once. Change BRIDGE_VERSION with any protocol change REA must not mix.
   static final String BRIDGE_NAME = "rea-jadx-bridge";
-  static final String BRIDGE_VERSION = "11";
+  static final String BRIDGE_VERSION = "12";
   private static final Gson JSON = new Gson();
   private final SessionHolder holder;
   private JadxSession indexedSession;
@@ -1062,8 +1062,6 @@ class ReaJadxBridge {
     return json(result);
   }
 
-  /** Keep in sync with JADX_BRIDGE_IDENTITY.version in src/android/JadxRelease.ts. */
-  private static final String BRIDGE_VERSION = "11";
   /** Shared input guidance for the bridge's exact-selection tools. */
   private static final kotlinx.serialization.json.JsonObject CLASS_NAME_PROPERTY =
       property("string", "Exact class name.");

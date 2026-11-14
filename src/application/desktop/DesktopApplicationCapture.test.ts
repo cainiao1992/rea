@@ -145,11 +145,17 @@ const installProcessFamily = async (root: string, path: string) => {
       `setsid sh -c 'trap "touch ${join(root, "setsid-term")}; exit 0" TERM; touch "${join(root, "setsid-ready")}"; ${loop}' &`,
       // Wait for both children to install their traps before writing state.ini.
       // Fail loudly rather than continue when a child never reports ready.
-      `ready=; for i in $(seq 1 500); do if [ -f "${join(root, "group-ready")}" ] && [ -f "${join(root, "setsid-ready")}" ]; then ready=1; break; fi; sleep 0.01; done; [ -n "$ready" ] || { echo "synthetic children did not report ready" >&2; exit 97; }`,
+      `ready=; for i in $(seq 1 500); do if [ -f "${join(root, "group-ready")}" ] && [ -f "${join(root, "setsid-ready")}" ]; then ready=1; break; fi; sleep 0.01; done; [ -n "$ready" ] || { echo "synthetic children did not report ready" >&2; touch "${join(root, "children-not-ready")}"; exit 97; }`,
       'printf "count=1\\n" > "$HOME/.config/fakeapp/state.ini"',
       loop,
     ].join("\n"),
   );
+};
+
+/** Surface a fake application whose children never got ready, instead of waiting. */
+const failIfChildrenNotReady = (root: string): void => {
+  if (fileExists(join(root, "children-not-ready")))
+    throw new Error("synthetic children did not report ready");
 };
 
 const host = (
@@ -660,6 +666,7 @@ describe.skipIf(process.platform !== "linux")(
       const statePath = join(home, ".config/fakeapp/state.ini");
       let writtenAt: number | undefined;
       const nextRequest = (): SessionRequest | undefined => {
+        failIfChildrenNotReady(root);
         // Wait for both children to install their traps before issuing the stop.
         if (readFileSyncSafe(statePath) !== "count=1\n") return undefined;
         if (
@@ -693,10 +700,12 @@ describe.skipIf(process.platform !== "linux")(
       await installProcessFamily(root, environment.PATH);
       const statePath = join(home, ".config/fakeapp/state.ini");
       const output = join(root, "out");
-      const nextRequest = (): SessionRequest | undefined =>
-        readFileSyncSafe(statePath) === "count=1\n"
+      const nextRequest = (): SessionRequest | undefined => {
+        failIfChildrenNotReady(root);
+        return readFileSyncSafe(statePath) === "count=1\n"
           ? { kind: "checkpoint", name: "written" }
           : undefined;
+      };
 
       const failed = await captureDesktopApplication(request(output), {
         ...host(environment, nextRequest),

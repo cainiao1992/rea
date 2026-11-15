@@ -1189,10 +1189,9 @@ emulation (for example x86_64 under Rosetta on Apple silicon) or reporting a
 non-host `os.name` fails the doctor
 even when it is an otherwise accepted 64-bit full JDK. Select a matching JDK
 through `JAVA_HOME`; adding another decompiler in the JVM-selected directory
-does not satisfy this host-validated admission rule. Current 12.1 releases require
-JDK 21 or newer; Ghidra 12.2 declares JDK 25 or newer. Neither sets a maximum.
-The bridge is verified with Ghidra 12.1.4
-and JDK 21. Each installation must include the native decompiler for the host
+does not satisfy this host-validated admission rule. Ghidra 12.2 requires
+JDK 25 or newer and sets no maximum. The bridge is verified with Ghidra 12.2
+and JDK 25. Each installation must include the native decompiler for the host
 architecture in `Ghidra/Features/Decompiler/os/<platform>/` or the corresponding
 `build/os/<platform>/` directory. Linux ARM64 uses `linux_arm_64`; official
 release archives may require you to build that native component separately.
@@ -1253,8 +1252,8 @@ limitations.
 Extract Ghidra and install the JDK outside REA, then export absolute paths:
 
 ```bash
-export GHIDRA_INSTALL_DIR=/absolute/path/to/ghidra_12.1.4_PUBLIC
-export JAVA_HOME=/absolute/path/to/jdk-21 # optional if java/javac are on PATH
+export GHIDRA_INSTALL_DIR=/absolute/path/to/ghidra_12.2_PUBLIC
+export JAVA_HOME=/absolute/path/to/jdk-25 # optional if java/javac are on PATH
 rea doctor --json
 rea setup
 ```
@@ -1279,8 +1278,8 @@ and any parsed properties when the selected runtime cannot be admitted.
 On Windows, configure the existing installation in PowerShell:
 
 ```powershell
-$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.1.4_PUBLIC"
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+$env:GHIDRA_INSTALL_DIR = "C:\tools\ghidra_12.2_PUBLIC"
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-25"
 rea doctor --json
 rea providers --json
 ```
@@ -1539,7 +1538,7 @@ pseudocode is never treated as original source or Hopper-equivalent text.
 
 If `rea doctor --json` reports `native_decompiler` as missing on macOS x64,
 the extracted Ghidra archive may include the decompiler source without the
-macOS executable. For Ghidra 12.1.4, you can build it manually with an existing
+macOS executable. For Ghidra 12.2, you can build it manually with an existing
 Xcode Command Line Tools installation, `make`, and `bison`:
 
 ```bash
@@ -1554,10 +1553,10 @@ rea doctor --json
 
 The copy step requires the destination to be absent and preserves an existing
 decompiler. This recipe is specific to macOS x64: the
-[Ghidra 12.1.4 Makefile](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile)
+[Ghidra 12.2 Makefile](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.2_build/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile)
 explicitly selects `-arch x86_64` on Darwin. For a Gradle
 build, follow the matching release's
-[native component instructions](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/GhidraDocs/GettingStarted.md#building-native-components).
+[native component instructions](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.2_build/GhidraDocs/GettingStarted.md#building-native-components).
 REA accepts the matching executable under either `os/<platform>/` or
 `build/os/<platform>/`; it does not build the component during setup or diagnosis.
 
@@ -1565,7 +1564,7 @@ REA accepts the matching executable under either `os/<platform>/` or
 
 On Apple Silicon the same source build works with explicit overrides; no
 Makefile edits and no Rosetta are needed. The Darwin block in the
-[Ghidra 12.1.4 Makefile](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile)
+[Ghidra 12.2 Makefile](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.2_build/Ghidra/Features/Decompiler/src/decompile/cpp/Makefile)
 pins `-arch x86_64`, but `ARCH_TYPE` and `OSDIR` are ordinary make variables,
 and command-line assignments replace them for every compile and link rule:
 
@@ -1580,7 +1579,7 @@ rea doctor --json
 ```
 
 Verified end to end on macOS 15.6 arm64 with Apple clang 17 and the stock
-bison 2.3, against Ghidra 12.1.4: the build produces a Mach-O arm64
+bison 2.3, against Ghidra 12.2: the build produces a Mach-O arm64
 `ghidra_opt`, the doctor check `ghidra-native_decompiler` turns healthy with
 "reports mach-o arm64, which matches darwin/arm64", and `rea decompile` on an
 arm64 Mach-O returns decompiled C through the headless provider. The JDK is
@@ -1850,7 +1849,7 @@ before opening a new Ghidra session. On Linux and macOS, REA chooses the first
 nonempty setting in this order: `GHIDRA_HEADLESS_MAXMEM`, `GHIDRA_MAXMEM`, then
 `2G`. The chosen value becomes the JVM's `-Xmx` argument. Use a JVM heap-size
 value such as `512M` or `2G`; an invalid value causes Java startup to fail.
-The supported Ghidra 12.1.4 Windows headless script consumes the same settings
+The supported Ghidra 12.2 Windows headless script consumes the same settings
 with the same precedence.
 
 For a small target on a constrained host:

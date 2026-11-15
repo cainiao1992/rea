@@ -1258,6 +1258,26 @@ rea doctor --json
 rea setup
 ```
 
+On macOS, you can instead install Ghidra through Homebrew:
+
+```bash
+brew install ghidra
+```
+
+The formula pulls in its `openjdk@25` dependency and ships the `mac_arm_64`
+native decompiler, so no separate build is needed. REA automatically discovers
+the installation from `ghidraRun` on your `PATH` when `GHIDRA_INSTALL_DIR` is
+not set; an explicit `GHIDRA_INSTALL_DIR` remains authoritative. To register it
+explicitly, use the stable Homebrew opt alias:
+
+```bash
+export GHIDRA_INSTALL_DIR="$(brew --prefix)/opt/ghidra/libexec"
+```
+
+Homebrew puts the installation tree under `opt/ghidra/libexec`. When a `brew
+upgrade ghidra` installs a new keg, the `opt` alias follows it automatically,
+so a registration made through that alias keeps pointing at the live version.
+
 On macOS, [Homebrew OpenJDK is keg-only](https://formulae.brew.sh/formula/openjdk)
 and may be unavailable to the system `java` wrapper. Set `JAVA_HOME` to the
 selected formula's `libexec/openjdk.jdk/Contents/Home`, for example

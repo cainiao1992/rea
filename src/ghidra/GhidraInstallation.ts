@@ -1164,20 +1164,35 @@ export const discoverGhidraInstallationOnPath = (
       continue;
     }
     const root = dirname(resolved);
-    const properties = path.join(root, "Ghidra", "application.properties");
-    const headless = path.join(
-      root,
-      "support",
-      platform === "win32" ? "analyzeHeadless.bat" : "analyzeHeadless",
-    );
-    try {
-      if (statSync(properties).isFile() && executablePath(headless))
-        return stableGhidraInstallationRoot(root, platform);
-    } catch (cause: unknown) {
-      void cause;
-    }
+    if (completeInstallationRoot(root, path, platform))
+      return stableGhidraInstallationRoot(root, platform);
+    // Homebrew formula layout: the PATH launcher sits in bin/ beside the
+    // libexec tree that holds the installation.
+    const libexecRoot = path.join(dirname(root), "libexec");
+    if (completeInstallationRoot(libexecRoot, path, platform))
+      return stableGhidraInstallationRoot(libexecRoot, platform);
   }
   return undefined;
+};
+
+/** Whether a candidate directory holds the markers of a complete installation. */
+const completeInstallationRoot = (
+  root: string,
+  path: typeof posix,
+  platform: NodeJS.Platform,
+): boolean => {
+  const properties = path.join(root, "Ghidra", "application.properties");
+  const headless = path.join(
+    root,
+    "support",
+    platform === "win32" ? "analyzeHeadless.bat" : "analyzeHeadless",
+  );
+  try {
+    return statSync(properties).isFile() && executablePath(headless);
+  } catch (cause: unknown) {
+    void cause;
+    return false;
+  }
 };
 
 /**

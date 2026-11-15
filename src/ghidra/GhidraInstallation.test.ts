@@ -1747,7 +1747,7 @@ it.each(["arm64", "x64"] as const)(
   "discovers installed versioned Homebrew Java on macOS %s",
   async (architecture) => {
     const prefix = architecture === "arm64" ? "/opt/homebrew" : "/usr/local";
-    const command = `${prefix}/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin/java`;
+    const command = `${prefix}/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin/java`;
     const commands: string[] = [];
     const inspection = await inspectGhidraInstallation(
       {
@@ -1760,7 +1760,7 @@ it.each(["arm64", "x64"] as const)(
       host({
         directoryEntries: (directory) =>
           directory === `${prefix}/opt`
-            ? ["openjdk@21", "unrelated", "openjdk@21/../foreign"]
+            ? ["openjdk@25", "unrelated", "openjdk@25/../foreign"]
             : [],
         executable: (candidate) =>
           candidate === "/usr/bin/java" ||

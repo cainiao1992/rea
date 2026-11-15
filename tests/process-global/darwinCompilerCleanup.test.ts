@@ -234,7 +234,7 @@ it.skipIf(process.platform === "win32")(
     const { reader, readyPath } = await fixture();
     const fixtureRoot = dirname(readyPath);
     const launcher = new GhidraHeadlessLauncher({
-      configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+      configurationDirectoryName: "ghidra_12.2_PUBLIC",
       environment: {},
       analyzeHeadlessPath: join(fixtureRoot, "support", "analyzeHeadless"),
       javaHome: join(fixtureRoot, "jdk"),

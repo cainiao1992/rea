@@ -28,7 +28,7 @@ const providers = [
         targetSha256: createHash("sha256")
           .update(readFileSync(ghidraFixturePath))
           .digest("hex"),
-        providerVersion: "12.1.4",
+        providerVersion: "12.2",
         profileDigest: "a".repeat(64),
         startupTimeoutMs: 10_000,
       });

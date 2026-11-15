@@ -107,7 +107,7 @@ describe("bounded Ghidra MIPS admission", () => {
     const big = target({ byteOrder: "big" });
     const profile = existingGhidraAnalysisProfile(
       little,
-      { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+      { id: "ghidra", name: "Ghidra", version: "12.2" },
       { project_name: "fixture" },
     );
     expect(profile.parameters).not.toHaveProperty("mips_support_lane");
@@ -417,7 +417,7 @@ const session = async (
             name: "REA Ghidra bridge" as const,
             run_id: "11111111-1111-4111-8111-111111111111",
             profile_digest: "a".repeat(64),
-            provider: { id: "ghidra" as const, version: "12.1.4" },
+            provider: { id: "ghidra" as const, version: "12.2" },
             read_only: false,
             analysis_complete: true,
             analysis_timed_out: false,

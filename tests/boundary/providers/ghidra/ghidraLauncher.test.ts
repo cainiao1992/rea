@@ -780,7 +780,7 @@ const launchExistingProject = async (
     environment: process.env,
     analyzeHeadlessPath: fixturePath,
     platform: "linux",
-    configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+    configurationDirectoryName: "ghidra_12.2_PUBLIC",
     javaHome,
     bridgeScriptPath: "/package/bridge/ReaGhidraBridge.java",
     existingProject: { projectPath, programName: "game.exe" },
@@ -798,7 +798,7 @@ const launchExistingProject = async (
       runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
       targetPath: "/tmp/target",
       targetSha256: "b".repeat(64),
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: "a".repeat(64),
     },
     { resourceScope: createTestArtifactResourceScope() },
@@ -1047,7 +1047,7 @@ describe("Ghidra Windows batch command construction", () => {
       environment: {},
       platform: "win32",
       analyzeHeadlessPath:
-        "C:\\Program Files\\Ghidra 12.1.4\\support\\analyzeHeadless.bat",
+        "C:\\Program Files\\Ghidra 12.2\\support\\analyzeHeadless.bat",
       arguments: [
         "C:\\REA Runtime\\project",
         "rea-project",
@@ -1065,7 +1065,7 @@ describe("Ghidra Windows batch command construction", () => {
         "/v:off",
         "/s",
         "/c",
-        '""C:\\Program Files\\Ghidra 12.1.4\\support\\analyzeHeadless.bat" "C:\\REA Runtime\\project" "rea-project" "-import" "C:\\REA Runtime\\target.exe""',
+        '""C:\\Program Files\\Ghidra 12.2\\support\\analyzeHeadless.bat" "C:\\REA Runtime\\project" "rea-project" "-import" "C:\\REA Runtime\\target.exe""',
       ],
     });
   });
@@ -1090,7 +1090,7 @@ describe("Ghidra Windows batch command construction", () => {
 describe("Ghidra Windows release configuration", () => {
   it
     .skipIf(process.platform !== "win32")
-    .each(["ghidra_12.1.4_PUBLIC", "renamed-install"])(
+    .each(["ghidra_12.2_PUBLIC", "renamed-install"])(
     "prepares the %s release directory through the Windows runtime",
     async (release) => {
       const parent = await createTestTempDirectory("rea-launch-config-");
@@ -1109,12 +1109,12 @@ describe("Ghidra Windows release configuration", () => {
           "support",
           "analyzeHeadless.bat",
         ),
-        javaHome: "C:\\Java\\jdk-21",
+        javaHome: "C:\\Java\\jdk-25",
         bridgeScriptPath: join(parent, "ReaGhidraBridge.java"),
         // The preflight validates the inspected JVM's LaunchSupport output;
         // these fixtures assert batch-spawn behavior without a working JDK.
         javaLaunch: async () => ({
-          command: "C:\\Java\\jdk-21\\bin\\java.exe",
+          command: "C:\\Java\\jdk-25\\bin\\java.exe",
           arguments: [],
           environment: {},
         }),
@@ -1129,7 +1129,7 @@ describe("Ghidra Windows release configuration", () => {
           runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
           targetPath: join(parent, "fixture.exe"),
           targetSha256: "b".repeat(64),
-          providerVersion: "12.1.4",
+          providerVersion: "12.2",
           profileDigest: "a".repeat(64),
         },
         { resourceScope: createTestArtifactResourceScope() },
@@ -1158,12 +1158,12 @@ describe("Ghidra Windows launcher process ownership", () => {
       runtimes.push(runtime);
       const runtimeRoot = runtime.path;
       const token = "secret-token-that-must-not-leak";
-      const javaHome = "C:\\Java\\jdk-21";
+      const javaHome = "C:\\Java\\jdk-25";
       const launcher = new GhidraHeadlessLauncher({
         // Select the fixture's Node PATH and injected JVM options explicitly.
         environment: process.env,
         analyzeHeadlessPath: fixturePath,
-        configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+        configurationDirectoryName: "ghidra_12.2_PUBLIC",
         // POSIX follows the real inspected-JVM route; Windows uses the official
         // batch script because its launcher contract differs.
         platform: "win32",
@@ -1186,7 +1186,7 @@ describe("Ghidra Windows launcher process ownership", () => {
           runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
           targetPath: "/tmp/fixture",
           targetSha256: "b".repeat(64),
-          providerVersion: "12.1.4",
+          providerVersion: "12.2",
           profileDigest: "a".repeat(64),
         },
         { resourceScope: createTestArtifactResourceScope() },
@@ -1242,7 +1242,7 @@ describe("Ghidra GameCube DOL section file", () => {
       const launcher = new GhidraHeadlessLauncher({
         environment: process.env,
         platform: "darwin",
-        configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+        configurationDirectoryName: "ghidra_12.2_PUBLIC",
         analyzeHeadlessPath: fixturePath,
         javaHome,
         bridgeScriptPath: join(parent, "ReaGhidraBridge.java"),
@@ -1266,7 +1266,7 @@ describe("Ghidra GameCube DOL section file", () => {
           runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
           targetPath: "/tmp/fixture.dol",
           targetSha256: "c".repeat(64),
-          providerVersion: "12.1.4",
+          providerVersion: "12.2",
           profileDigest: "a".repeat(64),
         },
         { resourceScope: createTestArtifactResourceScope() },

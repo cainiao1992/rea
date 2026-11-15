@@ -75,7 +75,7 @@ it.each(["other", 42, null, {}])(
 it.each(["list_procedures", "search_procedures"] as const)(
   "preserves real bridge symbol provenance in %s",
   (operation) => {
-    // Symbol captured from Ghidra 12.1.4 on the source-owned PowerPC DOL fixture.
+    // Symbol captured from Ghidra 12.2 on the source-owned PowerPC DOL fixture.
     const rows = [
       {
         address: "0x80003130",

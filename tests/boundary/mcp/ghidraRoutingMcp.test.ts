@@ -52,7 +52,7 @@ describe("Ghidra MCP capability routing", () => {
       expect(sessionStatus.result).toMatchObject({
         open: true,
         analysis_provider_binding: {
-          provider: { id: "ghidra", version: "12.1.4" },
+          provider: { id: "ghidra", version: "12.2" },
         },
       });
       const availability = expandToolAvailability(

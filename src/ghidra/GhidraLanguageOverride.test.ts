@@ -22,7 +22,7 @@ import {
 import { GhidraProvider } from "./GhidraProvider.js";
 import { ArtifactResourceScope } from "../resources/ArtifactResourceScope.js";
 
-// Abbreviated from Ghidra 12.1.4 Processors/x86/data/languages/x86.ldefs.
+// Abbreviated from Ghidra 12.2 Processors/x86/data/languages/x86.ldefs.
 const X86_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
 <language_definitions>
   <language processor="x86"
@@ -217,7 +217,7 @@ describe("Ghidra language catalog", () => {
       admitGhidraLanguageOverride(
         { languageId: "x86:LE:32:default", compilerSpecId: "removed" },
         catalog,
-        "12.1.4",
+        "12.2",
       )?.settings,
     ).toEqual([
       {
@@ -285,24 +285,24 @@ describe("Ghidra language catalog", () => {
       admitGhidraLanguageOverride(
         { languageId: "x86:LE:32:default", compilerSpecId: "borlandcpp" },
         catalog,
-        "12.1.4",
+        "12.2",
       ),
     ).toBeNull();
     const language = admitGhidraLanguageOverride(
       { languageId: "x86:LE:31:default" },
       catalog,
-      "12.1.4",
+      "12.2",
     );
     expect(language?.settings).toEqual([
       {
         setting: "REA_GHIDRA_LANGUAGE_ID",
-        constraint: "is not a language defined by Ghidra 12.1.4",
+        constraint: "is not a language defined by Ghidra 12.2",
       },
     ]);
     const spec = admitGhidraLanguageOverride(
       { languageId: "x86:LE:32:default", compilerSpecId: "golang" },
       catalog,
-      "12.1.4",
+      "12.2",
     );
     expect(spec?.settings).toEqual([
       {

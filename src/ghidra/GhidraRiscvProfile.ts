@@ -53,7 +53,7 @@ export const ghidraRiscvSupportLane = (lane: GhidraRiscvLane): string =>
   `elf${lane.elfClass}-exec-le-${lane.floatAbi}-float-generic-v1`;
 
 /**
- * Extensions Ghidra 12.1.4's generic RV32 language implements with p-code, by
+ * Extensions Ghidra 12.2's generic RV32 language implements with p-code, by
  * the names `Tag_RISCV_arch` records. Lanes with a calling-convention policy
  * admit an image only when it declares an RV32I base and only these.
  */
@@ -138,7 +138,7 @@ const ghidraRiscvIsaRefusal = (
     ? null
     : `Tag_RISCV_arch declares extensions outside the set this lane decodes: ${outside.join(
         ", ",
-      )}. Ghidra 12.1.4's generic RV32 language implements only ${[
+      )}. Ghidra 12.2's generic RV32 language implements only ${[
         ...GHIDRA_RISCV32_DECODED_EXTENSIONS,
       ].join(", ")} with p-code; see docs/providers/ghidra-riscv.md.`;
 };
@@ -146,7 +146,7 @@ const ghidraRiscvIsaRefusal = (
 /**
  * Keep family recognition separate from the deliberately bounded Ghidra lane.
  *
- * Ghidra 12.1.4 selects `RISCV:LE:32:AndeStar_v5` for an ordinary RV32 ELF: its
+ * Ghidra 12.2 selects `RISCV:LE:32:AndeStar_v5` for an ordinary RV32 ELF: its
  * `riscv.opinion` pins `variant="default"` for the 64-bit constraint and leaves
  * the 32-bit one with the comment that the loader "must choose between 'default'
  * and 'AndeStar' variants". The lane therefore pins the language instead of
@@ -161,7 +161,7 @@ export const ghidraRiscvUnsupportedReason = (
   if (target.format !== "elf")
     return "RISC-V analysis requires ELF header metadata; a family name alone does not select an ISA or ABI.";
   if (metadata.byteOrder !== "little")
-    return "This Ghidra RISC-V lane supports little-endian images only; Ghidra 12.1.4 ships no big-endian RISC-V language.";
+    return "This Ghidra RISC-V lane supports little-endian images only; Ghidra 12.2 ships no big-endian RISC-V language.";
   if (metadata.elfClass !== 32 && metadata.elfClass !== 64)
     return "This Ghidra RISC-V lane requires ELF32 or ELF64; the class decides which generic language is pinned.";
   if ((metadata.flags & EF_RISCV_RVE) !== 0)
@@ -260,7 +260,7 @@ export const ghidraRiscvLimitations = (
   const floatAbi = riscvFloatAbi(target.riscv.flags);
   const isa = target.riscv.isa;
   return [
-    `RISC-V ELF: REA pins Ghidra's generic \`RISCV:LE:${target.riscv.elfClass}:default\` language with the \`gcc\` compiler specification instead of accepting the loader's header-based choice, which selects \`RISCV:LE:32:AndeStar_v5\` for ordinary RV32 images on Ghidra 12.1.4.`,
+    `RISC-V ELF: REA pins Ghidra's generic \`RISCV:LE:${target.riscv.elfClass}:default\` language with the \`gcc\` compiler specification instead of accepting the loader's header-based choice, which selects \`RISCV:LE:32:AndeStar_v5\` for ordinary RV32 images on Ghidra 12.2.`,
     convention === undefined
       ? "The pinned generic language models the double-float ABI declared by `e_flags`; the declaration is recorded as an ELF fact and is not evidence of the original compiler or of verified instruction semantics."
       : `The ELF header declares the ${floatAbi}-float ABI (${

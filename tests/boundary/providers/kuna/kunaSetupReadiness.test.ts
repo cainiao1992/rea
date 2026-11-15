@@ -58,7 +58,7 @@ test.each([
         id: "ghidra",
         configured: true,
         available: true,
-        providerVersion: "12.1.4",
+        providerVersion: "12.2",
         registrationEnvironment: { GHIDRA_INSTALL_DIR: "/tools/ghidra" },
         checks: [
           {

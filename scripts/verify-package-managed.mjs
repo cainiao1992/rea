@@ -246,7 +246,7 @@ const verifyManagedNativeVerification = async ({
         {
           id: "ghidra",
           name: "Ghidra",
-          version: "12.1.4",
+          version: "12.2",
         },
         {
           operation: "analyze_function",

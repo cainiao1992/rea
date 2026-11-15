@@ -262,7 +262,7 @@ describe("Ghidra seed session verification", () => {
     (function_created) => {
       const expected = {
         runId: "d6fcbb66-e829-4ff6-a535-0035aec63139",
-        providerVersion: "12.1.4",
+        providerVersion: "12.2",
         profileDigest: "a".repeat(64),
         targetSha256: "b".repeat(64),
       };

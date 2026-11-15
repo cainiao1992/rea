@@ -61,7 +61,7 @@ const structured = (result: CallToolResult): Record<string, unknown> => {
 const withGhidraFixtureIdentity = (
   provider: AnalysisProvider,
 ): AnalysisProvider => {
-  const identity = { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" };
+  const identity = { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" };
   const profile = createAnalysisProfile(identity, { fixture: true });
   return {
     ...provider,

@@ -108,7 +108,7 @@ it.skipIf(process.platform === "win32")(
   },
 );
 const profile = createAnalysisProfile(
-  { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+  { id: "ghidra", name: "Ghidra", version: "12.2" },
   { import_mode: "test" },
 );
 const target = "1".repeat(64);

@@ -493,7 +493,7 @@ describe("JSON client configuration migration and provider paths", () => {
       format: "json",
     } as const;
     const environment = {
-      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.4_PUBLIC",
+      GHIDRA_INSTALL_DIR: "/opt/ghidra_12.2_PUBLIC",
       JAVA_HOME: "/usr/lib/jvm/jdk-21",
     };
 

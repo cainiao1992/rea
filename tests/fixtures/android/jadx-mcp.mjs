@@ -1,7 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
-import { jadxBridgeIdentity } from "../../../src/android/JadxRelease.ts";
+import {
+  JADX_RELEASE,
+  jadxBridgeIdentity,
+} from "../../../src/android/JadxRelease.ts";
 
 const packagedBridgeVersion = () => {
   const identity = jadxBridgeIdentity();

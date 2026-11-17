@@ -21,7 +21,9 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     open: async (...args: Parameters<typeof actual.open>) => {
       const handle = await actual.open(...args);
       // Only hook the companion DWARF member, not the staged target copies.
-      if (String(args[0]).includes("DWARF/")) controls.read?.(handle);
+      // Match both separators: the fixture joins platform-native paths.
+      if (/Contents[\\/]Resources[\\/]DWARF[\\/]/.test(String(args[0])))
+        controls.read?.(handle);
       return handle;
     },
   };

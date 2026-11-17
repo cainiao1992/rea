@@ -97,7 +97,8 @@ describe("DeepSeek Harness configuration paths", () => {
       markerPath: join(home, dshRoot),
     });
     expect(
-      clientSkillDirectories(home, ["dsh"], environment).directories,
+      clientSkillDirectories(home, ["dsh"], environment, HOST_PLATFORM.platform)
+        .directories,
     ).toEqual([{ client: "dsh", directory: join(home, dshRoot, "skills") }]);
   });
 
@@ -156,10 +157,15 @@ describe("DeepSeek Harness configuration paths", () => {
       { client: "dsh", directory: resolve("/home/a", ".dsh", "skills") },
     ]);
     expect(
-      clientSkillDirectories(join("/home/a"), ["dsh"], {
-        DSH_HOME: "/custom/harness",
-        DSH_AGENTS_HOME: "/custom/agents",
-      }).directories,
+      clientSkillDirectories(
+        join("/home/a"),
+        ["dsh"],
+        {
+          DSH_HOME: "/custom/harness",
+          DSH_AGENTS_HOME: "/custom/agents",
+        },
+        HOST_PLATFORM.platform,
+      ).directories,
     ).toEqual([
       { client: "dsh", directory: resolve("/custom/harness", "skills") },
     ]);

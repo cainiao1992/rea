@@ -363,6 +363,87 @@ it.skipIf(process.platform !== "darwin")(
   },
 );
 
+it.skipIf(process.platform !== "darwin")(
+  "discovers a Homebrew formula layout where bin/ghidraRun sits beside the libexec tree",
+  async () => {
+    const temporaryRoot = await createTestTempDirectory("rea-ghidra-formula-");
+    const prefix = await realpath(temporaryRoot);
+    const keg = join(prefix, "Cellar", "ghidra", "12.2");
+    const libexec = join(keg, "libexec");
+    await mkdir(join(libexec, "Ghidra"), { recursive: true });
+    await mkdir(join(libexec, "support"), { recursive: true });
+    await mkdir(join(keg, "bin"), { recursive: true });
+    await mkdir(join(prefix, "bin"), { recursive: true });
+    await mkdir(join(prefix, "opt"));
+    await writeFile(
+      join(libexec, "Ghidra", "application.properties"),
+      `application.version=${SUPPORTED_GHIDRA_VERSION}\napplication.java.min=${String(SUPPORTED_GHIDRA_JAVA_MAJOR)}\n`,
+    );
+    await writeFile(
+      join(libexec, "support", "analyzeHeadless"),
+      "#!/bin/sh\nexit 0\n",
+    );
+    await chmod(join(libexec, "support", "analyzeHeadless"), 0o700);
+    await writeFile(join(keg, "bin", "ghidraRun"), "#!/bin/sh\nexit 0\n");
+    await chmod(join(keg, "bin", "ghidraRun"), 0o700);
+    await symlink(keg, join(prefix, "opt", "ghidra"));
+    await symlink(
+      join(prefix, "opt", "ghidra", "bin", "ghidraRun"),
+      join(prefix, "bin", "ghidraRun"),
+    );
+
+    const registeredRoot = join(prefix, "opt", "ghidra", "libexec");
+    expect(
+      discoverGhidraInstallationOnPath(
+        { PATH: join(prefix, "bin") },
+        process.platform,
+      ),
+    ).toBe(registeredRoot);
+
+    // Without a same-keg opt alias, the validated Cellar libexec stays as-is.
+    await unlink(join(prefix, "opt", "ghidra"));
+    await unlink(join(prefix, "bin", "ghidraRun"));
+    await symlink(
+      join(keg, "bin", "ghidraRun"),
+      join(prefix, "bin", "ghidraRun"),
+    );
+    expect(
+      discoverGhidraInstallationOnPath(
+        { PATH: join(prefix, "bin") },
+        process.platform,
+      ),
+    ).toBe(libexec);
+
+    // A same-root launcher keeps its existing behavior: no libexec sibling is
+    // required and the launcher directory itself is the installation root.
+    const standalone = join(prefix, "standalone");
+    await mkdir(join(standalone, "Ghidra"), { recursive: true });
+    await mkdir(join(standalone, "support"), { recursive: true });
+    await writeFile(
+      join(standalone, "Ghidra", "application.properties"),
+      `application.version=${SUPPORTED_GHIDRA_VERSION}\n`,
+    );
+    await writeFile(
+      join(standalone, "support", "analyzeHeadless"),
+      "#!/bin/sh\nexit 0\n",
+    );
+    await chmod(join(standalone, "support", "analyzeHeadless"), 0o700);
+    await writeFile(join(standalone, "ghidraRun"), "#!/bin/sh\nexit 0\n");
+    await chmod(join(standalone, "ghidraRun"), 0o700);
+    await unlink(join(prefix, "bin", "ghidraRun"));
+    await symlink(
+      join(standalone, "ghidraRun"),
+      join(prefix, "bin", "ghidraRun"),
+    );
+    expect(
+      discoverGhidraInstallationOnPath(
+        { PATH: join(prefix, "bin") },
+        process.platform,
+      ),
+    ).toBe(standalone);
+  },
+);
+
 it("does not fall back to PATH when an explicit Ghidra installation path is malformed", async () => {
   const inspection = await inspectGhidraInstallation(
     {
@@ -1747,7 +1828,7 @@ it.each(["arm64", "x64"] as const)(
   "discovers installed versioned Homebrew Java on macOS %s",
   async (architecture) => {
     const prefix = architecture === "arm64" ? "/opt/homebrew" : "/usr/local";
-    const command = `${prefix}/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin/java`;
+    const command = `${prefix}/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin/java`;
     const commands: string[] = [];
     const inspection = await inspectGhidraInstallation(
       {
@@ -1760,7 +1841,7 @@ it.each(["arm64", "x64"] as const)(
       host({
         directoryEntries: (directory) =>
           directory === `${prefix}/opt`
-            ? ["openjdk@21", "unrelated", "openjdk@21/../foreign"]
+            ? ["openjdk@25", "unrelated", "openjdk@25/../foreign"]
             : [],
         executable: (candidate) =>
           candidate === "/usr/bin/java" ||

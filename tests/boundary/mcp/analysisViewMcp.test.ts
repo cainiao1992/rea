@@ -458,7 +458,7 @@ it("discovers an oversized native dossier by exact metadata and reads its retain
     (tool) => tool.name === "inspect_analysis_view",
   );
   expect(advertised?.name).toBe("inspect_analysis_view");
-  const provider = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
+  const provider = { id: "ghidra", name: "Ghidra", version: "12.2" };
   const profile = createAnalysisProfile(provider, { language: "fixture" });
   const parent = createEvidence(
     { path: "/fixtures/large.exe", format: "pe", sha256: "a".repeat(64) },
@@ -977,7 +977,7 @@ it("delivers a bounded native dossier view over MCP without a Ghidra provider or
       format: "pe",
       sha256: "b".repeat(64),
     },
-    { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+    { id: "ghidra", name: "Ghidra", version: "12.2" },
     {
       operation: "analyze_function",
       parameters: { address: "0x401000" },
@@ -1108,7 +1108,7 @@ it("retains an oversized native assembly row and permits a subsequent smaller vi
   const row = "\0".repeat(1_000_000);
   const parent = createEvidence(
     { path: "/fixtures/large-row.exe", format: "pe", sha256: "c".repeat(64) },
-    { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+    { id: "ghidra", name: "Ghidra", version: "12.2" },
     {
       operation: "analyze_function",
       parameters: {},

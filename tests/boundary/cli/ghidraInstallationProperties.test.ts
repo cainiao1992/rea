@@ -21,7 +21,7 @@ cliTest.for(["pipe", "capacity"] as const)(
     await mkdir(join(install, "Ghidra"), { recursive: true });
     if (kind === "pipe") await promisify(execFile)("mkfifo", [path]);
     else {
-      await writeFile(path, "application.version=12.1.4\n");
+      await writeFile(path, "application.version=12.2\n");
       await truncate(path, MAX_GHIDRA_INSTALLATION_PROPERTIES_BYTES + 1);
     }
     const result = await cli.run({

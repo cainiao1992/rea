@@ -40,7 +40,7 @@ import {
   sameGhidraLanguageOverride,
 } from "./GhidraAnalysisProfile.js";
 
-// Abbreviated from Ghidra 12.1.4 Processors/RISCV/data/languages/riscv.ldefs.
+// Abbreviated from Ghidra 12.2 Processors/RISCV/data/languages/riscv.ldefs.
 // The release tree ships no big-endian or ELF-class-mismatched RISC-V language.
 const RISCV_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
 <language_definitions>
@@ -551,7 +551,7 @@ const sessionInfo = (reported?: GhidraRiscvCallingConventionReport) => ({
   name: "REA Ghidra bridge" as const,
   run_id: "11111111-1111-4111-8111-111111111111",
   profile_digest: "a".repeat(64),
-  provider: { id: "ghidra" as const, version: "12.1.4" },
+  provider: { id: "ghidra" as const, version: "12.2" },
   read_only: false,
   analysis_complete: true,
   analysis_timed_out: false,

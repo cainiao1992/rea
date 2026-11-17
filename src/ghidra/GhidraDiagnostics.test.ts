@@ -14,7 +14,7 @@ it("keeps request output and provenance without projecting launcher history", ()
     targetPath: "./caller-selected/../target",
     targetSha256: "a".repeat(64),
     transport: "unix-socket" as const,
-    providerVersion: "12.1.4",
+    providerVersion: "12.2",
     profileDigest: "b".repeat(64),
     runtimeRoot: "/owned/runtime",
     snapshot: { stdout: output, stderr: output, exitCode: null, signal: null },
@@ -53,7 +53,7 @@ it("keeps cached session output owned while projecting historical request coordi
     targetPath: "/selected/target",
     targetSha256: "a".repeat(64),
     transport: "unix-socket",
-    providerVersion: "12.1.4",
+    providerVersion: "12.2",
     profileDigest: "b".repeat(64),
     previous,
   });
@@ -179,7 +179,7 @@ it.each([
       targetPath: "/tmp/target",
       targetSha256: "a".repeat(64),
       transport: "unix-socket",
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: "b".repeat(64),
       previous: {},
       snapshot: {

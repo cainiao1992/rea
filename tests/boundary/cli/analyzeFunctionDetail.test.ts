@@ -21,7 +21,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 const cannedCompleteEvidence = () =>
   createEvidence(
     { path: "/fixtures/native.exe", format: "pe", sha256: "a".repeat(64) },
-    { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+    { id: "ghidra", name: "Ghidra", version: "12.2" },
     {
       operation: "analyze_function",
       parameters: { procedure: "main" },

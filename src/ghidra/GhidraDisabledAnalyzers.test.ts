@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_GHIDRA_DISABLED_ANALYZER_NAMES } from "../config/ghidraDisabledAnalyzers.js";
 import { parseConfig } from "../config/parseConfig.js";
 
-const INSTALL = "/opt/ghidra_12.1.4_PUBLIC";
+const INSTALL = "/opt/ghidra_12.2_PUBLIC";
 
 const configured = (setting?: string) => {
   const config = parseConfig({

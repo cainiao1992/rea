@@ -57,11 +57,11 @@ jobs:
           if-no-files-found: error
 
   verify:
-    name: Real Ghidra 12.1.4 Windows x64 PE proof
+    name: Real Ghidra 12.2 Windows x64 PE proof
     if: github.ref == 'refs/heads/main'
     needs: native-artifact
     environment: real-ghidra-windows
-    runs-on: [self-hosted, Windows, x64, ghidra-12-1-2]
+    runs-on: [self-hosted, Windows, x64, ghidra-12-2]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

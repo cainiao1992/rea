@@ -14,7 +14,7 @@ import {
 } from "../../../src/domain/analysisSnapshot.js";
 import { sessionOutputSchemas } from "../../../src/contracts/toolOutputSchemaGroups.js";
 
-const provider = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
+const provider = { id: "ghidra", name: "Ghidra", version: "12.2" };
 const commonTarget = {
   path: "/source-owned.elf",
   sha256: "a".repeat(64),

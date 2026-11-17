@@ -257,7 +257,7 @@ it.each(["compact"] as const)(
         batch: { total: 6, succeeded: 4, failed: 2 },
         source_provider: parent.provider,
         source_analysis_profile_digest: parent.analysis_profile?.digest,
-        decompiling_provider: { id: "ghidra", version: "12.1.4" },
+        decompiling_provider: { id: "ghidra", version: "12.2" },
         procedures: {
           distinct_resolved: 3,
           unknown_identity: 1,

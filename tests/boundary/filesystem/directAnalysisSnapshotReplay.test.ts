@@ -334,7 +334,7 @@ describe("one-shot Ghidra pseudocode snapshots", () => {
     const session = createTestBinarySession(
       fixture.createProvider({
         profile: createAnalysisProfile(
-          { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
+          { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" },
           { fixture: true },
         ),
         supportedOperations: ["procedure_pseudo_code"],
@@ -367,7 +367,7 @@ describe("one-shot Ghidra pseudocode snapshots", () => {
     async () => {
       const fixture = await createSnapshotReplayFixture("rea-one-shot-code-");
       const profile = createAnalysisProfile(
-        { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
+        { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" },
         { fixture: true },
       );
       const dependencies = fixture.dependencies(
@@ -435,7 +435,7 @@ describe("legacy one-shot Ghidra pseudocode snapshots", () => {
       const dependencies = fixture.dependencies(
         fixture.createProvider({
           profile: createAnalysisProfile(
-            { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
+            { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" },
             { fixture: true },
           ),
           supportedOperations: ["procedure_pseudo_code"],
@@ -743,7 +743,7 @@ const verifyWindowsSnapshotAdmission = async (
   await writeFile(rawPath, Buffer.from("a92a60", "hex"));
   const linked = join(dirname(fixture.path), "linked");
   const linkedPath = join(linked, basename(rawPath));
-  const identity = { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" };
+  const identity = { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" };
   const profile = createAnalysisProfile(identity, {
     fixture: true,
   });
@@ -1020,7 +1020,7 @@ describe("Ghidra composed workflow runtime-budget admission", () => {
     async ({ tool, arguments: parameters }) => {
       const fixture = await createSnapshotReplayFixture("rea-ghidra-workflow-");
       const profile = createAnalysisProfile(
-        { ...GHIDRA_PROVIDER_IDENTITY, version: "12.1.4" },
+        { ...GHIDRA_PROVIDER_IDENTITY, version: "12.2" },
         { fixture: true },
       );
       const provider: AnalysisProvider = {

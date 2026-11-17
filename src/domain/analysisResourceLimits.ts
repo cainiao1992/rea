@@ -27,7 +27,7 @@ export const DEFAULT_GHIDRA_VALUE_FLOW_MAX_INPUTS_PER_OPERATION = 64;
 export const DEFAULT_GHIDRA_VALUE_FLOW_MAX_EDGES = 12_000;
 /** Bridge counters and p-code input indices are Java signed integers. */
 export const MAXIMUM_GHIDRA_VALUE_FLOW_RECORDS = 2_147_483_647;
-/** Ghidra 12.1.4 shifts MiB by 20 into a signed Java int response capacity. */
+/** Ghidra 12.2 shifts MiB by 20 into a signed Java int response capacity. */
 export const MAXIMUM_GHIDRA_DECOMPILE_PAYLOAD_MIB = 2_047;
 
 /**
@@ -108,7 +108,7 @@ export const timerDurationMsSchema = z
   .max(MAX_NODE_TIMER_DELAY_MS);
 
 /**
- * Ghidra 12.1.4 converts whole seconds to a signed int millisecond delay.
+ * Ghidra 12.2 converts whole seconds to a signed int millisecond delay.
  * Keep that multiplication positive and exact rather than imposing a day cap.
  */
 export const MAX_GHIDRA_DECOMPILE_TIMEOUT_SECONDS = Math.floor(

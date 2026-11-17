@@ -24,7 +24,7 @@ import {
   simulatedInstallDirectory,
 } from "./GhidraInstallation.fixture.js";
 
-// Abbreviated from Ghidra 12.1.4 ppc.ldefs and x86.ldefs: the stock PowerPC
+// Abbreviated from Ghidra 12.2 ppc.ldefs and x86.ldefs: the stock PowerPC
 // default, the optional Broadway variant, and one little-endian language to refuse.
 const LANGUAGE_DEFINITIONS = `<?xml version="1.0" encoding="UTF-8"?>
 <language_definitions>

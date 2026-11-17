@@ -29,7 +29,7 @@ import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 const schemaValidation = createMcpSchemaValidation();
 afterAll(() => schemaValidation.clear());
 
-const GHIDRA = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
+const GHIDRA = { id: "ghidra", name: "Ghidra", version: "12.2" };
 const TARGET = {
   path: "/fixtures/a.macho",
   format: "mach-o" as const,

@@ -28,7 +28,7 @@ it("preserves raw and DOL verification facts and selected DOL sections through t
         format: report.format,
         architecture: report.architecture,
       },
-      { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+      { id: "ghidra", name: "Ghidra", version: "12.2" },
       {
         operation: "inspect_native_load_image",
         parameters: {},

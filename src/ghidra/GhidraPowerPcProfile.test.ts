@@ -20,7 +20,7 @@ import {
   simulatedInstallDirectory,
 } from "./GhidraInstallation.fixture.js";
 
-// Abbreviated from Ghidra 12.1.4 Processors/PowerPC/data/languages/ppc.ldefs.
+// Abbreviated from Ghidra 12.2 Processors/PowerPC/data/languages/ppc.ldefs.
 const PPC_LDEFS = `<?xml version="1.0" encoding="UTF-8"?>
 <language_definitions>
   <language processor="PowerPC" endian="big" size="32" variant="default"

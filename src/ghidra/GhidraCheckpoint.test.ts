@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import {
   chmod,
   access,
@@ -12,7 +13,7 @@ import {
   type FileHandle,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { ArtifactResourceScope } from "../resources/ArtifactResourceScope.js";
 import { createAnalysisProfile } from "../domain/analysisProfile.js";
 import { acquireOwnedLease } from "../process/OwnedLease.js";
@@ -108,7 +109,7 @@ it.skipIf(process.platform === "win32")(
   },
 );
 const profile = createAnalysisProfile(
-  { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+  { id: "ghidra", name: "Ghidra", version: "12.2" },
   { import_mode: "test" },
 );
 const target = "1".repeat(64);
@@ -288,7 +289,7 @@ it.skipIf(process.platform === "win32")(
     expect(initial).toEqual(f.selection);
     const path = join(initial.directory, "current.json");
     const record = JSON.parse(await readFile(path, "utf8"));
-    expect(record.version).toBe(2);
+    expect(record.version).toBe(3);
     expect(record.source.kind).toBe("initial-analysis");
     const unknown = JSON.stringify({ ...record, version: 1 });
     await writeFile(path, unknown);
@@ -493,5 +494,224 @@ it.skipIf(process.platform === "win32")(
     expect((await peer.acquire("physical"))?.sha256).toBe(
       owner.observation.source?.sha256,
     );
+  },
+);
+
+const writeCompanionDsym = async (targetPath: string, bytes: Buffer) => {
+  const dwarf = join(
+    `${targetPath}.dSYM`,
+    "Contents",
+    "Resources",
+    "DWARF",
+    basename(targetPath),
+  );
+  await mkdir(dirname(dwarf), { recursive: true });
+  await writeFile(dwarf, bytes);
+};
+
+it.skipIf(process.platform === "win32")(
+  "treats a target path without a sibling dSYM like an unspecified one",
+  async () => {
+    const f = await fixture();
+    const selection = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      join(f.root, "no-dsym-target"),
+    );
+    expect(selection.companion_dsym_sha256).toBeNull();
+    expect(selection.key).toBe(f.selection.key);
+    expect(selection.directory).toBe(f.selection.directory);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "keeps reusing a companion-analyzed Program when no companion is present now",
+  async () => {
+    const f = await fixture();
+    const targetPath = join(f.root, "companion-target");
+    await writeCompanionDsym(targetPath, Buffer.from("companion dwarf v1"));
+    const withCompanion = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    const owner = new GhidraCheckpoint(withCompanion, f.resources);
+    owners.push(owner);
+    await owner.acquire("first");
+    await owner.publish(f.packed);
+    await owner.close();
+    const saved = owner.observation.source!;
+    await rm(join(`${targetPath}.dSYM`), { recursive: true, force: true });
+    const without = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    expect(without.companion_dsym_sha256).toBeNull();
+    // An absent companion contributes no new evidence; the restored symbols
+    // keep their provenance in the manifest's companion commitment.
+    const reopener = new GhidraCheckpoint(without, f.resources);
+    owners.push(reopener);
+    expect(await reopener.acquire("second")).toEqual({
+      path: join(without.directory, saved.file),
+      sha256: saved.sha256,
+    });
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "does not reuse a saved Program after its companion dSYM appears",
+  async () => {
+    const f = await fixture();
+    const targetPath = join(f.root, "companion-target");
+    const without = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    expect(without.companion_dsym_sha256).toBeNull();
+    const first = new GhidraCheckpoint(without, f.resources);
+    owners.push(first);
+    await first.acquire("first");
+    await first.publish(f.packed);
+    await first.close();
+    await writeCompanionDsym(targetPath, Buffer.from("companion dwarf v1"));
+    const withCompanion = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    expect(withCompanion.companion_dsym_sha256).toBe(
+      createHash("sha256").update("companion dwarf v1").digest("hex"),
+    );
+    expect(withCompanion.key).toBe(without.key);
+    const manifestPath = join(without.directory, "current.json");
+    const before = await readFile(manifestPath, "utf8");
+    const second = new GhidraCheckpoint(withCompanion, f.resources);
+    owners.push(second);
+    // The saved Program was analyzed without the companion's DWARF symbols;
+    // restoring it now would silently ignore them, so a fresh analysis runs.
+    expect(await second.acquire("second")).toBeUndefined();
+    expect(await readFile(manifestPath, "utf8")).toBe(before);
+    const reanalyzed = join(f.root, "reanalyzed.gzf");
+    await writeFile(reanalyzed, "reanalyzed packed bytes");
+    await second.publish(reanalyzed);
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    expect(manifest.companion_dsym_sha256).toBe(
+      withCompanion.companion_dsym_sha256,
+    );
+    expect(manifest.source.kind).toBe("retained");
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "does not reuse a saved Program when the companion dSYM content changes",
+  async () => {
+    const f = await fixture();
+    const targetPath = join(f.root, "companion-target");
+    await writeCompanionDsym(targetPath, Buffer.from("companion dwarf v1"));
+    const initial = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    const owner = new GhidraCheckpoint(initial, f.resources);
+    owners.push(owner);
+    await owner.acquire("first");
+    await owner.publish(f.packed);
+    await owner.close();
+    await writeCompanionDsym(targetPath, Buffer.from("companion dwarf v2"));
+    const changed = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    expect(changed.companion_dsym_sha256).not.toBe(
+      initial.companion_dsym_sha256,
+    );
+    const resumed = new GhidraCheckpoint(changed, f.resources);
+    owners.push(resumed);
+    expect(await resumed.acquire("second")).toBeUndefined();
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "reuses a checkpoint while the companion stays byte-identical and distrusts a rewritten commitment",
+  async () => {
+    const f = await fixture();
+    const targetPath = join(f.root, "companion-target");
+    await writeCompanionDsym(targetPath, Buffer.from("companion dwarf v1"));
+    const initial = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    const owner = new GhidraCheckpoint(initial, f.resources);
+    owners.push(owner);
+    await owner.acquire("first");
+    await owner.publish(f.packed);
+    await owner.close();
+    const resumed = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    expect(resumed).toEqual(initial);
+    const reopener = new GhidraCheckpoint(resumed, f.resources);
+    owners.push(reopener);
+    const saved = owner.observation.source!;
+    expect(await reopener.acquire("second")).toEqual({
+      path: join(resumed.directory, saved.file),
+      sha256: saved.sha256,
+    });
+    await reopener.close();
+    const manifestPath = join(initial.directory, "current.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    expect(manifest.companion_dsym_sha256).toBe(initial.companion_dsym_sha256);
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        ...manifest,
+        companion_dsym_sha256: "0".repeat(64),
+      }),
+    );
+    const mismatched = await resolveGhidraCheckpoint(
+      f.root,
+      target,
+      profile,
+      f.resources,
+      undefined,
+      targetPath,
+    );
+    const distrustful = new GhidraCheckpoint(mismatched, f.resources);
+    owners.push(distrustful);
+    expect(await distrustful.acquire("third")).toBeUndefined();
   },
 );

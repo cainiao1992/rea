@@ -37,6 +37,7 @@ import {
 } from "./GhidraFileArtifacts.js";
 import { errorMessage } from "../kernel/errorMessage.js";
 import { sha256Hex } from "../kernel/sha256Hex.js";
+import { ghidraCompanionDsymDigest } from "./GhidraTargetSnapshot.js";
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const sourceSchema = z
@@ -49,9 +50,10 @@ const sourceSchema = z
 type CheckpointSource = z.infer<typeof sourceSchema>;
 const manifestSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(3),
     target_sha256: digest,
     base_profile_digest: digest,
+    companion_dsym_sha256: digest.nullable(),
     source: sourceSchema,
   })
   .strict();
@@ -73,6 +75,8 @@ export const ghidraCheckpointSelectionSchema = z
     key: digest,
     target_sha256: digest,
     base_profile_digest: digest,
+    /** Companion dSYM commitment: its content digest when one stages, else null. */
+    companion_dsym_sha256: digest.nullable(),
     state: stateSchema,
   })
   .strict();
@@ -130,11 +134,21 @@ export const hashGhidraPackedProgram = (
     },
   );
 
+interface ReadSource {
+  readonly source: CheckpointSource | null;
+  /**
+   * False when the saved Program was analyzed against a different companion
+   * dSYM commitment than the one currently beside the selected target, so a
+   * restore must not silently drop the newly available DWARF symbols.
+   */
+  readonly companionReusable: boolean;
+}
+
 async function readSource(
   selection: Omit<GhidraCheckpointSelection, "state">,
   resources: ArtifactResourceScope,
   signal?: AbortSignal,
-) {
+): Promise<ReadSource> {
   let manifest: z.infer<typeof manifestSchema>;
   try {
     manifest = await readGhidraProfileArtifact(
@@ -145,7 +159,8 @@ async function readSource(
       (bytes) => manifestSchema.parse(JSON.parse(bytes.toString("utf8"))),
     );
   } catch (cause: unknown) {
-    if (missing(cause) && !resources.hasPending) return null;
+    if (missing(cause) && !resources.hasPending)
+      return { source: null, companionReusable: true };
     throw classifyProviderFailure(
       mapArtifactFileFailure(cause, (primary) =>
         primary instanceof SyntaxError || primary instanceof z.ZodError
@@ -180,27 +195,57 @@ async function readSource(
       selection.directory,
       "the packed Program checksum differs from its manifest",
     );
-  return manifest.source;
+  // A companion dSYM beside the target is a result-affecting analysis input.
+  // The saved Program is reusable when its recorded commitment still matches
+  // the current companion, or when no companion is present now: an absent
+  // companion contributes no new evidence, and the restored symbols keep
+  // their provenance in the manifest. A present but different companion must
+  // force a new analysis rather than silently ignore the new DWARF symbols.
+  const companionReusable =
+    selection.companion_dsym_sha256 === null ||
+    manifest.companion_dsym_sha256 === selection.companion_dsym_sha256;
+  return { source: manifest.source, companionReusable };
 }
 
-/** Resolve storage and content identity once for the shared CLI/MCP analysis profile. */
+/**
+ * Resolve storage and content identity once for the shared CLI/MCP analysis
+ * profile. The selection also commits the companion dSYM's presence and
+ * content digest observed beside the selected target, so restoring a saved
+ * Program verifies that commitment instead of silently ignoring DWARF
+ * symbols that appeared or changed after the checkpoint was written.
+ */
 export async function resolveGhidraCheckpoint(
   root: string,
   targetSha256: string,
   profile: AnalysisProfileCommitment,
   resources: ArtifactResourceScope,
   signal?: AbortSignal,
+  targetPath?: string,
 ): Promise<GhidraCheckpointSelection> {
+  const companionDsymSha256 =
+    targetPath === undefined
+      ? null
+      : await ghidraCompanionDsymDigest(targetPath, resources, signal).catch(
+          (cause: unknown) => {
+            throw classifyProviderFailure(
+              cause,
+              ghidraFileDialect("resolve_analysis_profile", {}),
+            );
+          },
+        );
   const key = sha256Hex(JSON.stringify([targetSha256, profile.digest]));
   const selection = {
     directory: appendCallerPath(root, key),
     key,
     target_sha256: targetSha256,
     base_profile_digest: profile.digest,
+    companion_dsym_sha256: companionDsymSha256,
   };
   return {
     ...selection,
-    state: checkpointState(await readSource(selection, resources, signal)),
+    state: checkpointState(
+      (await readSource(selection, resources, signal)).source,
+    ),
   };
 }
 
@@ -280,7 +325,7 @@ export class GhidraCheckpoint {
     this.#lease = acquired.lease;
     this.#source = undefined;
     const current = await readSource(this.selection, this.resources, signal);
-    const generation = checkpointState(current);
+    const generation = checkpointState(current.source);
     const aligned =
       generation.kind === "initial-analysis"
         ? this.#state.kind === "initial-analysis"
@@ -292,10 +337,13 @@ export class GhidraCheckpoint {
         "the checkpoint changed after profile selection; reopen the target",
       );
     assertArtifactReadActive(signal);
-    this.#source = current;
-    return current === null
+    this.#source = current.source;
+    return current.source === null || !current.companionReusable
       ? undefined
-      : { path: join(directory, current.file), sha256: current.sha256 };
+      : {
+          path: join(directory, current.source.file),
+          sha256: current.source.sha256,
+        };
   }
 
   /** Publish a new immutable blob, then atomically replace its manifest. */
@@ -336,9 +384,10 @@ export class GhidraCheckpoint {
         [
           temporary,
           JSON.stringify({
-            version: 2,
+            version: 3,
             target_sha256: this.selection.target_sha256,
             base_profile_digest: this.selection.base_profile_digest,
+            companion_dsym_sha256: this.selection.companion_dsym_sha256,
             source,
           }),
         ],

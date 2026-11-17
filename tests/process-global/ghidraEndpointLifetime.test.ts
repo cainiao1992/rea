@@ -271,7 +271,7 @@ it
         .update(await readFile(ghidraFixturePath))
         .digest("hex"),
       transport: "authenticated-loopback-tcp",
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: "a".repeat(64),
       startupTimeoutMs: 5000,
     });

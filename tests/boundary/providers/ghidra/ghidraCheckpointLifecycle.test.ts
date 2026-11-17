@@ -69,7 +69,7 @@ it.skipIf(process.platform === "win32")(
   },
 );
 const profile = createAnalysisProfile(
-  { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+  { id: "ghidra", name: "Ghidra", version: "12.2" },
   { checkpoint_test: true },
 );
 async function fixture(
@@ -95,7 +95,7 @@ async function fixture(
     launcher,
     targetPath,
     targetSha256: sha256,
-    providerVersion: "12.1.4",
+    providerVersion: "12.2",
     profileDigest: profile.digest,
     checkpoint: selection,
     startupTimeoutMs: 10_000,
@@ -128,7 +128,7 @@ it.skipIf(process.platform === "win32")(
       launcher: f.launcher,
       targetPath: f.targetPath,
       targetSha256: f.sha256,
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: profile.digest,
       checkpoint: selection,
       startupTimeoutMs: 10_000,
@@ -218,7 +218,7 @@ it.skipIf(process.platform === "win32")(
       launcher: f.launcher,
       targetPath: f.targetPath,
       targetSha256: f.sha256,
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: profile.digest,
       checkpoint: selection,
     });

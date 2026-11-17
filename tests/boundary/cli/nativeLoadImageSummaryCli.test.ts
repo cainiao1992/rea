@@ -22,7 +22,7 @@ it("preserves the relative request path in a load-image CLI summary and its comp
   const parent = withEvidenceCallerInputPath(
     createEvidence(
       { path: "/selected.exe", sha256: "a".repeat(64), format: "dos-mz" },
-      { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+      { id: "ghidra", name: "Ghidra", version: "12.2" },
       {
         operation: "inspect_native_load_image",
         parameters: {},

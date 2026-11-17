@@ -78,7 +78,7 @@ const fixture = async (
 ) => {
   const root = await createTestTempDirectory("rea-launch-rollback-");
   const launcher = new GhidraHeadlessLauncher({
-    configurationDirectoryName: "ghidra_12.1.4_PUBLIC",
+    configurationDirectoryName: "ghidra_12.2_PUBLIC",
     environment: {},
     platform: process.platform,
     analyzeHeadlessPath: join(root, "support", "analyzeHeadless"),

@@ -22,7 +22,7 @@ const openRawArm = async (languageId: string | undefined) => {
   const path = join(directory, "image.bin");
   await writeFile(path, Buffer.from([0, 0, 160, 225]));
   const config = parseConfig({
-    GHIDRA_INSTALL_DIR: "/opt/ghidra_12.1.4_PUBLIC",
+    GHIDRA_INSTALL_DIR: "/opt/ghidra_12.2_PUBLIC",
     ...(languageId === undefined ? {} : { REA_GHIDRA_LANGUAGE_ID: languageId }),
   });
   if (!config.ok) throw config.error;

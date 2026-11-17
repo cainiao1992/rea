@@ -19,7 +19,7 @@ it.each(["decompile_failed", "future_remote_failure"])(
         targetPath: "/selected/target",
         targetSha256: "a".repeat(64),
         transport: "unix-socket",
-        providerVersion: "12.1.4",
+        providerVersion: "12.2",
         profileDigest: "b".repeat(64),
         runtimeRoot: "/owned/runtime",
         snapshot: {
@@ -49,7 +49,7 @@ it("scopes a byte-search cursor mismatch to the request", () => {
       targetPath: "/selected/target",
       targetSha256: "a".repeat(64),
       transport: "unix-socket",
-      providerVersion: "12.1.4",
+      providerVersion: "12.2",
       profileDigest: "b".repeat(64),
       runtimeRoot: "/owned/runtime",
       snapshot: {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { JADX_BRIDGE_IDENTITY } from "../../../dist/android/JadxRelease.js";
+import { jadxBridgeIdentity } from "../../../dist/android/JadxRelease.js";
 
 /** Retained Java diagnostics tail; a failing bridge can be arbitrarily noisy. */
 const STDERR_TAIL_BYTES = 64 * 1024;
@@ -64,6 +64,8 @@ export const verifyAndroidBridgeCatalog = async ({
   repository,
   jvmArguments = [],
 }) => {
+  const bridgeIdentity = jadxBridgeIdentity();
+  if (!bridgeIdentity.ok) throw new Error(bridgeIdentity.error);
   const transport = new StdioClientTransport({
     command: java,
     args: [...jvmArguments, "-classpath", jar, bridge],
@@ -80,8 +82,8 @@ export const verifyAndroidBridgeCatalog = async ({
     assert.deepEqual(
       client.getServerVersion(),
       {
-        name: JADX_BRIDGE_IDENTITY.name,
-        version: JADX_BRIDGE_IDENTITY.version,
+        name: bridgeIdentity.value.name,
+        version: bridgeIdentity.value.version,
       },
       "The bridge must report the identity REA expects",
     );
